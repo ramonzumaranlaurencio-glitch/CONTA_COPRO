@@ -1,0 +1,73 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+[2m7:19:00 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:19:08 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:26:22 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:27:01 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:27:27 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:34:14 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:44:42 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:56:18 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:56:20 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:56:23 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:58:52 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:58:59 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/workers[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m7:59:22 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/hr/cv/extract[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m11:24:26 p. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m11:27:24 p. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m1:05:53 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m1:08:10 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m1:17:30 a. m.[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/dev-token[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)

@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "timestamp": "2026-05-11T03:05:46.119620+00:00",
+    "base_url": "http://127.0.0.1:8000/api/v1",
+    "tenant_id": "11111111-1111-1111-1111-111111111111"
+  },
+  "totals": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0
+  },
+  "results": [
+    {
+      "module": "Auth",
+      "check": "dev-token",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Token generado"
+    },
+    {
+      "module": "Reports",
+      "check": "financial-pack comparative",
+      "passed": true,
+      "status_code": 200,
+      "detail": "comparison block completo"
+    },
+    {
+      "module": "Reports",
+      "check": "financial-pack xlsx",
+      "passed": true,
+      "status_code": 200,
+      "detail": "XLSX valido"
+    },
+    {
+      "module": "Reports",
+      "check": "financial-pack pdf",
+      "passed": true,
+      "status_code": 200,
+      "detail": "PDF valido"
+    },
+    {
+      "module": "Books",
+      "check": "status",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Estado de fuentes"
+    },
+    {
+      "module": "Books",
+      "check": "generate",
+      "passed": true,
+      "status_code": 200,
+      "detail": "package_id=eb455c85-c051-4d0d-820b-eefe78fdd00f"
+    },
+    {
+      "module": "Books",
+      "check": "history",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Historial consultado"
+    },
+    {
+      "module": "Books",
+      "check": "submit-sunat",
+      "passed": true,
+      "status_code": 200,
+      "detail": "73aa6c6d-a50a-47b1-95af-eba2397b235e"
+    },
+    {
+      "module": "Inventory",
+      "check": "exit with cogs",
+      "passed": true,
+      "status_code": 200,
+      "detail": "cost_entry generado"
+    },
+    {
+      "module": "Treasury",
+      "check": "import statement",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Importado"
+    },
+    {
+      "module": "Treasury",
+      "check": "auto-match",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Auto-match ejecutado"
+    },
+    {
+      "module": "SUNAT",
+      "check": "queue-status",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Estado de cola"
+    },
+    {
+      "module": "SUNAT",
+      "check": "dlq",
+      "passed": true,
+      "status_code": 200,
+      "detail": "DLQ consultada"
+    },
+    {
+      "module": "Integrations",
+      "check": "ops-status",
+      "passed": true,
+      "status_code": 200,
+      "detail": "Integraciones consultadas"
+    },
+    {
+      "module": "AI",
+      "check": "config-status",
+      "passed": true,
+      "status_code": 200,
+      "detail": "gemini_configured=True"
+    }
+  ]
+}

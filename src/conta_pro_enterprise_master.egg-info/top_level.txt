@@ -1,0 +1,13 @@
+__init__
+ai
+api
+application
+components
+config
+domain
+features
+hooks
+infrastructure
+main
+services
+styles

@@ -1,0 +1,72 @@
+:root {
+  --bg-main: #f0f2f5;
+  --bg-card: #ffffff;
+  --primary-blue: #0078d4;
+  --accent-indigo: #4f46e5;
+  --text-main: #1a1f36;
+  --text-muted: #697386;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+.dashboard-card {
+  background: #ffffff;
+  border: 1px solid #e1e1e1;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.command-bar {
+  background: #f3f2f1;
+  padding: 10px 20px;
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #d2d0ce;
+}
+
+.btn-fluent-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #0f548c;
+  border: 1px solid #bdd6f2;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-fluent-ghost:hover {
+  background: #e8f2fc;
+}
+
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(209, 213, 219, 0.3);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  transition: transform 0.2s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.metric-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px rgba(15, 84, 140, 0.08);
+}
+
+.main-layout {
+  background: radial-gradient(at 0% 0%, rgba(224, 231, 255, 0.5) 0, transparent 50%),
+    radial-gradient(at 50% 0%, rgba(232, 244, 255, 0.5) 0, transparent 50%);
+}

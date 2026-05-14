@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: contapro
+      POSTGRES_PASSWORD: contapro
+      POSTGRES_DB: contapro
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  api:
+    build: .
+    env_file: .env
+    depends_on: [postgres, redis]
+    ports: ["8000:8000"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+
+  worker:
+    build: .
+    env_file: .env
+    depends_on: [postgres, redis]
+    command: celery -A src.infrastructure.workers.celery_app.celery_app worker -Q sunat --loglevel=INFO
+
+  worker-integrations:
+    build: .
+    env_file: .env
+    depends_on: [postgres, redis]
+    command: celery -A src.infrastructure.workers.celery_app.celery_app worker -Q integrations,ai --loglevel=INFO
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.104.0
+    command: ["--config=/etc/otel-collector.yml"]
+    volumes:
+      - ./otel-collector.yml:/etc/otel-collector.yml:ro
+    ports: ["4317:4317", "4318:4318", "8889:8889"]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    depends_on: [prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:

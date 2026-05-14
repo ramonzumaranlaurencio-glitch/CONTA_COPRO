@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contapro-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: contapro-api
+  template:
+    metadata:
+      labels:
+        app: contapro-api
+    spec:
+      containers:
+        - name: api
+          image: contapro/api:enterprise
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          envFrom:
+            - secretRef:
+                name: contapro-secrets
+            - configMapRef:
+                name: contapro-config
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4317
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contapro-sunat-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contapro-sunat-worker
+  template:
+    metadata:
+      labels:
+        app: contapro-sunat-worker
+    spec:
+      containers:
+        - name: worker
+          image: contapro/api:enterprise
+          command: ["celery", "-A", "src.infrastructure.workers.celery_app.celery_app", "worker", "-Q", "sunat", "--loglevel=INFO"]
+          envFrom:
+            - secretRef:
+                name: contapro-secrets
+            - configMapRef:
+                name: contapro-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contapro-integration-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contapro-integration-worker
+  template:
+    metadata:
+      labels:
+        app: contapro-integration-worker
+    spec:
+      containers:
+        - name: worker
+          image: contapro/api:enterprise
+          command: ["celery", "-A", "src.infrastructure.workers.celery_app.celery_app", "worker", "-Q", "integrations,ai", "--loglevel=INFO"]
+          envFrom:
+            - secretRef:
+                name: contapro-secrets
+            - configMapRef:
+                name: contapro-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contapro-api
+spec:
+  selector:
+    app: contapro-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
