@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { MetricCard } from './MetricCard';
 import { PanelSection, PanelsGrid, PageLayout } from './layout';
-import { DocumentText24Regular, Activity24Regular, CheckmarkCircle24Regular, Settings24Regular, CheckmarkCircle24Filled } from '@fluentui/react-icons';
+import { DocumentText24Regular, Pulse24Regular, CheckmarkCircle24Regular, Settings24Regular, CheckmarkCircle24Filled } from '@fluentui/react-icons';
 
 type ReceivableRow = {
   accountCode: string;
@@ -98,7 +98,7 @@ export const DashboardEnterprisePremium = () => {
         <PanelSection
           title="Monitor de Envio SUNAT"
           subtitle="Estado de comunicaciones con SUNAT"
-          icon={<Activity24Regular />}
+          icon={<Pulse24Regular />}
           variant="warning"
         >
           <div className="space-y-4">

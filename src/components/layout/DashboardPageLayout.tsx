@@ -1,7 +1,7 @@
 import React from 'react';
 import { PanelSection } from './PanelSection';
 import { PanelsGrid } from './PanelsGrid';
-import { Info24Regular, Warning24Regular, CheckmarkCircle24Regular, DocumentText24Regular, Settings24Regular, Activity24Regular } from '@fluentui/react-icons';
+import { Info24Regular, Warning24Regular, CheckmarkCircle24Regular, DocumentText24Regular, Settings24Regular, Pulse24Regular } from '@fluentui/react-icons';
 
 export const DashboardPageLayout = () => {
   return (
@@ -73,7 +73,7 @@ export const DashboardPageLayout = () => {
           <PanelSection
             title="Monitor de Envio SUNAT"
             subtitle="Estado de las comunicaciones"
-            icon={<Activity24Regular />}
+            icon={<Pulse24Regular />}
             variant="warning"
           >
             <div className="space-y-3">
