@@ -1,0 +1,859 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Badge, Button, Checkbox, Field, Input, Textarea } from '@fluentui/react-components';
+import {
+  Add24Regular,
+  ArrowClockwise24Regular,
+  ArrowDownload24Regular,
+  Bot24Regular,
+  BuildingBank24Regular,
+  CalendarLtr24Regular,
+  ClipboardTask24Regular,
+  CloudArrowUp24Regular,
+  Database24Regular,
+  DocumentTable24Regular,
+  Home24Regular,
+  LockClosed24Regular,
+  Money24Regular,
+  PersonMoney24Regular,
+  Receipt24Regular,
+  Search24Regular,
+  ShieldCheckmark24Regular,
+  SlideSettings24Regular,
+  Wallet24Regular,
+} from '@fluentui/react-icons';
+import { SidePanel } from '../../components/ui/SidePanel';
+import { SaleFormEnterprise } from './SaleFormEnterprise';
+import { TenantSelector } from '../../components/layout/TenantSelector';
+import { MassiveUpload } from './MassiveUpload';
+import { PurchaseFormEnterprise, type PurchaseSubmitPayload } from './PurchaseFormEnterprise';
+import { CompliancePanel } from '../sunat/CompliancePanel';
+import { SunatMonitor } from '../sunat/SunatMonitor';
+import { AuditHealthDashboard } from '../audit/AuditHealthDashboard';
+import { PayrollGrid } from '../payroll/PayrollGrid';
+import { AssetRegister } from '../assets/AssetRegister';
+import { FinancialDashboard } from '../reports/FinancialDashboard';
+import { BooksCenter } from '../reports/BooksCenter';
+import { OwnerDashboard } from '../client-portal/OwnerDashboard';
+import { InventoryDashboard } from '../inventory/InventoryDashboard';
+import { PeriodCloseAction } from './PeriodCloseAction';
+import DashboardEnterprise from '../../components/DashboardEnterprise';
+import AccountDetailPanel from '../../components/AccountDetailPanel';
+import { LedgerAnalytic } from './LedgerAnalytic';
+
+type JournalRow = {
+  id: string;
+  date: string;
+  period: string;
+  description: string;
+  account: string;
+  costCenter: string;
+  debit: string;
+  credit: string;
+  status: string;
+  hash: string;
+  sourceModule: string;
+};
+
+type PanelType = 'VENTA' | 'COMPRA' | 'CHECKLIST' | null;
+
+type PurchaseForm = {
+  serie: string;
+  number: string;
+  supplierRuc: string;
+  subtotal: string;
+  igv: string;
+  expenseAccount: string;
+  costCenter: string;
+};
+
+type ChecklistState = {
+  conciliacionBancos: boolean;
+  validarIgv: boolean;
+  provisionCxC: boolean;
+  cdrPendientes: boolean;
+  cierreAnual: boolean;
+};
+
+type Filters = {
+  date: string;
+  period: string;
+  description: string;
+  account: string;
+  costCenter: string;
+  status: string;
+  sourceModule: string;
+};
+
+const API_BASE = '/api/v1';
+const HR_API_BASE = 'http://127.0.0.1:8001/api/v1';
+const TENANT_ID = '11111111-1111-1111-1111-111111111111';
+const USER_ID = 'erp.operator';
+const MAX_JOURNAL_ROWS = 3000;
+const MAX_RENDER_ROWS = 1200;
+
+const getTenantId = () => localStorage.getItem('tenant_id') || '11111111-1111-1111-1111-111111111111'
+
+const seedRows: JournalRow[] = [
+  { id: 'JE-2026-000184', date: '2026-05-10', period: '2026-05', description: 'Venta F001-8421 cliente enterprise', account: '1212', costCenter: 'LIM-COM', debit: '18,880.00', credit: '0.00', status: 'SUNAT', hash: '9b82c5f0f6e4142a', sourceModule: 'VENTAS' },
+  { id: 'JE-2026-000183', date: '2026-05-10', period: '2026-05', description: 'IGV venta F001-8421', account: '4011', costCenter: 'LIM-COM', debit: '0.00', credit: '2,880.00', status: 'SUNAT', hash: '715ece7f3a0a920b', sourceModule: 'VENTAS' },
+  { id: 'JE-2026-000182', date: '2026-05-09', period: '2026-05', description: 'Depreciacion servidores nube', account: '681', costCenter: 'TI-CORE', debit: '4,200.00', credit: '0.00', status: 'POSTED', hash: '71dcb0bc69c0db87', sourceModule: 'ACTIVOS' },
+  { id: 'JE-2026-000181', date: '2026-05-09', period: '2026-05', description: 'Diferencia de cambio cartera USD', account: '676', costCenter: 'FIN-TES', debit: '930.40', credit: '0.00', status: 'POSTED', hash: 'ebc76550a47cb24d', sourceModule: 'TESORERIA' },
+  { id: 'JE-2026-000180', date: '2026-05-08', period: '2026-05', description: 'Provision cobranza dudosa', account: '684', costCenter: 'FIN-CXC', debit: '1,540.00', credit: '0.00', status: 'REVIEW', hash: 'b41c9e310a946145', sourceModule: 'CXC/CXP' },
+];
+
+const metricCards = [
+  ['Caja', 'S/ 482,900.00'],
+  ['CXC', 'S/ 1,284,320.10'],
+  ['CXP', 'S/ 712,008.44'],
+  ['IGV', 'S/ 86,240.00'],
+  ['Resultado', 'S/ 392,600.18'],
+];
+
+const railItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: Home24Regular },
+  { id: 'contabilidad', label: 'Contabilidad', icon: DocumentTable24Regular },
+  { id: 'libros', label: 'Libros', icon: ClipboardTask24Regular },
+  { id: 'inventario', label: 'Inventario', icon: Database24Regular },
+  { id: 'owner', label: 'Owner Portal', icon: Database24Regular },
+  { id: 'ventas', label: 'Ventas', icon: Receipt24Regular },
+  { id: 'compras', label: 'Compras', icon: Money24Regular },
+  { id: 'tesoreria', label: 'Tesoreria', icon: Wallet24Regular },
+  { id: 'cxcxp', label: 'CXC/CXP', icon: BuildingBank24Regular },
+  { id: 'planillas', label: 'Planillas', icon: PersonMoney24Regular },
+  { id: 'integraciones', label: 'Integraciones', icon: Database24Regular },
+  { id: 'config', label: 'Configuracion', icon: SlideSettings24Regular },
+];
+
+const toNumber = (value: string | number | undefined | null) => {
+  const parsed = Number.parseFloat(String(value ?? '0').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toCsv = (data: Array<Record<string, unknown>>) => {
+  if (!data.length) {
+    return 'sin datos';
+  }
+  const headers = Object.keys(data[0]);
+  const lines = [headers.join(',')];
+  for (const item of data) {
+    lines.push(headers.map((header) => `"${String(item[header] ?? '').split('"').join('""')}"`).join(','));
+  }
+  return lines.join('\n');
+};  
+
+const downloadFile = (filename: string, content: string, type: string) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+export const EnterpriseWorkspace = () => {
+  
+  const [rows, setRows] = useState<JournalRow[]>(seedRows);
+  const [selectedRow, setSelectedRow] = useState<JournalRow>(seedRows[0]);
+  const [token, setToken] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [railExpanded, setRailExpanded] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelType>(null);
+  const [statusMessage, setStatusMessage] = useState('Inicializando CONTA_PRO Enterprise...');
+  const [aiMessage, setAiMessage] = useState('Motor IA en espera');
+  const [copilotQuestion, setCopilotQuestion] = useState('Detecta riesgos SUNAT y diferencias materiales de mayo 2026.');
+  const [isRunningAi, setIsRunningAi] = useState(false);
+  const [selectedView, setSelectedView] = useState('dashboard');
+  const [accountDetailOpen, setAccountDetailOpen] = useState(false);
+  const bootstrapRanRef = useRef(false);
+
+  const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>({
+    serie: 'E001',
+    number: '558',
+    supplierRuc: '20567891234',
+    subtotal: '4900.00',
+    igv: '882.00',
+    expenseAccount: '6011',
+    costCenter: 'LIM-ADM',
+  });
+
+  const [checklist, setChecklist] = useState<ChecklistState>({
+    conciliacionBancos: true,
+    validarIgv: false,
+    provisionCxC: false,
+    cdrPendientes: true,
+    cierreAnual: false,
+  });
+
+  const [filters, setFilters] = useState<Filters>({
+    date: '',
+    period: '',
+    description: '',
+    account: '',
+    costCenter: '',
+    status: '',
+    sourceModule: '',
+  });
+
+  const totals = useMemo(() => ({
+    entries: rows.length,
+    locked: rows.filter((row) => row.status !== 'REVIEW').length,
+  }), [rows]);
+
+  const filteredRows = useMemo(() => {
+    const contains = (value: string, needle: string) => value.toLowerCase().includes(needle.toLowerCase());
+    return rows.filter((row) =>
+      contains(row.date, filters.date)
+      && contains(row.period, filters.period)
+      && contains(row.description, filters.description)
+      && contains(row.account, filters.account)
+      && contains(row.costCenter, filters.costCenter)
+      && contains(row.status, filters.status)
+      && contains(row.sourceModule, filters.sourceModule),
+    );
+  }, [rows, filters]);
+
+  const visibleRows = useMemo(() => filteredRows.slice(0, MAX_RENDER_ROWS), [filteredRows]);
+
+  const authHeaders = (bearerToken: string, tenantId = TENANT_ID) => ({
+    Authorization: `Bearer ${bearerToken}`,
+    'X-Tenant-Id': tenantId,
+    'Content-Type': 'application/json',
+  });
+
+  const requestDevToken = async () => {
+    const response = await fetch(`${API_BASE}/auth/dev-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: getTenantId(), user_id: USER_ID, role: 'ADMIN' }),
+    });
+    if (!response.ok) {
+      throw new Error('No se pudo generar token dev');
+    }
+    const payload = await response.json();
+    return payload.access_token as string;
+  };
+
+  const loadJournal = async (bearerToken: string) => {
+    const response = await fetch(`${API_BASE}/ledger/journal?year=2026&month=5&limit=250`, {
+      headers: authHeaders(bearerToken),
+    });
+    if (!response.ok) {
+      throw new Error('No se pudo consultar libro diario');
+    }
+    const payload = await response.json();
+    const payloadRows = Array.isArray(payload) ? payload.slice(0, MAX_JOURNAL_ROWS) : [];
+    const mapped = payloadRows.map((item, index) => ({
+      id: item.id ?? `JE-${index + 1}`,
+      date: item.entry_date ?? '2026-05-01',
+      period: item.period || '2026-05',
+      description: item.description || 'Sin descripcion',
+      account: item.account_code ?? item.account ?? item.expense_account ?? item.lines?.[0]?.account_code ?? 'N/A',
+      costCenter: item.cost_center ?? item.costCenter ?? item.lines?.[0]?.cost_center ?? 'N/A',
+      debit: item.total_debit ?? '0.00',
+      credit: item.total_credit ?? '0.00',
+      status: item.sunat_status ?? 'POSTED',
+      hash: item.row_hash ?? 'sin-hash',
+      sourceModule: item.source_module ?? 'ACCOUNTING',
+    }));
+    const resultRows = mapped.length ? mapped : seedRows;
+    setRows(resultRows);
+    setSelectedRow(resultRows[0]);
+    if (Array.isArray(payload) && payload.length > MAX_JOURNAL_ROWS) {
+      setStatusMessage(`Libro diario truncado a ${MAX_JOURNAL_ROWS} asientos para proteger rendimiento.`);
+    }
+  };
+
+  useEffect(() => {
+    if (bootstrapRanRef.current) {
+      return;
+    }
+    bootstrapRanRef.current = true;
+
+    let cancelled = false;
+    const bootstrap = async () => {
+      try {
+        const generatedToken = await requestDevToken();
+        if (cancelled) {
+          return;
+        }
+        setToken(generatedToken);
+        await loadJournal(generatedToken);
+        setStatusMessage('Conectado: SPA enterprise operando con API real.');
+        setAiMessage('Motor IA: Gemini-ready + pgvector-ready.');
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setRows(seedRows);
+        setSelectedRow(seedRows[0]);
+        setStatusMessage('Backend no disponible. Modo local operativo.');
+        setAiMessage('Motor IA sin conexion.');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+   
+  const postPurchase = async (purchasePayload: PurchaseSubmitPayload) => {
+    const tenantId = getTenantId();
+
+    const tokenResponse = await fetch(`${API_BASE}/auth/dev-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        user_id: USER_ID,
+        role: 'ADMIN',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(await tokenResponse.text());
+    }
+
+    const tokenPayload = await tokenResponse.json();
+    const purchaseToken = tokenPayload.access_token;
+
+    if (!purchaseToken) {
+      setStatusMessage('No hay token de seguridad para registrar compra.');
+      return;
+    }
+
+    const formSource = purchasePayload.form;
+    const subtotal = toNumber(purchasePayload.subtotal);
+    const igv = toNumber(purchasePayload.igv);
+    const total = toNumber(purchasePayload.total);
+
+    const payload = {
+      tenant_id: tenantId,
+      year: 2026,
+      month: 5,
+      purchase_id: `${formSource.serie}-${formSource.number}`,
+      supplier_ruc: formSource.supplierRuc,
+      supplier_name: purchasePayload.supplierName,
+      issue_date: purchasePayload.issueDate,
+      doc_type: '01',
+      serie: formSource.serie,
+      number: formSource.number,
+      subtotal,
+      igv,
+      total,
+      currency: 'PEN',
+      expense_account: formSource.expenseAccount,
+      cost_center: formSource.costCenter,
+      items: purchasePayload.items.map((item) => ({
+        code: item.code,
+        description: item.description,
+        unit: item.unit,
+        quantity: toNumber(item.quantity),
+        unit_price: toNumber(item.unitPrice),
+        line_subtotal: toNumber(item.lineSubtotal),
+        account_code: item.accountCode,
+        account_name: item.accountName,
+        cost_center: item.costCenter,
+        tax_treatment: item.taxTreatment,
+        ai_reason: item.aiReason,
+        ai_confidence: item.aiConfidence,
+      })),
+      account_lines: purchasePayload.accountLines.map((line) => ({
+        account_code: line.accountCode,
+        account_name: line.accountName,
+        cost_center: line.costCenter,
+        debit: toNumber(line.debit),
+        credit: toNumber(line.credit),
+        line_type: line.lineType,
+        tax_treatment: line.taxTreatment,
+      })),
+      accounts_to_upsert: purchasePayload.accountsToUpsert,
+      cost_centers_to_upsert: purchasePayload.costCentersToUpsert,
+      audit_metadata: purchasePayload.auditMetadata,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/ledger/purchase-invoice`, {
+        method: 'POST',
+        headers: authHeaders(purchaseToken, tenantId),
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      setStatusMessage(`Compra ${formSource.serie}-${formSource.number} posteada con cuentas y centros de costo.`);
+      setActivePanel(null);
+      await loadJournal(purchaseToken);
+    } catch (error) {
+      setStatusMessage(`No se pudo postear compra. ${error instanceof Error ? error.message : ''}`);
+      throw error;
+    }
+  };
+
+  const exportExcel = () => {
+    const csv = toCsv(rows.map((row) => ({
+      asiento: row.id,
+      fecha: row.date,
+      periodo: row.period,
+      glosa: row.description,
+      cuenta: row.account,
+      cc: row.costCenter,
+      debe: row.debit,
+      haber: row.credit,
+      estado: row.status,
+      modulo: row.sourceModule,
+      hash: row.hash,
+    })));
+    downloadFile('libro-diario-2026-05.csv', csv, 'text/csv;charset=utf-8;');
+    setStatusMessage('Exportacion Excel (CSV) completada.');
+  };
+
+  const exportPdf = () => {
+    const preview = window.open('', '_blank', 'width=980,height=720');
+    if (!preview) {
+      setStatusMessage('La ventana de exportacion PDF fue bloqueada por el navegador.');
+      return;
+    }
+    const lines = filteredRows.slice(0, 30).map((row) => `<tr><td>${row.date}</td><td>${row.period}</td><td>${row.description}</td><td style="text-align:right">${row.debit}</td><td style="text-align:right">${row.credit}</td></tr>`).join('');
+    preview.document.write(`
+      <html>
+        <head><title>Reporte Diario</title></head>
+        <body style="font-family:Segoe UI,Arial,sans-serif;padding:20px;">
+          <h1>CONTA_PRO Enterprise - Libro Diario</h1>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr><th style="border:1px solid #ddd;padding:6px;text-align:left">Fecha</th><th style="border:1px solid #ddd;padding:6px;text-align:left">Periodo</th><th style="border:1px solid #ddd;padding:6px;text-align:left">Glosa</th><th style="border:1px solid #ddd;padding:6px;text-align:right">Debe</th><th style="border:1px solid #ddd;padding:6px;text-align:right">Haber</th></tr></thead>
+            <tbody>${lines}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    preview.document.close();
+    preview.focus();
+    preview.print();
+    setStatusMessage('Vista PDF lista para imprimir/guardar.');
+  };
+
+  const runAi = async (mode: 'anomalies' | 'preclosure' | 'copilot') => {
+    if (!token) {
+      setAiMessage('No hay token para ejecutar IA.');
+      return;
+    }
+
+    setIsRunningAi(true);
+
+    try {
+      let endpoint = `${API_BASE}/ai/anomalies?year=2026&month=5`;
+      let body: string | undefined;
+
+      if (mode === 'preclosure') {
+        endpoint = `${API_BASE}/ai/audit/pre-closure?year=2026&month=5`;
+      }
+
+      if (mode === 'copilot') {
+        endpoint = `${API_BASE}/ai/copilot`;
+        body = JSON.stringify({ question: copilotQuestion });
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body,
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const payload = await response.json();
+      setAiMessage(`Respuesta IA: ${JSON.stringify(payload).slice(0, 320)}`);
+    } catch {
+      setAiMessage('Error del motor IA. Revisa Gemini/pgvector/credenciales.');
+    } finally {
+      setIsRunningAi(false);
+    }
+  };
+
+  const panelTitle = activePanel === 'VENTA'
+    ? 'Registro de Ventas'
+    : activePanel === 'COMPRA'
+      ? 'Registro de Compras'
+      : 'Checklist de Cierre';
+
+  const refreshJournal = async () => {
+    if (token) {
+      await loadJournal(token);
+      setStatusMessage('Asientos actualizados desde backend.');
+      return;
+    }
+    setRows(seedRows);
+    setSelectedRow(seedRows[0]);
+    setStatusMessage('Asientos actualizados en modo local.');
+  };
+
+  const renderPrimaryView = () => {
+    if (selectedView === 'dashboard') {
+      return <DashboardEnterprise />;
+    }
+    if (selectedView === 'owner') {
+      return <OwnerDashboard />;
+    }
+    if (selectedView === 'inventario') {
+      return <InventoryDashboard apiBase={API_BASE} token={token} tenantId={TENANT_ID} onStatus={setStatusMessage} />;
+    }
+    if (selectedView === 'libros') {
+      return <BooksCenter apiBase={API_BASE} tenantId={TENANT_ID} />;
+    }
+    if (selectedView === 'ventas') {
+      return <MassiveUpload />;
+    }
+    if (selectedView === 'integraciones') {
+      return <SunatMonitor />;
+    }
+    if (selectedView === 'config') {
+      return <CompliancePanel />;
+    }
+    if (selectedView === 'tesoreria') {
+      return <AssetRegister />;
+    }
+    if (selectedView === 'cxcxp') {
+      return <FinancialDashboard />;
+    }
+    if (selectedView === 'planillas') {
+      return <PayrollGrid apiBase={HR_API_BASE} token={token} tenantId={TENANT_ID} onStatus={setStatusMessage} />;
+    }
+    if (selectedView === 'compras') {
+      return <AuditHealthDashboard />;
+    }
+    
+    if (selectedView === 'contabilidad') {
+        return (
+    
+        <div className="p-4 bg-[#e0e5ec] h-full overflow-auto">
+          <PeriodCloseAction />
+          <div className="mt-4 unified-accounting-view">
+            <section className="grid-shell enterprise-neo-card unified-accounting-main">
+              <div className="grid-header-row sticky-top enterprise-table-header">
+                <span>Fecha</span>
+                <span>Periodo</span>
+                <span>Glosa</span>
+                <span>Cuenta</span>
+                <span>CC</span>
+                <span>Debe</span>
+                <span>Haber</span>
+                <span>Estado</span>
+                <span>Modulo</span>
+                <span>Hash</span>
+              </div>
+
+              <div className="grid-header-row filters sticky-filters">
+                <Input size="small" value={filters.date} onChange={(_, data) => setFilters((prev) => ({ ...prev, date: data.value }))} />
+                <Input size="small" value={filters.period} onChange={(_, data) => setFilters((prev) => ({ ...prev, period: data.value }))} />
+                <Input size="small" value={filters.description} onChange={(_, data) => setFilters((prev) => ({ ...prev, description: data.value }))} />
+                <Input size="small" value={filters.account} onChange={(_, data) => setFilters((prev) => ({ ...prev, account: data.value }))} />
+                <Input size="small" value={filters.costCenter} onChange={(_, data) => setFilters((prev) => ({ ...prev, costCenter: data.value }))} />
+                <span />
+                <span />
+                <Input size="small" value={filters.status} onChange={(_, data) => setFilters((prev) => ({ ...prev, status: data.value }))} />
+                <Input size="small" value={filters.sourceModule} onChange={(_, data) => setFilters((prev) => ({ ...prev, sourceModule: data.value }))} />
+                <span />
+              </div>
+
+              {loading ? (
+                <div className="grid-skeleton">
+                  {Array.from({ length: 12 }).map((_, index) => (
+                    <div key={index} className="skeleton-row" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid-body erp-scroll">
+                  {visibleRows.map((row, idx) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      className={`grid-row enterprise-row-hover ${idx % 2 === 1 ? 'alt' : ''} ${row.id === selectedRow.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedRow(row)}
+                    >
+                      <span>{row.date}</span>
+                      <span>{row.period}</span>
+                      <span className="truncate">{row.description}</span>
+                      <span>{row.account}</span>
+                      <span>{row.costCenter}</span>
+                      <span className="money">{row.debit}</span>
+                      <span className="money">{row.credit}</span>
+                      <span>{row.status}</span>
+                      <span>{row.sourceModule}</span>
+                      <span className="hash truncate">{row.hash}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className="enterprise-neo-card unified-accounting-side">
+              <h3 className="unified-analytic-title">DETALLE ANALITICO</h3>
+              <div className="unified-analytic-box">
+                {selectedRow ? (
+                  <div className="unified-analytic-content">
+                    <p><strong>Asiento:</strong> {selectedRow.id}</p>
+                    <p><strong>Fecha:</strong> {selectedRow.date}</p>
+                    <p><strong>Periodo:</strong> {selectedRow.period}</p>
+                    <p><strong>Cuenta:</strong> {selectedRow.account}</p>
+                    <p><strong>CC:</strong> {selectedRow.costCenter}</p>
+                    <p><strong>Estado:</strong> {selectedRow.status}</p>
+                    <p><strong>Modulo:</strong> {selectedRow.sourceModule}</p>
+                    <p><strong>Debe:</strong> {selectedRow.debit}</p>
+                    <p><strong>Haber:</strong> {selectedRow.credit}</p>
+                    <p className="unified-hash-line"><strong>HASH:</strong> {selectedRow.hash}</p>
+                  </div>
+                ) : (
+                  <p className="unified-empty-note">Seleccione un movimiento para ver el HASH de inmutabilidad.</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <section className="grid-shell">
+        <div className="grid-header-row sticky-top">
+          <span>Fecha</span>
+          <span>Periodo</span>
+          <span>Glosa</span>
+          <span>Cuenta</span>
+          <span>CC</span>
+          <span>Debe</span>
+          <span>Haber</span>
+          <span>Estado</span>
+          <span>Modulo</span>
+          <span>Hash</span>
+        </div>
+
+        <div className="grid-header-row filters sticky-filters">
+          <Input size="small" value={filters.date} onChange={(_, data) => setFilters((prev) => ({ ...prev, date: data.value }))} />
+          <Input size="small" value={filters.period} onChange={(_, data) => setFilters((prev) => ({ ...prev, period: data.value }))} />
+          <Input size="small" value={filters.description} onChange={(_, data) => setFilters((prev) => ({ ...prev, description: data.value }))} />
+          <Input size="small" value={filters.account} onChange={(_, data) => setFilters((prev) => ({ ...prev, account: data.value }))} />
+          <Input size="small" value={filters.costCenter} onChange={(_, data) => setFilters((prev) => ({ ...prev, costCenter: data.value }))} />
+          <span />
+          <span />
+          <Input size="small" value={filters.status} onChange={(_, data) => setFilters((prev) => ({ ...prev, status: data.value }))} />
+          <Input size="small" value={filters.sourceModule} onChange={(_, data) => setFilters((prev) => ({ ...prev, sourceModule: data.value }))} />
+          <span />
+        </div>
+
+        {loading ? (
+          <div className="grid-skeleton">
+            {Array.from({ length: 12 }).map((_, index) => (
+              <div key={index} className="skeleton-row" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid-body erp-scroll">
+            {visibleRows.map((row, idx) => (
+              <button
+                key={row.id}
+                type="button"
+                className={`grid-row ${idx % 2 === 1 ? 'alt' : ''} ${row.id === selectedRow.id ? 'selected' : ''}`}
+                onClick={() => setSelectedRow(row)}
+              >
+                <span>{row.date}</span>
+                <span>{row.period}</span>
+                <span className="truncate">{row.description}</span>
+                <span>{row.account}</span>
+                <span>{row.costCenter}</span>
+                <span className="money">{row.debit}</span>
+                <span className="money">{row.credit}</span>
+                <span>{row.status}</span>
+                <span>{row.sourceModule}</span>
+                <span className="hash truncate">{row.hash}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  return (
+    <div className="enterprise-shell">
+      <header className="enterprise-topbar">
+        <div className="brand-wrap">
+          <BuildingBank24Regular />
+          <strong>CONTA_PRO Enterprise</strong>
+          <Badge appearance="filled" color="brand">SPA Enterprise</Badge>
+          <TenantSelector />
+        </div>
+        <Input contentBefore={<Search24Regular />} placeholder="Buscar RUC, asiento, hash, XML" className="top-search" />
+        <div className="top-right-badges">
+          <Badge appearance="outline" icon={<LockClosed24Regular />}>Tenant aislado</Badge>
+          <Badge appearance="outline" icon={<ShieldCheckmark24Regular />}>Auditoria activa</Badge>
+        </div>
+      </header>
+
+      <div className="enterprise-body">
+        <aside
+          className={`nav-rail sidebar-container ${railExpanded ? 'expanded' : ''}`}
+          onMouseEnter={() => setRailExpanded(true)}
+          onMouseLeave={() => setRailExpanded(false)}
+        >
+          {railItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} className={`rail-item nav-link ${selectedView === item.id ? 'active' : ''}`} type="button" onClick={() => setSelectedView(item.id)}>
+                <Icon />
+                <span className="rail-label">{item.label}</span>
+              </button>
+            );
+          })}
+        </aside>
+
+        <main className="workspace-main">
+          <div className="command-bar">
+            <div className="command-group">
+              <button className="btn-fluent-primary" type="button" onClick={() => setActivePanel('VENTA')}>
+                <Add24Regular />
+                <span>Registrar Venta</span>
+              </button>
+              <button className="btn-fluent-primary" type="button" onClick={() => setActivePanel('COMPRA')}>
+                <Money24Regular />
+                <span>Registrar Compra</span>
+              </button>
+            </div>
+
+            <div className="command-divider" />
+
+            <div className="command-group">
+              <button className="pro-btn soft" type="button" onClick={exportExcel}>
+                <ArrowDownload24Regular />
+                <span>Excel</span>
+              </button>
+              <button className="pro-btn soft" type="button" onClick={exportPdf}>
+                <ClipboardTask24Regular />
+                <span>PDF</span>
+              </button>
+              <button className="pro-btn soft" type="button" onClick={() => setActivePanel('CHECKLIST')}>
+                <CalendarLtr24Regular />
+                <span>Checklist</span>
+              </button>
+            </div>
+
+            <div className="command-divider" />
+
+            <div className="command-group">
+              <button className="pro-btn soft" type="button" onClick={() => runAi('anomalies')}>
+                <Bot24Regular />
+                <span>Anomalias IA</span>
+              </button>
+              <button className="pro-btn soft" type="button" onClick={() => runAi('preclosure')}>
+                <CloudArrowUp24Regular />
+                <span>Pre-cierre IA</span>
+              </button>
+            </div>
+
+            <div className="command-divider" />
+
+            <button className="icon-btn" type="button" onClick={refreshJournal}>
+              <ArrowClockwise24Regular />
+            </button>
+          </div>
+
+          <div className="status-strip">{statusMessage}</div>
+
+          <section className="metric-strip">
+            {metricCards.map(([label, value]) => (
+              <article key={label} className="metric-card">
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </article>
+            ))}
+          </section>
+
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {renderPrimaryView()}
+          </div>
+
+          <footer className="assistant-bar">
+            <div className="assistant-title">
+              <Bot24Regular />
+              <strong>Motor IA</strong>
+              <span>{aiMessage}</span>
+            </div>
+            <div className="assistant-actions">
+              <Input value={copilotQuestion} onChange={(_, data) => setCopilotQuestion(data.value)} placeholder="Pregunta al copiloto..." />
+              <Button appearance="primary" onClick={() => runAi('copilot')} disabled={isRunningAi}>Ejecutar</Button>
+              {selectedView === 'contabilidad' && (
+                <Button appearance="secondary" onClick={() => setAccountDetailOpen(true)}>
+                  Ver mayor analitico
+                </Button>
+              )}
+            </div>
+          </footer>
+        </main>
+      </div>
+
+      <SidePanel
+        isOpen={activePanel !== null}
+        onClose={() => setActivePanel(null)}
+        title={panelTitle}
+        footer={null}
+      >
+        {activePanel === 'VENTA' && (
+          <SaleFormEnterprise
+            token={token}
+            tenantId={TENANT_ID}
+            onClose={() => setActivePanel(null)}
+            onPosted={refreshJournal}
+            onStatus={setStatusMessage}
+          />
+        )}
+
+        {activePanel === 'COMPRA' && (
+          <PurchaseFormEnterprise
+            form={purchaseForm}
+            onFormChange={setPurchaseForm}
+            tenantId={getTenantId()}
+            onClose={() => setActivePanel(null)}
+            onSubmit={postPurchase}
+          />
+        )}
+
+        {activePanel === 'CHECKLIST' && (
+          <div className="sheet-form">
+            <Checkbox label="Conciliacion bancaria completada" checked={checklist.conciliacionBancos} onChange={(_, data) => setChecklist((prev) => ({ ...prev, conciliacionBancos: !!data.checked }))} />
+            <Checkbox label="Validacion IGV y detracciones" checked={checklist.validarIgv} onChange={(_, data) => setChecklist((prev) => ({ ...prev, validarIgv: !!data.checked }))} />
+            <Checkbox label="Provision CxC 90+ dias" checked={checklist.provisionCxC} onChange={(_, data) => setChecklist((prev) => ({ ...prev, provisionCxC: !!data.checked }))} />
+            <Checkbox label="CDR pendientes revisados" checked={checklist.cdrPendientes} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cdrPendientes: !!data.checked }))} />
+            <Checkbox label="Pre-cierre anual documentado" checked={checklist.cierreAnual} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cierreAnual: !!data.checked }))} />
+            <Field label="Notas del controlador">
+              <Textarea resize="vertical" defaultValue="Checklist de cierre listo para auditoria." />
+            </Field>
+            <div className="sheet-footer" style={{ position: 'static', borderTop: 'none', padding: 0 }}>
+              <Button appearance="secondary" onClick={() => setActivePanel(null)}>Cerrar</Button>
+              <button type="button" className="btn-fluent-primary" onClick={() => setActivePanel(null)}>Guardar Checklist</button>
+            </div>
+          </div>
+        )}
+      </SidePanel>
+
+      <AccountDetailPanel
+        accountCode={selectedRow.account}
+        isOpen={accountDetailOpen}
+        onClose={() => setAccountDetailOpen(false)}
+      >
+        <LedgerAnalytic accountCode={selectedRow.account} />
+      </AccountDetailPanel>
+    </div>
+ );
+ };
+ 
