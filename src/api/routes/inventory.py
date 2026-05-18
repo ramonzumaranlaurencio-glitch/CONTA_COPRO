@@ -52,11 +52,13 @@ class MovementCreatePayload(BaseModel):
     unit_cost: Decimal | None = None
     movement_reference: str | None = None
     source_document: str | None = None
-    post_cost_entry: bool = False
+    post_cost_entry: bool = True
     year: int | None = None
     month: int | None = None
     cogs_account: str = "6911"
     inventory_account: str = "2011"
+    adjustment_account: str = "7599"
+    cost_center: str = "INV-OPS"
 
 
 @router.post("/products")
@@ -142,30 +144,21 @@ async def register_movement(payload: MovementCreatePayload, request: Request, ct
         await uow.commit()
 
     response = {**result.__dict__}
-    if payload.post_cost_entry and payload.movement_type.upper() == "EXIT":
+    if payload.post_cost_entry:
+        movement_type = payload.movement_type.upper()
         effective_qty = Decimal(str(result.qty))
         effective_cost = Decimal(str(result.unit_cost))
         total_cost = (effective_qty * effective_cost).quantize(Decimal("0.01"))
         current_date = date.today()
-        posting_payload = {
-            "tenant_id": payload.tenant_id,
-            "year": payload.year or current_date.year,
-            "month": payload.month or current_date.month,
-            "entry_date": current_date,
-            "description": f"Costo de ventas por salida inventario {payload.movement_reference or result.movement_id}",
-            "source_module": "INVENTORY_COGS",
-            "source_id": result.movement_id,
-            "currency": "PEN",
-            "user_id": _safe_user_uuid(ctx.get("user_id")),
-            "trace_id": ctx["trace_id"],
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("user-agent"),
-            "lines": [
+        if movement_type == "EXIT":
+            description = f"Costo de ventas por salida inventario {payload.movement_reference or result.movement_id}"
+            lines = [
                 {
                     "account_code": payload.cogs_account,
                     "account_name": "Costo de ventas",
                     "debit": total_cost,
                     "credit": Decimal("0.00"),
+                    "cost_center": payload.cost_center,
                     "document_number": payload.source_document,
                 },
                 {
@@ -175,13 +168,49 @@ async def register_movement(payload: MovementCreatePayload, request: Request, ct
                     "credit": total_cost,
                     "document_number": payload.source_document,
                 },
-            ],
+            ]
+        elif movement_type == "ENTRY":
+            description = f"Ingreso inventario {payload.movement_reference or result.movement_id}"
+            lines = [
+                {
+                    "account_code": payload.inventory_account,
+                    "account_name": "Inventarios",
+                    "debit": total_cost,
+                    "credit": Decimal("0.00"),
+                    "document_number": payload.source_document,
+                },
+                {
+                    "account_code": payload.adjustment_account,
+                    "account_name": "Ajuste positivo de inventario",
+                    "debit": Decimal("0.00"),
+                    "credit": total_cost,
+                    "document_number": payload.source_document,
+                },
+            ]
+        else:
+            raise HTTPException(status_code=422, detail="movement_type debe ser ENTRY o EXIT")
+
+        posting_payload = {
+            "tenant_id": payload.tenant_id,
+            "year": payload.year or current_date.year,
+            "month": payload.month or current_date.month,
+            "entry_date": current_date,
+            "description": description,
+            "source_module": "INVENTORY",
+            "source_id": result.movement_id,
+            "currency": "PEN",
+            "user_id": _safe_user_uuid(ctx.get("user_id")),
+            "trace_id": ctx["trace_id"],
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+            "lines": lines,
         }
         entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting_payload)
         response["cost_entry"] = {
             "entry_id": str(entry.id),
             "row_hash": entry.row_hash,
             "amount": str(total_cost),
+            "movement_type": movement_type,
             "cogs_account": payload.cogs_account,
             "inventory_account": payload.inventory_account,
         }

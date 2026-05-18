@@ -56,6 +56,7 @@ type PayrollGridProps = {
   token?: string;
   tenantId?: string;
   onStatus?: (message: string) => void;
+  onJournalPosted?: () => void | Promise<void>;
 };
 
 type PayrollView = 'registro' | 'cv' | 'requisitos' | 'contrato' | 'boleta';
@@ -166,6 +167,18 @@ const hiringRequirements: RequirementItem[] = [
 
 const DEFAULT_TENANT_ID = '11111111-1111-1111-1111-111111111111';
 const DEV_USER_ID = '22222222-2222-2222-2222-222222222222';
+
+const tokenTenantId = (value?: string | null) => {
+  try {
+    const payload = String(value || '').split('.')[1];
+    if (!payload) return '';
+    const padded = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=');
+    const decoded = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
+    return String(decoded.tenant_id || '');
+  } catch {
+    return '';
+  }
+};
 
 const createRequirementRecords = (): RequirementRecord[] => {
   const now = new Date().toISOString();
@@ -373,7 +386,7 @@ const complianceMeta = (status?: string) => {
   return { label: 'Pendiente', className: 'pending' };
 };
 
-export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', onStatus }: PayrollGridProps) => {
+export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', onStatus, onJournalPosted }: PayrollGridProps) => {
   const effectiveTenantId = tenantId || DEFAULT_TENANT_ID;
   const [runtimeToken, setRuntimeToken] = useState('');
   const [form, setForm] = useState<WorkerForm>(emptyForm);
@@ -387,6 +400,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
   const [isValidatingIdentity, setIsValidatingIdentity] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPostingPayroll, setIsPostingPayroll] = useState(false);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
   const [areaFilter, setAreaFilter] = useState('TODAS');
@@ -420,10 +434,10 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
   };
 
   const ensureToken = async () => {
-    if (token) {
+    if (token && tokenTenantId(token) === effectiveTenantId) {
       return token;
     }
-    if (runtimeToken) {
+    if (runtimeToken && tokenTenantId(runtimeToken) === effectiveTenantId) {
       return runtimeToken;
     }
     return requestDevToken();
@@ -862,6 +876,42 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
     }
   };
 
+  const postPayrollJournal = async () => {
+    setIsPostingPayroll(true);
+    try {
+      const bearerToken = await ensureToken();
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const entryDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const response = await fetch(`${apiBase}/hr/payroll/journal`, {
+        method: 'POST',
+        headers: jsonHeaders(bearerToken),
+        body: JSON.stringify({
+          tenant_id: effectiveTenantId,
+          year,
+          month,
+          entry_date: entryDate,
+          cost_center: form.area_centro_costo || selectedWorker?.area_centro_costo || 'LIM-ADM',
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(JSON.stringify(payload));
+      }
+      await onJournalPosted?.();
+      onStatus?.(
+        payload.already_posted
+          ? `Planilla ${payload.period} ya estaba grabada en Libro Diario.`
+          : `Planilla ${payload.period} grabada en Libro Diario: ${String(payload.id || '').slice(0, 8)}.`
+      );
+    } catch (error) {
+      onStatus?.(`No se pudo postear planilla al Libro Diario. ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setIsPostingPayroll(false);
+    }
+  };
+
   const totals = useMemo(() => {
     const ingresos = 
       toPayrollNumber(form.sueldo_pactado) + 
@@ -890,6 +940,9 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           <p>Alta de trabajador, captura de CV, validacion de datos personales y contratos con soporte legal RAG.</p>
         </div>
         <div className="hr-hero-actions">
+          <Button appearance="primary" onClick={postPayrollJournal} disabled={isPostingPayroll || payrollSummary.monthlyPayroll <= 0}>
+            {isPostingPayroll ? 'Posteando...' : 'Postear planilla'}
+          </Button>
           <label className="hr-hero-upload">
             <input
               type="file"

@@ -142,14 +142,39 @@ type QuickFilters = {
 };
 
 const API_BASE = '/api/v1';
-const HR_API_BASE = 'http://127.0.0.1:8001/api/v1';
+const HR_API_BASE = API_BASE;
 const TENANT_ID = '11111111-1111-1111-1111-111111111111';
 const USER_ID = 'erp.operator';
 const MAX_JOURNAL_ROWS = 3000;
 const MAX_RENDER_ROWS = 1200;
 const USE_DEMO_ROWS = false;
+const DEFAULT_PERIOD = { year: 2026, month: 5 };
 
-const getTenantId = () => localStorage.getItem('tenant_id') || '11111111-1111-1111-1111-111111111111';
+const getTenantId = () => {
+  const current = localStorage.getItem('tenant_id');
+  if (current !== TENANT_ID) {
+    localStorage.setItem('tenant_id', TENANT_ID);
+  }
+  return TENANT_ID;
+};
+
+const tokenTenantId = (value?: string | null) => {
+  try {
+    const payload = String(value || '').split('.')[1];
+    if (!payload) return '';
+    const padded = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=');
+    const decoded = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
+    return String(decoded.tenant_id || '');
+  } catch {
+    return '';
+  }
+};
+
+const periodFromIsoDate = (value?: string | null) => {
+  const match = /^(\d{4})-(\d{2})/.exec(String(value || ''));
+  if (!match) return DEFAULT_PERIOD;
+  return { year: Number(match[1]), month: Number(match[2]) };
+};
 
 const moduleLabel = (module?: string) => {
   const value = String(module || '').toUpperCase();
@@ -158,7 +183,7 @@ const moduleLabel = (module?: string) => {
   if (value === 'BILLING') return 'VENTAS';
   if (value === 'ACCOUNTING') return 'CONTABILIDAD';
   if (value === 'TREASURY') return 'TESORERIA';
-  if (value === 'INVENTORY') return 'INVENTARIO';
+  if (value === 'INVENTORY' || value === 'INVENTORY_COGS') return 'INVENTARIO';
   if (value === 'PAYROLL') return 'PLANILLAS';
   if (value === 'ASSETS') return 'ACTIVOS';
 
@@ -499,9 +524,29 @@ export const EnterpriseWorkspace = () => {
     return payload.access_token as string;
   };
 
-  const loadJournal = async (bearerToken: string, period = { year: 2026, month: 5 }) => {
+  const getValidToken = async (candidate?: string | null) => {
     const tenantId = getTenantId();
-    const response = await fetch(`${API_BASE}/ledger/journal?year=${period.year}&month=${period.month}&limit=250`, {
+    if (candidate && tokenTenantId(candidate) === tenantId) {
+      return candidate;
+    }
+    const generated = await requestDevToken();
+    setToken(generated);
+    return generated;
+  };
+
+  const buildJournalUrl = (period: typeof DEFAULT_PERIOD | null) => {
+    const params = new URLSearchParams({ limit: String(MAX_JOURNAL_ROWS) });
+    if (period) {
+      params.set('year', String(period.year));
+      params.set('month', String(period.month));
+    }
+    return `${API_BASE}/ledger/journal?${params.toString()}`;
+  };
+
+  const loadJournal = async (bearerToken: string, period: typeof DEFAULT_PERIOD | null = null) => {
+    const tenantId = getTenantId();
+    const endpoint = buildJournalUrl(period);
+    const response = await fetch(endpoint, {
       headers: authHeaders(bearerToken, tenantId),
     });
 
@@ -517,7 +562,9 @@ export const EnterpriseWorkspace = () => {
       const base = {
         entryId: item.id ?? `JE-${entryIndex + 1}`,
         date: item.entry_date ?? '2026-05-01',
-        period: item.period || `${period.year}-${String(period.month).padStart(2, '0')}`,
+        period: item.period || String(item.entry_date ?? '').slice(0, 7) || (
+          period ? `${period.year}-${String(period.month).padStart(2, '0')}` : ''
+        ),
         description: item.description || 'Sin descripcion',
         status: statusLabel(item.sunat_status ?? item.status),
         hash: item.row_hash ?? 'sin-hash',
@@ -556,9 +603,9 @@ export const EnterpriseWorkspace = () => {
     const resultRows = mapped.length > 0 || !USE_DEMO_ROWS ? mapped : seedRows;
 
     console.info('CONTA_PRO SELECT /ledger/journal despues de cargar:', {
-      endpoint: `${API_BASE}/ledger/journal`,
+      endpoint,
       tenant_id: tenantId,
-      period,
+      period: period ?? 'TODOS',
       rows: resultRows.length,
       sample: resultRows.slice(0, 5),
       demo_mode: USE_DEMO_ROWS && mapped.length === 0,
@@ -616,6 +663,12 @@ export const EnterpriseWorkspace = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (token && tokenTenantId(token) !== getTenantId()) {
+      void getValidToken(null);
+    }
+  }, [token]);
+
    
   const postSale = async (salePayload: SaleSubmitPayload) => {
     const tenantId = getTenantId();
@@ -625,15 +678,17 @@ export const EnterpriseWorkspace = () => {
       const subtotal = toNumber(salePayload.subtotal ?? formSource.subtotal);
       const igv = toNumber(salePayload.igv ?? formSource.igv);
       const total = toNumber(salePayload.total ?? subtotal + igv);
+      const entryDate = salePayload.issueDate || new Date().toISOString().slice(0, 10);
+      const postingPeriod = periodFromIsoDate(entryDate);
 
       const payload = {
         tenant_id: tenantId,
-        year: 2026,
-        month: 5,
+        year: postingPeriod.year,
+        month: postingPeriod.month,
         invoice_id: `${formSource.serie}-${formSource.number}`,
         customer_ruc: formSource.customerRuc,
         customer_name: salePayload.customerName,
-        entry_date: salePayload.issueDate || new Date().toISOString().slice(0, 10),
+        entry_date: entryDate,
         doc_type: '01',
         serie: formSource.serie,
         number: formSource.number,
@@ -664,7 +719,7 @@ export const EnterpriseWorkspace = () => {
       console.log('CONTA_PRO salePayload:', salePayload);
       console.log('CONTA_PRO invoice payload:', payload);
 
-      const saleToken = token || await requestDevToken();
+      const saleToken = await getValidToken(token);
 
       if (!saleToken) {
         throw new Error('No hay token de seguridad para registrar venta.');
@@ -713,6 +768,8 @@ export const EnterpriseWorkspace = () => {
       const subtotal = toNumber(purchasePayload?.subtotal ?? formSource.subtotal);
       const igv = toNumber(purchasePayload?.igv ?? formSource.igv);
       const total = toNumber(purchasePayload?.total ?? subtotal + igv);
+      const entryDate = purchasePayload?.issueDate || new Date().toISOString().slice(0, 10);
+      const postingPeriod = periodFromIsoDate(entryDate);
 
       const items = purchasePayload?.items ?? [];
       const accountLines = purchasePayload?.accountLines ?? [];
@@ -729,12 +786,13 @@ export const EnterpriseWorkspace = () => {
 
       const payload = {
         tenant_id: tenantId,
-        year: 2026,
-        month: 5,
+        year: postingPeriod.year,
+        month: postingPeriod.month,
         purchase_id: `${formSource.serie}-${formSource.number}`,
         supplier_ruc: formSource.supplierRuc,
         supplier_name: purchasePayload?.supplierName ?? '',
-        issue_date: purchasePayload?.issueDate || new Date().toISOString().slice(0, 10),
+        issue_date: entryDate,
+        entry_date: entryDate,
         doc_type: '01',
         serie: formSource.serie,
         number: formSource.number,
@@ -945,8 +1003,7 @@ export const EnterpriseWorkspace = () => {
 
   const refreshJournal = async () => {
     try {
-      const currentToken = token || await requestDevToken();
-      if (!token) setToken(currentToken);
+      const currentToken = await getValidToken(token);
       await loadJournal(currentToken);
       setStatusMessage('Asientos actualizados desde backend.');
     } catch (error) {
@@ -972,7 +1029,7 @@ export const EnterpriseWorkspace = () => {
       return <OwnerDashboard />;
     }
     if (selectedView === 'inventario') {
-      return <InventoryDashboard apiBase={API_BASE} token={token} tenantId={TENANT_ID} onStatus={setStatusMessage} />;
+      return <InventoryDashboard apiBase={API_BASE} token={token} tenantId={getTenantId()} onStatus={setStatusMessage} onJournalPosted={refreshJournal} />;
     }
     if (selectedView === 'libros') {
       return <BooksCenter apiBase={API_BASE} tenantId={TENANT_ID} />;
@@ -993,7 +1050,7 @@ export const EnterpriseWorkspace = () => {
       return <FinancialDashboard />;
     }
     if (selectedView === 'planillas') {
-      return <PayrollGrid apiBase={HR_API_BASE} token={token} tenantId={TENANT_ID} onStatus={setStatusMessage} />;
+      return <PayrollGrid apiBase={HR_API_BASE} token={token} tenantId={getTenantId()} onStatus={setStatusMessage} onJournalPosted={refreshJournal} />;
     }
     if (selectedView === 'compras') {
       return <AuditHealthDashboard />;

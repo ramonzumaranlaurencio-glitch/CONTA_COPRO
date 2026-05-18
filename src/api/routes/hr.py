@@ -4,12 +4,13 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 import httpx
 from sqlalchemy import select
 
 from src.api.dependencies import require_roles
+from src.api.routes.ledger import build_hash_service, build_uow_factory
 from src.application.services.hr_ai_service import (
     CV_EXTRACTION_PROMPT,
     LABOR_LEGAL_LIBRARY,
@@ -17,10 +18,11 @@ from src.application.services.hr_ai_service import (
     LaborContractGenerator,
     new_worker_code,
 )
+from src.application.services.ledger_posting_service import LedgerPostingService
 from src.application.services.legal_rag_service import HashEmbeddingClient, LegalDocumentInput, LegalRagService
 from src.ai.vector_store import PgVectorAccountingStore
 from src.config import settings
-from src.domain.models.accounting import HrContract, HrWorker
+from src.domain.models.accounting import HrContract, HrWorker, JournalEntry
 from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.unit_of_work import UnitOfWork
 
@@ -68,6 +70,15 @@ class SignatureWebhookPayload(BaseModel):
     signer_name: str | None = None
 
 
+class PayrollJournalPostPayload(BaseModel):
+    tenant_id: str
+    year: int
+    month: int
+    entry_date: date | None = None
+    company_id: str | None = None
+    cost_center: str = "LIM-ADM"
+
+
 class IdentityValidationPayload(BaseModel):
     dni: str = Field(min_length=8, max_length=8)
     nombres: str = ""
@@ -81,6 +92,10 @@ def _safe_user_uuid(user_id: str | None) -> str | None:
         return str(UUID(user_id))
     except Exception:
         return None
+
+
+def _money(value: Decimal) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
 def _summarize_requirements(requirements: list[dict]) -> dict:
@@ -370,6 +385,125 @@ async def list_workers(limit: int = 100, ctx=Depends(require_roles("ADMIN", "ACC
             }
             for row in rows
         ]
+
+
+@router.post("/payroll/journal")
+async def post_payroll_journal(
+    payload: PayrollJournalPostPayload,
+    request: Request,
+    ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER")),
+):
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+    period_code = f"{payload.year}-{str(payload.month).zfill(2)}"
+    source_id = f"payroll:{period_code}"
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        existing_result = await uow.session.execute(
+            select(JournalEntry).where(
+                JournalEntry.tenant_id == payload.tenant_id,
+                JournalEntry.source_module == "PAYROLL",
+                JournalEntry.source_id == source_id,
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        if existing:
+            return {
+                "id": str(existing.id),
+                "row_hash": existing.row_hash,
+                "previous_hash": existing.previous_hash,
+                "total_debit": str(existing.total_debit),
+                "total_credit": str(existing.total_credit),
+                "already_posted": True,
+                "period": period_code,
+            }
+
+        worker_filters = [HrWorker.tenant_id == payload.tenant_id]
+        if payload.company_id:
+            worker_filters.append(HrWorker.company_id == payload.company_id)
+        workers_result = await uow.session.execute(select(HrWorker).where(*worker_filters))
+        workers = list(workers_result.scalars().all())
+
+    if not workers:
+        raise HTTPException(status_code=422, detail="No hay trabajadores para postear planilla")
+
+    gross = _money(sum((Decimal(str(worker.sueldo_pactado or 0)) for worker in workers), Decimal("0.00")))
+    pension = _money(sum(
+        (
+            Decimal(str(worker.sueldo_pactado or 0)) *
+            (Decimal("0.13") if str(worker.pension_system or "AFP").upper() == "ONP" else Decimal("0.1334"))
+        )
+        for worker in workers
+    ))
+    essalud = _money(gross * Decimal("0.09"))
+    net_payable = _money(gross - pension)
+    total_debit = _money(gross + essalud)
+
+    if total_debit <= 0:
+        raise HTTPException(status_code=422, detail="La planilla no tiene importe contable")
+
+    lines = [
+        {
+            "account_code": "6211",
+            "account_name": "Sueldos y salarios",
+            "debit": gross,
+            "credit": Decimal("0.00"),
+            "cost_center": payload.cost_center,
+        },
+        {
+            "account_code": "6271",
+            "account_name": "Seguridad y prevision social",
+            "debit": essalud,
+            "credit": Decimal("0.00"),
+            "cost_center": payload.cost_center,
+        },
+        {
+            "account_code": "4111",
+            "account_name": "Remuneraciones por pagar",
+            "debit": Decimal("0.00"),
+            "credit": net_payable,
+        },
+        {
+            "account_code": "4032",
+            "account_name": "ONP/AFP por pagar",
+            "debit": Decimal("0.00"),
+            "credit": pension,
+        },
+        {
+            "account_code": "4031",
+            "account_name": "EsSalud por pagar",
+            "debit": Decimal("0.00"),
+            "credit": essalud,
+        },
+    ]
+
+    entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal({
+        "tenant_id": payload.tenant_id,
+        "company_id": payload.company_id,
+        "year": payload.year,
+        "month": payload.month,
+        "entry_date": payload.entry_date or date(payload.year, payload.month, 1),
+        "description": f"Planilla mensual {period_code}",
+        "source_module": "PAYROLL",
+        "source_id": source_id,
+        "currency": "PEN",
+        "user_id": ctx.get("user_id"),
+        "trace_id": ctx["trace_id"],
+        "ip_address": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent"),
+        "lines": lines,
+    })
+
+    return {
+        "id": str(entry.id),
+        "row_hash": entry.row_hash,
+        "previous_hash": entry.previous_hash,
+        "total_debit": str(entry.total_debit),
+        "total_credit": str(entry.total_credit),
+        "already_posted": False,
+        "period": period_code,
+    }
 
 
 @router.post("/contracts/generate")

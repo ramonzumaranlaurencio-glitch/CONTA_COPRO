@@ -108,6 +108,44 @@ class LedgerPostingService:
         amount = Decimal(str(default if value is None or value == "" else value)).quantize(Decimal("0.01"))
         return amount
 
+    def _as_date(self, value) -> date:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str) and value.strip():
+            return date.fromisoformat(value.strip()[:10])
+        return date.today()
+
+    def _prepare_entry_lines(self, entry: JournalEntry, lines: list[JournalLine]) -> None:
+        """Populate reinforced Diario fields before flush.
+
+        Migration 010 made periodo_fiscal/modulo_origen/linea_idx mandatory on
+        journal_lines. Some callers only set entry_id, so the ORM relationship
+        event cannot reliably infer those values. Fill them here in the
+        canonical posting service.
+        """
+        entry_date = self._as_date(entry.entry_date)
+        entry.entry_date = entry_date
+        module = str(entry.source_module or "ACCOUNTING")[:20]
+        entry.lines = lines
+        for idx, line in enumerate(lines, start=1):
+            line.entry_id = entry.id
+            line.tenant_id = line.tenant_id or entry.tenant_id
+            if not line.company_id and entry.company_id:
+                line.company_id = entry.company_id
+            line.periodo_fiscal = entry_date.strftime("%Y-%m")
+            line.modulo_origen = module
+            line.linea_idx = idx
+            if line.tipo_cambio is None:
+                line.tipo_cambio = Decimal("1.0000")
+            if line.document_type and not line.comp_tipo:
+                line.comp_tipo = str(line.document_type)[:2]
+            if line.partner_ruc and not line.tercero_num:
+                line.tercero_num = line.partner_ruc
+                if not line.tercero_tipo_doc:
+                    line.tercero_tipo_doc = "6" if len(line.partner_ruc) == 11 else "1" if len(line.partner_ruc) == 8 else None
+
     def _normalize_code(self, value: str | None, fallback: str = "659101") -> str:
         cleaned = "".join(ch for ch in str(value or "") if ch.isdigit())
         return cleaned or fallback
@@ -179,7 +217,7 @@ class LedgerPostingService:
                 tenant_id=tenant_id,
                 company_id=company_id,
                 period_id=period.id,
-                entry_date=payload.get("entry_date") or date.today(),
+                entry_date=self._as_date(payload.get("entry_date")),
                 description=payload["description"],
                 source_module=payload.get("source_module", "ACCOUNTING"),
                 source_id=payload.get("source_id"),
@@ -190,8 +228,7 @@ class LedgerPostingService:
                 row_hash="PENDING",
                 created_by=self._actor_uuid(payload.get("user_id")),
             )
-            for line in lines:
-                line.entry_id = entry.id
+            self._prepare_entry_lines(entry, lines)
 
             entry.row_hash = self.hash_service.generate(entry, lines, previous_hash)
             await repo.add_entry(entry, lines)
@@ -617,7 +654,7 @@ class LedgerPostingService:
                 tenant_id=tenant_id,
                 company_id=company_id,
                 period_id=period.id,
-                entry_date=invoice_data.get("entry_date") or date.today(),
+                entry_date=self._as_date(invoice_data.get("entry_date")),
                 description=f"Venta {invoice_data.get('serie')}-{invoice_data.get('number')}",
                 source_module="BILLING",
                 source_id=str(invoice_data.get("invoice_id")),
@@ -628,8 +665,7 @@ class LedgerPostingService:
                 row_hash="PENDING",
                 created_by=self._actor_uuid(invoice_data.get("user_id")),
             )
-            for line in lines:
-                line.entry_id = entry.id
+            self._prepare_entry_lines(entry, lines)
 
             entry.row_hash = self.hash_service.generate(entry, lines, previous_hash)
             await repo.add_entry(entry, lines)
@@ -640,7 +676,7 @@ class LedgerPostingService:
                 document_type=invoice_data.get("doc_type", "01"),
                 series=invoice_data.get("serie"),
                 number=invoice_data.get("number"),
-                issue_date=invoice_data.get("entry_date") or date.today(),
+                issue_date=self._as_date(invoice_data.get("entry_date")),
                 due_date=invoice_data.get("due_date"),
                 currency=invoice_data.get("currency", "PEN"),
                 exchange_rate=invoice_data.get("exchange_rate"),

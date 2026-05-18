@@ -32,6 +32,7 @@ type Props = {
   token: string;
   tenantId: string;
   onStatus: (message: string) => void;
+  onJournalPosted?: () => void | Promise<void>;
 };
 
 type MovementForm = {
@@ -54,7 +55,7 @@ const defaultMovement: MovementForm = {
   source_document: '',
 };
 
-export const InventoryDashboard = ({ apiBase, token, tenantId, onStatus }: Props) => {
+export const InventoryDashboard = ({ apiBase, token, tenantId, onStatus, onJournalPosted }: Props) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [kardex, setKardex] = useState<KardexRow[]>([]);
@@ -203,6 +204,8 @@ export const InventoryDashboard = ({ apiBase, token, tenantId, onStatus }: Props
         unit_cost: Number.parseFloat(movement.unit_cost || '0'),
         movement_reference: movement.movement_reference,
         source_document: movement.source_document || null,
+        post_cost_entry: true,
+        cost_center: 'INV-OPS',
       }),
     });
 
@@ -218,8 +221,14 @@ export const InventoryDashboard = ({ apiBase, token, tenantId, onStatus }: Props
       movement_reference: `MOV-${Date.now()}`,
       source_document: '',
     }));
+    const payload = await response.json();
     await loadKardex(movement.product_id, movement.warehouse_id);
-    onStatus('Movimiento registrado y kardex actualizado.');
+    if (payload?.cost_entry?.entry_id) {
+      await onJournalPosted?.();
+      onStatus(`Movimiento registrado, kardex actualizado y asiento ${String(payload.cost_entry.entry_id).slice(0, 8)} grabado en Libro Diario.`);
+    } else {
+      onStatus('Movimiento registrado y kardex actualizado.');
+    }
   };
 
   return (

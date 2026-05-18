@@ -78,15 +78,21 @@ class PurchasePostRequest(BaseModel):
     month: int
     purchase_id: str
     supplier_ruc: str | None = None
+    supplier_name: str | None = None
     doc_type: str = "01"
     serie: str
     number: str
+    issue_date: date | None = None
     entry_date: date | None = None
     due_date: date | None = None
     subtotal: Decimal
     igv: Decimal
     total: Decimal
+    items: list[dict] = Field(default_factory=list)
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
+    account_lines: list[dict] = Field(default_factory=list)
+    accounts_to_upsert: list[dict] = Field(default_factory=list)
+    cost_centers_to_upsert: list[dict] = Field(default_factory=list)
     detraccion_amount: Decimal = Decimal("0.00")
     percepcion_amount: Decimal = Decimal("0.00")
     retencion_amount: Decimal = Decimal("0.00")
@@ -94,6 +100,7 @@ class PurchasePostRequest(BaseModel):
     exchange_rate: Decimal | None = None
     expense_account: str = "6011"
     cost_center: str | None = None
+    audit_metadata: dict | None = None
     sunat_validation: dict | None = None
     user_id: str | None = None
     trace_id: str | None = None
