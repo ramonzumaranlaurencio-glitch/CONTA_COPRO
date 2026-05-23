@@ -402,6 +402,13 @@ class LedgerPostingService:
             for raw in incoming_account_lines:
                 debit = self._as_decimal(raw.get("debit", "0.00"))
                 credit = self._as_decimal(raw.get("credit", "0.00"))
+                # Flip negative values to the opposite side to satisfy journal_lines_check1 (debit >= 0, credit >= 0)
+                if debit < 0:
+                    credit = credit + abs(debit)
+                    debit = Decimal("0.00")
+                if credit < 0:
+                    debit = debit + abs(credit)
+                    credit = Decimal("0.00")
                 if debit == 0 and credit == 0:
                     continue
                 account_code = self._normalize_code(raw.get("account_code"), purchase_data.get("expense_account", "659101"))

@@ -151,7 +151,8 @@ const USER_ID = 'erp.operator';
 const MAX_JOURNAL_ROWS = 3000;
 const MAX_RENDER_ROWS = 1200;
 const USE_DEMO_ROWS = false;
-const DEFAULT_PERIOD = { year: 2026, month: 5 };
+const _today = new Date();
+const DEFAULT_PERIOD = { year: _today.getFullYear(), month: _today.getMonth() + 1 };
 
 const getTenantId = () => {
   const current = localStorage.getItem('tenant_id');
@@ -232,13 +233,6 @@ const emptyJournalRow: JournalRow = {
   sourceModule: 'BASE_DATOS',
 };
 
-const metricCards = [
-  ['Caja', 'S/ 482,900.00'],
-  ['CXC', 'S/ 1,284,320.10'],
-  ['CXP', 'S/ 712,008.44'],
-  ['IGV', 'S/ 86,240.00'],
-  ['Resultado', 'S/ 392,600.18'],
-];
 
 const railItems = [
   { id: 'dashboard',      label: 'Dashboard',       icon: Home24Regular,           feature: null },
@@ -306,8 +300,21 @@ const downloadFile = (filename: string, content: string, type: string) => {
   URL.revokeObjectURL(url);
 };
 
+const parseBackendError = async (response: Response): Promise<string> => {
+  const text = await response.text().catch(() => '');
+  try {
+    const json = JSON.parse(text);
+    const detail = json?.detail;
+    if (typeof detail === 'string') return detail;
+    if (detail?.message) return detail.message;
+    if (json?.message) return json.message;
+  } catch { /* not JSON */ }
+  if (text) return text.slice(0, 300);
+  return `Error HTTP ${response.status}`;
+};
+
 export const EnterpriseWorkspace = () => {
-  
+
   const [rows, setRows] = useState<JournalRow[]>(USE_DEMO_ROWS ? seedRows : []);
   const [selectedRow, setSelectedRow] = useState<JournalRow>(USE_DEMO_ROWS ? seedRows[0] : emptyJournalRow);
   const [token, setToken] = useState('');
@@ -337,21 +344,21 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
   const [saleForm, setSaleForm] = useState<SaleFormData>({
     serie: 'F001',
-    number: '8421',
-    customerRuc: '20600123456',
-    subtotal: '16000.00',
-    igv: '2880.00',
+    number: '',
+    customerRuc: '',
+    subtotal: '',
+    igv: '',
     revenueAccount: '704101',
     costCenter: 'LIM-COM',
   });
 
   const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>({
-    serie: 'E001',
-    number: '558',
-    supplierRuc: '20567891234',
-    subtotal: '4900.00',
-    igv: '882.00',
-    expenseAccount: '6011',
+    serie: 'F001',
+    number: '',
+    supplierRuc: '',
+    subtotal: '',
+    igv: '',
+    expenseAccount: '601101',
     costCenter: 'LIM-ADM',
   });
 
@@ -398,6 +405,26 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     entries: rows.length,
     locked: rows.filter((row) => row.status !== 'REVIEW').length,
   }), [rows]);
+
+  const computedMetrics = useMemo<[string, string][]>(() => {
+    const modUp = (r: JournalRow) => String(r.sourceModule ?? '').toUpperCase();
+    const ventas = rows.filter(r => modUp(r) === 'BILLING' || modUp(r) === 'VENTAS');
+    const compras = rows.filter(r => modUp(r) === 'PURCHASING' || modUp(r) === 'COMPRAS');
+    const igvRows = rows.filter(r => String(r.account ?? '').startsWith('40'));
+
+    const sumCredit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.credit), 0);
+    const sumDebit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.debit), 0);
+    const f = (v: number) => `S/ ${v.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const empty = rows.length === 0;
+
+    return [
+      ['Ventas', empty ? '—' : f(sumCredit(ventas))],
+      ['Compras', empty ? '—' : f(sumDebit(compras))],
+      ['IGV neto', empty ? '—' : f(sumCredit(igvRows) - sumDebit(igvRows))],
+      ['Asientos', empty ? '—' : String(rows.length)],
+      ['Periodo', `${DEFAULT_PERIOD.year}-${String(DEFAULT_PERIOD.month).padStart(2, '0')}`],
+    ];
+  }, [rows]);
 
   const entriesIndex = useMemo(() => {
     const map = new Map<string, EntrySummary>();
@@ -645,6 +672,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       }));
     });
 
+    mapped.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
     const resultRows = mapped.length > 0 || !USE_DEMO_ROWS ? mapped : seedRows;
 
     console.info('CONTA_PRO SELECT /ledger/journal despues de cargar:', {
@@ -777,9 +805,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error invoice:', errorText);
-        throw new Error(errorText);
+        const errorMsg = await parseBackendError(response);
+        console.error('Error invoice:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       const postedMessage = `Venta ${formSource.serie}-${formSource.number} posteada con cuentas y centros de costo.`;
@@ -789,6 +817,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       try {
         await loadJournal(saleToken);
         setActivePanel(null);
+        setSelectedView('contabilidad');
       } catch (journalError) {
         console.warn('CONTA_PRO loadJournal after sale warning:', journalError);
         setStatusMessage(
@@ -924,9 +953,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error purchase-invoice:', errorText);
-        throw new Error(errorText);
+        const errorMsg = await parseBackendError(response);
+        console.error('Error purchase-invoice:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       const postedMessage = `Compra ${formSource.serie}-${formSource.number} posteada con cuentas y centros de costo.`;
@@ -939,6 +968,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       try {
         await loadJournal(purchaseToken);
         setActivePanel(null);
+        setSelectedView('contabilidad');
       } catch (journalError) {
         console.warn('CONTA_PRO loadJournal after purchase warning:', journalError);
         setStatusMessage(
@@ -1068,7 +1098,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
   const renderPrimaryView = () => {
     if (selectedView === 'dashboard') {
-      return <DashboardEnterprise />;
+      return <DashboardEnterprise rows={rows} />;
     }
     if (selectedView === 'owner') {
       return <OwnerDashboard />;
@@ -1552,7 +1582,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
           {selectedView !== 'contabilidad' && (
           <section className="metric-strip">
-            {metricCards.map(([label, value]) => (
+            {computedMetrics.map(([label, value]) => (
               <article key={label} className="metric-card">
                 <span>{label}</span>
                 <strong>{value}</strong>

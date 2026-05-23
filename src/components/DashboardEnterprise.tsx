@@ -1,7 +1,4 @@
-import * as Premium from './DashboardEnterprisePremium';
+import { DashboardEnterprisePremium } from './DashboardEnterprisePremium';
 
-const DashboardEnterprise =
-  (Premium as any).default ?? (Premium as any).DashboardEnterprisePremium;
-
-export { DashboardEnterprise };
-export default DashboardEnterprise;
+export { DashboardEnterprisePremium as DashboardEnterprise };
+export default DashboardEnterprisePremium;

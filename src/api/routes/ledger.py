@@ -24,7 +24,7 @@ from src.application.services.expert_accounting_guard import ExpertAccountingGua
 from src.application.services.sunat_realtime_verifier import SunatRealtimeVerifier
 from src.config import settings
 from src.domain.models.accounting import AccountingPeriod, AuditLog, FinancialDocument, JournalEntry, OutboxEvent
-from src.domain.exceptions import ExpertValidationException
+from src.domain.exceptions import ContaProException, ExpertValidationException
 from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.hash_chain import LedgerHashService
 from src.infrastructure.unit_of_work import UnitOfWork
@@ -393,6 +393,11 @@ async def post_journal(payload: JournalPostRequest, request: Request, ctx=Depend
         entry = await service.post_journal(data)
     except ExpertValidationException as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "checks": exc.checks}) from exc
+    except ContaProException as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "checks": []}) from exc
+    except Exception as exc:
+        logging.exception("Error inesperado en post_journal")
+        raise HTTPException(status_code=500, detail={"message": f"Error interno del servidor: {str(exc)}"}) from exc
     return JournalEntryResponse(
         id=str(entry.id),
         row_hash=entry.row_hash,
@@ -417,6 +422,11 @@ async def post_invoice(payload: InvoicePostRequest, request: Request, ctx=Depend
         entry = await service.post_invoice(data)
     except ExpertValidationException as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "checks": exc.checks}) from exc
+    except ContaProException as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "checks": []}) from exc
+    except Exception as exc:
+        logging.exception("Error inesperado en post_invoice")
+        raise HTTPException(status_code=500, detail={"message": f"Error interno del servidor: {str(exc)}"}) from exc
     diagnostics = await _invoice_persistence_diagnostics(ctx["tenant_id"], entry.id, payload)
     return JournalEntryResponse(
         id=str(entry.id),
@@ -443,6 +453,11 @@ async def post_purchase_invoice(payload: PurchasePostRequest, request: Request, 
         entry = await service.post_purchase_invoice(data)
     except ExpertValidationException as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "checks": exc.checks}) from exc
+    except ContaProException as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "checks": []}) from exc
+    except Exception as exc:
+        logging.exception("Error inesperado en post_purchase_invoice")
+        raise HTTPException(status_code=500, detail={"message": f"Error interno del servidor: {str(exc)}"}) from exc
     return JournalEntryResponse(
         id=str(entry.id),
         row_hash=entry.row_hash,

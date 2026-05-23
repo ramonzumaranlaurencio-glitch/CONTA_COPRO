@@ -389,7 +389,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [supplierName, setSupplierName] = useState('');
-  const [issueDate, setIssueDate] = useState('');
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isAutoIgv, setIsAutoIgv] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
   const [isReadingAi, setIsReadingAi] = useState(false);
@@ -843,7 +843,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const clearFormLabels = () => {
     setItems([]);
     setSupplierName('');
-    setIssueDate('');
+    setIssueDate(new Date().toISOString().slice(0, 10));
     setStatus('');
     setModifyReason('');
     setModifyDetail('');

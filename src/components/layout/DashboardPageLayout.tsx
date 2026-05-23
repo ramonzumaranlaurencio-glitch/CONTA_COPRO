@@ -25,10 +25,10 @@ export const DashboardPageLayout = () => {
         {/* Metrics Grid */}
         <PanelsGrid columns={4} gap="md">
           {[
-            { label: 'Caja', value: 'S/ 482,900', icon: '💰' },
-            { label: 'CXC', value: 'S/ 1,284,320', icon: '📊' },
-            { label: 'CXP', value: 'S/ 712,008', icon: '💳' },
-            { label: 'IGV', value: 'S/ 86,240', icon: '🧾' },
+            { label: 'Caja', value: '—', icon: '💰' },
+            { label: 'CXC', value: '—', icon: '📊' },
+            { label: 'CXP', value: '—', icon: '💳' },
+            { label: 'IGV', value: '—', icon: '🧾' },
           ].map((metric) => (
             <div key={metric.label} className="panel-card">
               <div className="panel-body">
@@ -87,11 +87,11 @@ export const DashboardPageLayout = () => {
               <div className="detail-grid">
                 <div className="detail-item">
                   <span className="detail-label">Caja</span>
-                  <span className="detail-value numeric">S/ 482,900</span>
+                  <span className="detail-value numeric">—</span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">CXC</span>
-                  <span className="detail-value numeric">S/ 1,284,320</span>
+                  <span className="detail-value numeric">—</span>
                 </div>
               </div>
             </div>
