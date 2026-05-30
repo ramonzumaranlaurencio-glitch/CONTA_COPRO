@@ -31,6 +31,7 @@ from src.api.routes.reports import router as reports_router
 from src.api.routes.sales import router as sales_router
 from src.api.routes.purchases import router as purchases_router
 from src.api.routes.tax import router as tax_router
+from src.api.routes.catalog import router as catalog_router
 from src.config import settings
 from src.infrastructure.events.dispatcher import get_dispatcher, register_default_handlers
 from src.infrastructure.observability.tracing import configure_tracing
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(ledger_engine_router, prefix="/api/v1")
     app.include_router(bi_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
+    app.include_router(catalog_router,   prefix="/api/v1")
     app.include_router(master_data_router, prefix="/api/v1")
     app.include_router(periods_router, prefix="/api/v1")
     app.include_router(core_engine_router, prefix="/api/v1")

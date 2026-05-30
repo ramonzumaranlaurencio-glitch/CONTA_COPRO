@@ -35,6 +35,7 @@ import { FinancialDashboard } from '../reports/FinancialDashboard';
 import { BooksCenter } from '../reports/BooksCenter';
 import { OwnerDashboard } from '../client-portal/OwnerDashboard';
 import ApexLogixCore from '../inventory/EnterpriseFulfillmentCommandCenter';
+import WarehouseCommandCenter from '../inventory/WarehouseCommandCenter';
 
 import { PeriodCloseAction } from './PeriodCloseAction';
 import DashboardEnterprise from '../../components/DashboardEnterprise';
@@ -305,7 +306,12 @@ const parseBackendError = async (response: Response): Promise<string> => {
   return `Error HTTP ${response.status}`;
 };
 
-export const EnterpriseWorkspace = () => {
+type WorkspaceProps = {
+  userRole?: string;
+  userPlan?: string;
+};
+
+export const EnterpriseWorkspace = ({ userRole = 'ADMIN', userPlan = 'PREMIUM' }: WorkspaceProps) => {
 
   const [rows, setRows] = useState<JournalRow[]>([]);
   const [selectedRow, setSelectedRow] = useState<JournalRow>(emptyJournalRow);
@@ -319,18 +325,18 @@ export const EnterpriseWorkspace = () => {
   const [isRunningAi, setIsRunningAi] = useState(false);
   const [selectedView, setSelectedView] = useState('dashboard');
   
-const currentPlan = (() => {
+const currentPlan = useMemo<Plan>(() => {
   try {
-    const token = localStorage.getItem('access_token') || '';
-    if (!token) return 'BASIC';
-    const payload = token.split('.')[1];
-    const padded = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=');
+    const raw = token || localStorage.getItem('access_token') || '';
+    if (!raw) return userPlan as Plan || 'BASIC';
+    const seg = raw.split('.')[1];
+    const padded = seg.padEnd(seg.length + ((4 - (seg.length % 4)) % 4), '=');
     const decoded = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
-    return (decoded.plan as Plan) || 'BASIC';
+    return (decoded.plan as Plan) || (userPlan as Plan) || 'BASIC';
   } catch {
-    return 'BASIC';
+    return (userPlan as Plan) || 'BASIC';
   }
-})();
+}, [token, userPlan]);
 const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [chartAccounts, setChartAccounts] = useState<ChartAccountItem[]>([]);
   const bootstrapRanRef = useRef(false);
@@ -581,13 +587,15 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     const response = await fetch(`${API_BASE}/auth/dev-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: getTenantId(), user_id: USER_ID, role: 'ADMIN' }),
+      body: JSON.stringify({ tenant_id: getTenantId(), user_id: USER_ID, role: userRole, plan: userPlan }),
     });
     if (!response.ok) {
       throw new Error('No se pudo generar token dev');
     }
-    const payload = await response.json();
-    return payload.access_token as string;
+    const data = await response.json();
+    const accessToken = data.access_token as string;
+    localStorage.setItem('access_token', accessToken);
+    return accessToken;
   };
 
   const getValidToken = async (candidate?: string | null) => {
@@ -948,7 +956,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         body: JSON.stringify({
           tenant_id: tenantId,
           user_id: USER_ID,
-          role: 'ADMIN',
+          role: userRole,
+          plan: userPlan,
         }),
       });
 
@@ -1121,7 +1130,13 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     if (selectedView === 'inventario') {
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <ApexLogixCore apiBase={API_BASE} token={token} tenantId={getTenantId()} onStatus={setStatusMessage} onJournalPosted={refreshJournal} />
+          <WarehouseCommandCenter
+            apiBase={API_BASE}
+            token={token}
+            tenantId={getTenantId()}
+            onStatus={setStatusMessage}
+            onJournalPosted={refreshJournal}
+          />
         </div>
       );
     }

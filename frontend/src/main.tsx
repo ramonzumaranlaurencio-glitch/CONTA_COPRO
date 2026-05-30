@@ -8,16 +8,28 @@ import '../../src/styles/enterprise-theme.css';
 import '../../src/styles/sidebar.css';
 import PlanComparisonPage from '../../src/features/billing/PlanComparisonPage';
 
-const App = () => {
-  const [authenticated, setAuthenticated] = useState(false);
+type AuthUser = { rbacRole: string; displayRole: string; plan: string };
 
-  if (!authenticated) {
-    return <LoginScreen onLogin={() => setAuthenticated(true)} />;
+const App = () => {
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  if (!user) {
+    return (
+      <LoginScreen
+        onLogin={(rbacRole, displayRole, plan) =>
+          setUser({ rbacRole, displayRole, plan })
+        }
+      />
+    );
   }
 
   return (
     <FluentProvider theme={webLightTheme}>
-      {window.location.pathname === '/planes' ? <PlanComparisonPage /> : <EnterpriseWorkspace />}
+      {window.location.pathname === '/planes' ? (
+        <PlanComparisonPage />
+      ) : (
+        <EnterpriseWorkspace userRole={user.rbacRole} userPlan={user.plan} />
+      )}
     </FluentProvider>
   );
 };

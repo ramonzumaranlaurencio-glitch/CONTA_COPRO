@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { BuildingBank24Regular, LockClosed24Regular, Person24Regular } from '@fluentui/react-icons';
 
 type Props = {
-  onLogin: (username: string, role: string) => void;
+  onLogin: (username: string, role: string, plan: string) => void;
 };
 
 const USERS = [
-  { username: 'admin', password: 'admin123', role: 'Administrador' },
-  { username: 'contador', password: 'conta2026', role: 'Contador' },
-  { username: 'gerente', password: 'gerente2026', role: 'Gerente' },
-  { username: 'demo', password: 'demo', role: 'Demo' },
+  { username: 'admin',    password: 'admin123',    role: 'Administrador', rbacRole: 'ADMIN',       plan: 'PREMIUM' },
+  { username: 'contador', password: 'conta2026',   role: 'Contador',      rbacRole: 'ACCOUNTANT',  plan: 'PLUS'    },
+  { username: 'gerente',  password: 'gerente2026', role: 'Gerente',       rbacRole: 'CONTROLLER',  plan: 'PLUS'    },
+  { username: 'demo',     password: 'demo',        role: 'Demo',          rbacRole: 'ACCOUNTANT',  plan: 'BASIC'   },
 ];
 
 export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
@@ -33,7 +33,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         (u) => u.username === username.trim().toLowerCase() && u.password === password
       );
       if (user) {
-        onLogin(user.username, user.role);
+        onLogin(user.rbacRole, user.role, user.plan);
       } else {
         setError('Usuario o contraseña incorrectos.');
         setLoading(false);

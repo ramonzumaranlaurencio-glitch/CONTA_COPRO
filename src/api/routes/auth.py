@@ -11,6 +11,7 @@ class DevTokenRequest(BaseModel):
     tenant_id: str
     user_id: str
     role: str = "ADMIN"
+    plan: str = "PREMIUM"
 
 
 class RefreshRequest(BaseModel):
@@ -40,7 +41,7 @@ async def dev_token(payload: DevTokenRequest):
     service = TokenService()
     return {
         "token_type": "bearer",
-        "access_token": service.create_access_token(tenant_id=payload.tenant_id, user_id=payload.user_id, role=payload.role),
+        "access_token": service.create_access_token(tenant_id=payload.tenant_id, user_id=payload.user_id, role=payload.role, plan=payload.plan),
         "refresh_token": service.new_refresh_token(),
         "expires_in_minutes": settings.access_token_minutes,
     }
