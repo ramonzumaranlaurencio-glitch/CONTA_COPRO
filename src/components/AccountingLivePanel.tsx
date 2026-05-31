@@ -228,10 +228,10 @@ export default function AccountingLivePanel({
             </thead>
 
             <tbody>
-              {loading && movements.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: 24 }}>
-                    Cargando datos desde la API...
+                  <td colSpan={10} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
+                    ⟳ Cargando datos desde la API...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (

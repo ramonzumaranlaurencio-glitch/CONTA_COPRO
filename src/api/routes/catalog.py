@@ -180,7 +180,8 @@ def match_catalog_item(description: str, account_code: str | None = None, rubro:
     retorna el artículo del catálogo más probable.
     """
     desc = description.lower()
-    # Prefijo de cuenta PCGE (3 dígitos)
+    # cta_prefix: primeros 3 dígitos para buscar en catálogo (el catálogo indexa a 3 dígitos)
+    # account_code completo (4+ dígitos) se preserva para el asiento contable
     cta_prefix = (account_code or "")[:3]
 
     pool = MASTER_CATALOG
@@ -337,8 +338,10 @@ async def ai_match_batch(payload: AiMatchBatchPayload):
             **item,
             "catalog_code":    match["code"]     if match else None,
             "catalog_name":    match["name"]     if match else None,
-            "cta":             match["cta"]      if match else (acc[:3] or "252"),
-            "cta_name":        match["cta_name"] if match else PCGE_INVENTARIO.get(acc[:3], "Suministros"),
+            # cta = primeros 3 dígitos (grupo PCGE para el token de almacén)
+            # account_code completo se preserva en el campo "account_code" original del item
+            "cta":             match["cta"]      if match else (acc[:3] if acc else "252"),
+            "cta_name":        match["cta_name"] if match else PCGE_INVENTARIO.get(acc[:3] if acc else "252", "Suministros"),
             "gasto":           match["gasto"]    if match else "6569",
             "gasto_name":      match["gasto_name"] if match else "Suministros diversos",
             "nat":             match["nat"]      if match else "SU",

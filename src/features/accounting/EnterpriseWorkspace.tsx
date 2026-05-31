@@ -748,20 +748,32 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     }
   }, [token]);
 
-  // Auto-refresco del libro diario cada 60 segundos
+  // Auto-refresco del libro diario: polling 60s + visibilitychange + foco de ventana
   useEffect(() => {
     if (!token) return;
-    const interval = setInterval(async () => {
+
+    const refresh = async () => {
       try {
         const currentToken = await getValidToken(token);
-        if (currentToken) {
-          await loadJournal(currentToken, selectedYear);
-        }
-      } catch {
-        // no bloquea la UI si falla el refresco automático
-      }
-    }, 60000);
-    return () => clearInterval(interval);
+        if (currentToken) await loadJournal(currentToken, selectedYear);
+      } catch { /* no bloquea la UI */ }
+    };
+
+    // Polling cada 60 segundos
+    const interval = setInterval(refresh, 60_000);
+
+    // Al volver a la pestaña (Alt+Tab, cambio de app, reabrir laptop)
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    // Al hacer clic en la ventana después de estar en otra app
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
   }, [token, selectedYear]);
 
    

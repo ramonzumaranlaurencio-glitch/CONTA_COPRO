@@ -636,7 +636,10 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
   const [subView, setSubView] = useState<string>('stock');
   const [toolAssignments, setToolAssignments] = useState<ToolAssignment[]>(DEMO_TOOL_ASSIGNMENTS);
   const [dispatchItems, setDispatchItems] = useState<DispatchItem[]>(DEMO_DISPATCH);
-  const [toolForm, setToolForm] = useState({ tool_id: '', worker_name: '', worker_doc: '', project: '', area: 'OBRA' as Area, expected_return: '', condition_out: 'BUENO', notes: '' });
+  const [toolForm, setToolForm] = useState(() => {
+    const ret = new Date(); ret.setHours(ret.getHours() + 8);
+    return { tool_id: '', worker_name: '', worker_doc: '', project: '', area: 'OBRA' as Area, expected_return: ret.toISOString(), hours: '8', condition_out: 'BUENO', notes: '' };
+  });
   // Estados para Devolución de Herramientas (deben ser top-level — Rules of Hooks)
   const [selectedWorkerKey, setSelectedWorkerKey] = useState<string | null>(null);
   // Catálogo PCGE / Rubro
@@ -728,6 +731,22 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
   }, [apiBase, token, tenantId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // ── TIEMPO REAL: recargar cuando el tab vuelve a ser visible o la ventana obtiene foco ──
+  useEffect(() => {
+    if (!token || !tenantId) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') loadData(); };
+    const onFocus   = () => loadData();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    // Polling cada 60 segundos para reflejar cambios de otros usuarios/módulos
+    const poll = setInterval(loadData, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      clearInterval(poll);
+    };
+  }, [loadData, token, tenantId]);
 
   // Cargar reporte por cuenta cuando el usuario abre esa vista
   useEffect(() => {
@@ -893,7 +912,9 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       for (const p of toValidate) {
         // Preferir datos que ya vienen del backend (catalog_code del catálogo Python)
         const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
-        const cta          = catalogMatch?.cta  || (p.account_code?.slice(0, 3)) || '252';
+        // cta: primeros 3 dígitos de la subcuenta PCGE — solo para construir el token de almacén
+        // account_code completo (ej: "2522") se pasa por separado al backend
+        const cta          = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 3) : '252');
         const nat          = p.catalog_nat  || catalogMatch?.nat  || 'SU';
         const rub          = p.catalog_rub  || activeRubro || 'GE';
         const tk           = p.catalog_tk   || catalogMatch?.tk   || 'F';
@@ -904,22 +925,24 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           warehouse_id:  warehouseId,
           entry_id:      p.entry_id      || '',
           source_doc:    p.source_doc    || `${p.doc_series}-${p.doc_number}`,
-          product_name:  catalogMatch?.name || p.product_name,
+          source_module: p.source_module || 'PURCHASING',
+          product_name:  p.product_name,  // Siempre el nombre real de la factura, no el del catálogo
           sku:           catalogCode,
-          unit:          catalogMatch?.unit || p.unit || 'UND',
+          unit:          p.unit || catalogMatch?.unit || 'UND',
           qty:           p.qty,
           unit_cost:     p.unit_cost,
           item_class:    p.item_class    || 'MERCADERIA',
           area:          p.area          || 'ALMACEN',
-          account_code:  cta,
+          account_code:  p.account_code  || cta,  // subcuenta PCGE completa (ej: "2522", no "252")
           cost_center:   p.cost_center   || 'LOG-ALM',
-          catalog_code:  catalogCode,
+          catalog_code:  catalogCode,              // código almacén (ej: "252-HE-PA-0001-P")
           catalog_nat:   nat,
           catalog_rub:   rub,
           catalog_tk:    tk,
           catalog_match: !!catalogMatch,
           gasto_account: catalogMatch?.gasto || '',
-          post_journal:  false,
+          // Facturas (01) generan asiento Dr.Inventario/Cr.CxP; guías de remisión (09) solo mueven el kardex
+          post_journal:  p.doc_type !== '09',
         };
 
         try {
@@ -958,7 +981,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
           const existingCodes = [...items, ...newItemsFb].map(i => i.token_code);
           const nat  = catalogMatch?.nat  || 'SU';
-          const cta  = catalogMatch?.cta  || (p.account_code?.slice(0, 3)) || '252';
+          const cta  = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 3) : '252');
           const tk   = catalogMatch?.tk   || 'F';
           const code = generateNextCode(existingCodes, cta, nat, activeRubro, tk as any);
           const newItem: WarehouseItem = {
@@ -1823,8 +1846,22 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>Fecha Devolución Prevista</label>
-                  <input type="date" style={inputStyle} value={toolForm.expected_return} onChange={e => setToolForm(f => ({ ...f, expected_return: e.target.value }))} />
+                  <label style={labelStyle}>Horas para devolución (token de tiempo)</label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input type="number" min="1" max="9999" style={{ ...inputStyle, width: 80 }}
+                      value={toolForm.hours}
+                      onChange={e => {
+                        const h = Math.max(1, parseInt(e.target.value) || 1);
+                        const ret = new Date(); ret.setHours(ret.getHours() + h);
+                        setToolForm(f => ({ ...f, hours: String(h), expected_return: ret.toISOString() }));
+                      }} />
+                    <span style={{ fontSize: 11, color: C.textMut }}>horas</span>
+                    {toolForm.expected_return && (
+                      <span style={{ fontSize: 11, color: C.accentY, fontWeight: 700 }}>
+                        → vence {new Date(toolForm.expected_return).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}>Condición de Salida</label>
@@ -1839,51 +1876,88 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   <input style={inputStyle} value={toolForm.notes} onChange={e => setToolForm(f => ({ ...f, notes: e.target.value }))} placeholder="Accesorios entregados, instrucciones especiales..." />
                 </div>
               </div>
-              <button style={btn('warning')} onClick={() => {
-                if (!toolForm.tool_id || !toolForm.worker_name) { alert('Seleccione herramienta y nombre del trabajador'); return; }
+              <button style={{ ...btn('warning'), minWidth: 160 }} disabled={loading} onClick={async () => {
+                if (!toolForm.tool_id || !toolForm.worker_name) {
+                  alert('Complete: seleccione herramienta e ingrese nombre del trabajador');
+                  return;
+                }
                 const tool = items.find(i => i.id === toolForm.tool_id);
-                if (!tool) return;
-                const now   = new Date();
-                const dateStr = now.toLocaleDateString('en-CA').replace(/-/g, '');
-                // Token temporal de asignación: ASG-{token_code}-{worker_doc}-{YYYYMMDD}
-                // Identifica de forma única esta asignación. Se elimina al devolver.
+                if (!tool) {
+                  alert('Artículo no encontrado en el inventario.\nHaga clic en "↻ Actualizar" y vuelva a intentarlo.');
+                  return;
+                }
+                if (tool.balance_qty < 1) {
+                  alert(`Sin stock disponible para "${tool.name}"`);
+                  return;
+                }
+                const warehouseId = tool.warehouse_id || warehouses[0]?.id;
+                if (!warehouseId) {
+                  alert('No hay almacén configurado. Configure uno primero.');
+                  return;
+                }
+
+                const now       = new Date();
+                const dateStr   = now.toLocaleDateString('en-CA').replace(/-/g, '');
                 const workerKey = (toolForm.worker_doc || toolForm.worker_name.slice(0, 6)).replace(/\s/g, '').slice(0, 8);
-                // Código compacto: ASG-{CTA}{NAT}-{SEQQ}-{DNI8}-{MMDD}
-                const toolShort = (tool.token_code || tool.sku || 'ITEM').split('-').slice(0,2).join('').slice(0, 8).toUpperCase();
-                const asgToken  = `ASG-${toolShort}-${workerKey}-${dateStr.slice(4)}`;
-                const newAssign: ToolAssignment = {
-                  id:              `ta-${Date.now()}`,
-                  tool_id:         toolForm.tool_id,
-                  tool_code:       tool.token_code,
-                  tool_name:       tool.name,
-                  worker_name:     toolForm.worker_name,
-                  worker_doc:      toolForm.worker_doc,
-                  project:         toolForm.project,
-                  area:            toolForm.area,
-                  assigned_date:   now.toLocaleDateString('en-CA'),
-                  expected_return: toolForm.expected_return,
-                  status:          'ASIGNADO',
-                  condition_out:   toolForm.condition_out,
-                  notes:           toolForm.notes,
-                  asg_token:       asgToken,
-                  started_at:      now.toISOString(),
-                };
-                setToolAssignments(prev => [newAssign, ...prev]);
-                setMovements(prev => [{
-                  id: `m-td-${Date.now()}`, product_id: toolForm.tool_id, warehouse_id: 'w3',
-                  movement_type: 'EXIT', qty: 1, unit_cost: tool.default_cost,
-                  balance_qty: tool.balance_qty - 1, balance_avg_cost: tool.balance_avg_cost,
-                  movement_reference: asgToken,
-                  source_document: `ASIGN-${workerKey}`,
-                  area: toolForm.area, validated_by: 'ALMACEN',
-                  notes: `[ASIGNACION] ${asgToken} → ${toolForm.worker_name} · ${toolForm.project}`,
-                  created_at: now.toISOString(),
-                }, ...prev]);
-                setItems(prev => prev.map(i => i.id === toolForm.tool_id ? { ...i, balance_qty: i.balance_qty - 1, balance_value: (i.balance_qty - 1) * i.balance_avg_cost } : i));
-                setToolForm({ tool_id: '', worker_name: '', worker_doc: '', project: '', area: 'OBRA', expected_return: '', condition_out: 'BUENO', notes: '' });
-                say(`✓ Token ${asgToken} generado. ${tool.name} entregada a ${toolForm.worker_name}`);
+                // 3 partes del código (CTA-NAT-RUB) → único por tipo de herramienta
+                // 252-HE-PA → "252HEPA"  |  252-HE-PI → "252HEPI"
+                const toolShort = (tool.token_code || tool.sku || 'ITEM').split('-').slice(0, 3).join('').slice(0, 10).toUpperCase();
+                const asgToken  = `ASG-${toolShort}-${workerKey}-${dateStr.slice(4)}-H${toolForm.hours || '8'}`;
+
+                setLoading(true);
+                try {
+                  const hdrs = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Tenant-Id': tenantId };
+                  const res = await fetch(`${apiBase}/inventory/exit`, {
+                    method: 'POST', headers: hdrs,
+                    body: JSON.stringify({
+                      tenant_id:          tenantId,
+                      product_id:         toolForm.tool_id,
+                      warehouse_id:       warehouseId,
+                      qty:                1,
+                      exit_reason:        'TRANSFERENCIA',
+                      notes:              `[ASIGNACION] ${asgToken} → ${toolForm.worker_name}${toolForm.project ? ' · ' + toolForm.project : ''}${toolForm.notes ? ' | ' + toolForm.notes : ''}`,
+                      movement_reference: asgToken,
+                      source_document:    `ASIGN-${workerKey}`,
+                      area:               toolForm.area,
+                      post_journal:       false,
+                    }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.text();
+                    alert(`Error al registrar entrega:\n${err}`);
+                    return;
+                  }
+
+                  // Registrar asignación en estado local para visualizar en la tabla
+                  setToolAssignments(prev => [{
+                    id:              `ta-${Date.now()}`,
+                    tool_id:         toolForm.tool_id,
+                    tool_code:       tool.token_code,
+                    tool_name:       tool.name,
+                    worker_name:     toolForm.worker_name,
+                    worker_doc:      toolForm.worker_doc,
+                    project:         toolForm.project,
+                    area:            toolForm.area,
+                    assigned_date:   now.toLocaleDateString('en-CA'),
+                    expected_return: toolForm.expected_return,
+                    status:          'ASIGNADO' as AssignStatus,
+                    condition_out:   toolForm.condition_out,
+                    notes:           toolForm.notes,
+                    asg_token:       asgToken,
+                    started_at:      now.toISOString(),
+                  }, ...prev]);
+
+                  const nextRet = new Date(); nextRet.setHours(nextRet.getHours() + 8);
+                  setToolForm({ tool_id: '', worker_name: '', worker_doc: '', project: '', area: 'OBRA', expected_return: nextRet.toISOString(), hours: '8', condition_out: 'BUENO', notes: '' });
+                  say(`✓ Token ${asgToken} generado. ${tool.name} entregada a ${toolForm.worker_name} · ${toolForm.hours}h`);
+                  await loadData(); // recargar stock real desde BD
+                } catch {
+                  alert('Error de conexión al registrar la entrega. Verifique la conexión.');
+                } finally {
+                  setLoading(false);
+                }
               }}>
-                🔧 Registrar Entrega
+                {loading ? '⏳ Registrando...' : '🔧 Registrar Entrega'}
               </button>
             </div>
 
@@ -1948,38 +2022,59 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           const workers = Array.from(workerMap.values());
           const workerData = selectedWorkerKey ? workerMap.get(selectedWorkerKey) : null;
 
-          const doReturn = (ids: string[], cond: string) => {
+          const doReturn = async (ids: string[], cond: string) => {
             const now = new Date();
-            setToolAssignments(prev => prev.map(a => {
-              if (!ids.includes(a.id) || a.status === 'DEVUELTO') return a;
-              // Calcular horas reales de uso
+            const hdrs = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-Tenant-Id': tenantId };
+            const warehouseId = warehouses[0]?.id;
+            let successCount = 0;
+
+            const assignments = toolAssignments.filter(a => ids.includes(a.id) && a.status !== 'DEVUELTO');
+            for (const a of assignments) {
               const hoursUsed = a.started_at
                 ? Math.round((now.getTime() - new Date(a.started_at).getTime()) / 3600000 * 10) / 10
                 : 0;
-              setItems(pi => pi.map(i => i.id === a.tool_id ? { ...i, balance_qty: i.balance_qty + 1, balance_value: (i.balance_qty + 1) * i.balance_avg_cost } : i));
-              setMovements(pm => [{
-                id: `m-tr-${Date.now()}-${a.id}`, product_id: a.tool_id, warehouse_id: 'w3',
-                movement_type: 'ENTRY', qty: 1, unit_cost: 0,
-                balance_qty: 1, balance_avg_cost: 0,
-                movement_reference: `DEV-${a.asg_token || a.id.slice(-6)}`,
-                source_document: `DEVOLUCION-${a.worker_doc}`,
-                area: a.area, validated_by: 'ALMACEN',
-                notes: `[DEVOLUCION] ${a.asg_token} | ${hoursUsed}h uso | Cond: ${cond} | ${a.worker_name}`,
-                created_at: now.toISOString(),
-              }, ...pm]);
-              // Al devolver: token ASG queda tachado (status DEVUELTO), se registran horas
+              const devRef = `DEV-${a.asg_token || a.id.slice(-6)}`;
+
+              // Llamar backend para registrar la entrada al kardex
+              try {
+                const res = await fetch(`${apiBase}/inventory/movements`, {
+                  method: 'POST', headers: hdrs,
+                  body: JSON.stringify({
+                    tenant_id:          tenantId,
+                    product_id:         a.tool_id,
+                    warehouse_id:       warehouseId || 'w1',
+                    movement_type:      'ENTRY',
+                    qty:                1,
+                    unit_cost:          0,
+                    movement_reference: devRef,
+                    source_document:    `DEVOLUCION-${a.worker_doc}`,
+                    area:               a.area,
+                    notes:              `[DEVOLUCION] ${a.asg_token} | ${hoursUsed}h uso | Cond: ${cond} | ${a.worker_name}`,
+                    post_cost_entry:    false,
+                  }),
+                });
+                if (res.ok) successCount++;
+              } catch { /* continuar con los demás */ }
+            }
+
+            // Marcar como devueltos en estado local
+            setToolAssignments(prev => prev.map(a => {
+              if (!ids.includes(a.id) || a.status === 'DEVUELTO') return a;
+              const hoursUsed = a.started_at
+                ? Math.round((now.getTime() - new Date(a.started_at).getTime()) / 3600000 * 10) / 10
+                : 0;
               return {
                 ...a,
-                status:        'DEVUELTO' as AssignStatus,
-                condition_in:  cond,
-                actual_return: now.toLocaleDateString('en-CA'),
-                returned_at:   now.toISOString(),
+                status:         'DEVUELTO' as AssignStatus,
+                condition_in:   cond,
+                actual_return:  now.toLocaleDateString('en-CA'),
+                returned_at:    now.toISOString(),
                 hours_assigned: hoursUsed,
-                // asg_token permanece para historial pero ya no está activo
               };
             }));
             setReturnChecked(new Set());
-            say(`✓ ${ids.length} ítem(s) devuelto(s) al almacén. Token ASG desactivado.`);
+            say(`✓ ${successCount}/${ids.length} ítem(s) devuelto(s) al almacén. Token ASG desactivado.`);
+            await loadData(); // recargar stock real desde BD
           };
 
           return (
@@ -2713,7 +2808,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                 {pendingPurchases.map((p, idx) => {
                   // Auto-match catálogo para mostrar sugerencia
                   const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
-                  const ctaSuggested = catalogMatch?.cta || p.account_code?.slice(0,3) || '252';
+                  // ctaSuggested: primeros 3 dígitos para el token de almacén (no truncar account_code completo)
+                  const ctaSuggested = catalogMatch?.cta || (p.account_code ? p.account_code.slice(0, 3) : '252');
                   const gastoSuggested = catalogMatch?.gasto || '6569';
                   const isGuia = p.doc_type === '09';
                   return (

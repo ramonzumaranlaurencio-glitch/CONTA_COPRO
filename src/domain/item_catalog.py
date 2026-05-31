@@ -17,7 +17,7 @@ NAT_TO_CLASS: dict[str, str] = {
     "MA": "MATERIA_PRIMA", "MF": "MATERIA_PRIMA",
     "RM": "INSUMOS", "RE": "INSUMOS", "RN": "INSUMOS", "RI": "INSUMOS",
     "MQ": "ACTIVO_FIJO", "EQ": "ACTIVO_FIJO", "VH": "ACTIVO_FIJO",
-    "HT": "HERRAMIENTAS", "HE": "HERRAMIENTAS", "MU": "ACTIVO_FIJO",
+    "HT": "HERRAMIENTAS", "HE": "HERRAMIENTAS", "HM": "HERRAMIENTAS", "MU": "ACTIVO_FIJO",
     "EX": "INSUMOS", "QU": "INSUMOS", "EC": "INSUMOS", "CB": "INSUMOS",
 }
 
@@ -87,13 +87,18 @@ CATALOG: list[dict] = [
     {"code":"337-HE-GE-0001-P","name":"Nivel láser rotativo","cta":"337","nat":"HE","rub":"GE","tk":"P","unit":"UND","gasto":"6817","gasto_name":"Depreciación herramientas","ai_keywords":["nivel","laser","rotativo","electronico","nivel laser"]},
     # ── HERRAMIENTAS MANUALES (suministro fungible) ───────────────────────────
     # Palas — SKU único por marca para rastrear costo exacto por partida
-    {"code":"252-HM-GE-0001-F","name":"Pala Truper (recta/cuchara)","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pala truper","pala recta truper","truper pala","lampa truper"]},
-    {"code":"252-HM-GE-0002-F","name":"Pala Universal (recta/cuchara)","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pala universal","pala recta universal","universal pala","lampa universal"]},
-    {"code":"252-HM-GE-0003-F","name":"Pala genérica (sin marca)","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pala","pala recta","pala cuchara","lampa","palana","pala de trabajo","pala obra"]},
-    {"code":"252-HM-GE-0002-F","name":"Pico / azadón","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pico","azadon","piocha","zapa"]},
-    {"code":"252-HM-GE-0003-F","name":"Carretilla de obra","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["carretilla","buggy","wheelbarrow"]},
-    {"code":"252-HM-GE-0004-F","name":"Barreta / palanca metálica","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["barreta","palanca","barra metalica","crowbar"]},
-    {"code":"252-HM-GE-0005-F","name":"Comba / martillo de obra","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["comba","martillo","mazo","marro"]},
+    # ── HERRAMIENTAS MANUALES — cta:252, suministros (no activo fijo) ──────────
+    # Pala y variantes
+    {"code":"252-HM-GE-0001-F","name":"Pala punta de acero con mango","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pala","pala punta","pala punta de acero","pala acero","pala cuchara","lampa","palana","pala de trabajo","pala obra","pala recta","pala mango","pala mango madera","truper pala","lampa truper"]},
+    # Pico y variantes
+    {"code":"252-HM-GE-0002-F","name":"Pico punta y pala con mango","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["pico","pico punta","pico y pala","pico punta y pala","azadon","piocha","zapa","pico mango","pico con mango","pico de trabajo"]},
+    # Otras herramientas manuales
+    {"code":"252-HM-GE-0003-F","name":"Carretilla de obra","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["carretilla","buggy","wheelbarrow","carretilla obra"]},
+    {"code":"252-HM-GE-0004-F","name":"Barreta / palanca metálica","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["barreta","palanca","barra metalica","crowbar","barreta metalica"]},
+    {"code":"252-HM-GE-0005-F","name":"Comba / martillo de obra","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["comba","martillo","mazo","marro","comba de obra"]},
+    {"code":"252-HM-GE-0006-F","name":"Serrucho / sierra manual","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["serrucho","sierra manual","sierra de mano","hoja de sierra"]},
+    {"code":"252-HM-GE-0007-F","name":"Cincel y combo (juego)","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"JGO","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["cincel","combo","juego cincel","punzon","formón"]},
+    {"code":"252-HM-GE-0008-F","name":"Rastrillo de jardín/obra","cta":"252","nat":"HM","rub":"GE","tk":"F","unit":"UND","gasto":"6569","gasto_name":"Suministros - herramientas menores","ai_keywords":["rastrillo","rastro","escardillo"]},
     # ── EQUIPOS DIVERSOS (activo fijo) ────────────────────────────────────────
     {"code":"336-EQ-GE-0001-P","name":"Computadora de escritorio Core i5","cta":"336","nat":"EQ","rub":"GE","tk":"P","unit":"UND","gasto":"6816","gasto_name":"Depreciación equipos","ai_keywords":["computadora","pc","desktop","escritorio","core i5","computadora escritorio"]},
     {"code":"336-EQ-GE-0002-P","name":"Impresora multifuncional láser","cta":"336","nat":"EQ","rub":"GE","tk":"P","unit":"UND","gasto":"6816","gasto_name":"Depreciación equipos","ai_keywords":["impresora","laser","multifuncional","oficina","impresora laser"]},
@@ -182,6 +187,11 @@ def infer_nat_from_description(description: str, cta: str) -> str:
         return "LI"
     if any(k in desc for k in ["papel","toner","cartucho","lapiz","boligrafo","archivador","folder","cinta","utiles"]):
         return "SU"
+    # Herramientas MANUALES de bajo valor → suministros (252), NO activo fijo
+    if any(k in desc for k in ["pala","pico","lampa","palana","comba","martillo","barreta","carretilla",
+                                 "serrucho","machete","rastrillo","zapapico","azadon","cincel","espatula",
+                                 "llana","plomada","escuadra","nivel de burbuja","mango","paleta"]):
+        return "HM"
     if any(k in desc for k in ["laptop","computadora","monitor","tablet","celular","cpu"]):
         return "EQ"
     if any(k in desc for k in ["ssd","ram","disco","memoria","cable utp","cable red"]):
@@ -190,9 +200,10 @@ def infer_nat_from_description(description: str, cta: str) -> str:
         return "EQ"
     if any(k in desc for k in ["camion","camioneta","auto","vehiculo","furgon"]):
         return "VH"
-    if any(k in desc for k in ["taladro","amoladora","esmeril","soldadora","compresor","sierra","cortadora"]):
+    # Herramientas ELÉCTRICAS/MECÁNICAS (mayor valor) → pueden ser activo fijo
+    if any(k in desc for k in ["taladro","amoladora","esmeril","soldadora","compresor","sierra","cortadora","rotomartillo"]):
         return "HE"
-    if any(k in desc for k in ["andamio","vibrador","mezcladora","herramienta"]):
+    if any(k in desc for k in ["andamio","vibrador","mezcladora"]):
         return "HT"
     if any(k in desc for k in ["tractor","generador","grupo electrogeno","maquina","maquinaria"]):
         return "MQ"

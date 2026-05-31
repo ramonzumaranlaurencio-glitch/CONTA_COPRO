@@ -31,6 +31,9 @@ class InventoryService:
         unit_cost: Decimal | None,
         movement_reference: str | None,
         source_document: str | None,
+        area: str | None = None,
+        validated_by: str | None = None,
+        notes: str | None = None,
     ) -> InventoryMovementResult:
         if qty <= 0:
             raise ValueError("La cantidad debe ser mayor a cero")
@@ -66,6 +69,9 @@ class InventoryService:
             balance_avg_cost=new_avg_cost,
             movement_reference=movement_reference or f"{movement_type}:{uuid4()}",
             source_document=source_document,
+            area=area,
+            validated_by=validated_by,
+            notes=notes,
         )
         await self.inventory_repo.upsert_balance(tenant_id, product_id, warehouse_id, new_qty, new_avg_cost)
 

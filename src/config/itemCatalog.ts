@@ -344,7 +344,9 @@ export function matchCatalogItem(
 
   for (const item of pool) {
     // Filtrar primero por cuenta PCGE si se provee
-    if (accountCode && item.cta !== accountCode.slice(0, 3)) continue;
+    // Comparar CTA del catálogo (3 dígitos) con los primeros 3 dígitos del account_code PCGE
+    // Permite que "2522" coincida con items cuyo cta es "252"
+    if (accountCode && item.cta !== accountCode.slice(0, 3) && item.cta !== accountCode) continue;
 
     let score = 0;
     for (const kw of item.ai_keywords) {

@@ -347,6 +347,7 @@ async def list_balances(ctx=Depends(get_current_context)):
             avg_cost = float(b.balance_avg_cost)
             result.append({
                 "balance_id": str(b.id),
+                "id": str(p.id),
                 "product_id": str(p.id),
                 "warehouse_id": str(w.id),
                 "warehouse_code": w.code,
@@ -656,7 +657,7 @@ async def register_exit(payload: ExitPayload, request: Request, ctx=Depends(get_
             "journal_entry_id": journal_entry_id,
             "new_balance_qty": str(result.balance_qty),
             "new_balance_avg": str(result.balance_avg_cost),
-            "new_balance_val": str((result.balance_qty * result.balance_avg_cost).quantize(Decimal("0.01"))),
+            "new_balance_val": str((Decimal(result.balance_qty) * Decimal(result.balance_avg_cost)).quantize(Decimal("0.01"))),
         }
 
 
@@ -1031,7 +1032,7 @@ async def get_pending_purchases(
             doc_ref = f"{serie}-{number}" if serie and number else (entry.source_id or str(entry.id))
             source_doc = str(entry.source_id or doc_ref)
 
-            # Si ya existe movimiento para este documento, omitir
+            # Si el documento entero ya fue recibido (compatibilidad con movimientos sin índice), omitir
             if source_doc in received_docs or doc_ref in received_docs:
                 continue
 
@@ -1051,9 +1052,20 @@ async def get_pending_purchases(
             )
 
             for idx, item in enumerate(raw_items):
-                line_type  = str(item.get("line_type") or "EXPENSE_OR_ASSET")
-                acc_code_raw = str(item.get("account_code") or "")
-                acc_prefix   = acc_code_raw[:2] if len(acc_code_raw) >= 2 else ""
+                # Referencia única por línea — permite validar ítem a ítem sin que
+                # todo el documento desaparezca al validar solo la primera línea
+                line_source_doc = f"{source_doc}-L{idx}"
+
+                # Omitir si esta línea específica ya fue ingresada al kardex
+                if line_source_doc in received_docs:
+                    continue
+
+                line_type_raw = item.get("line_type")  # None si la IA no clasificó
+                line_type     = str(line_type_raw or "EXPENSE_OR_ASSET")
+                acc_code_raw  = str(item.get("account_code") or item.get("product_code") or "")
+                # Tomar solo el prefijo numérico (252-HE-... → "25")
+                acc_prefix_raw = acc_code_raw.split("-")[0] if "-" in acc_code_raw else acc_code_raw
+                acc_prefix     = acc_prefix_raw[:2] if len(acc_prefix_raw) >= 2 else ""
 
                 # Detectar si es bien físico de inventario por cuenta PCGE:
                 # 20-26 = existencias, 33-35 = activo fijo capitalizable
@@ -1062,12 +1074,13 @@ async def get_pending_purchases(
                 is_inventory_flag = bool(item.get("is_inventory", False))
                 is_inv = is_inventory_flag or is_inventory_by_account or line_type == "INVENTORY_PURCHASE"
 
-                # Excluir líneas puramente contables que no son bienes físicos
+                # Excluir solo líneas explícitamente contables/no físicas
                 if line_type in {"PAYABLE", "TAX", "ROUNDING", "PRIOR_BALANCE",
                                   "ADVANCE_PAYMENT", "LATE_FEE", "INFO_ONLY"}:
                     continue
-                if line_type == "EXPENSE_OR_ASSET" and not is_inv:
-                    # Servicio o gasto puro (luz, alquiler, honorarios, etc.)
+                # Solo excluir como gasto puro si la IA lo clasificó explícitamente así
+                # (line_type_raw is None = sin clasificar → el almacenero decide)
+                if line_type == "EXPENSE_OR_ASSET" and not is_inv and line_type_raw is not None:
                     continue
 
                 description = str(item.get("description") or "Sin descripción")
@@ -1093,7 +1106,7 @@ async def get_pending_purchases(
                     "doc_series":    serie,
                     "doc_number":    number,
                     "doc_date":      issue_date,
-                    "source_doc":    source_doc,
+                    "source_doc":    line_source_doc,
                     "source_module": entry.source_module,
                     "supplier_name": supplier_name,
                     "supplier_ruc":  supplier_ruc,
@@ -1132,6 +1145,7 @@ class ValidatePurchaseItemPayload(BaseModel):
     warehouse_id: str
     entry_id: str
     source_doc: str
+    source_module: str = "PURCHASING"    # Módulo origen: PURCHASING, COMPRAS, MANUAL, etc.
     product_id: str | None = None
     product_name: str
     sku: str = ""
@@ -1192,7 +1206,9 @@ async def validate_purchase_items(
                 product_id = str(existing.id)
             else:
                 # 2. No existe → crear con código estructurado del catálogo
-                cta   = (payload.account_code or "252")[:3]
+                # account_code es la subcuenta PCGE completa (ej: "2522")
+                # cta es solo los primeros 3 dígitos para el token del almacén (ej: "252")
+                cta   = (payload.account_code or "252")[:3]   # base para token almacén
                 nat   = payload.catalog_nat or infer_nat_from_description(payload.product_name, cta)
                 rub   = payload.catalog_rub or "GE"
                 tk    = payload.catalog_tk  or infer_tk_from_description(payload.product_name, nat)
@@ -1215,12 +1231,12 @@ async def validate_purchase_items(
                 product = await repo.create_product(
                     tenant_id=payload.tenant_id,
                     company_id=payload.company_id,
-                    sku=payload.sku or token_code,
+                    sku=token_code,   # SKU = token_code con secuencia real — único por producto
                     name=payload.product_name,
                     unit_of_measure=payload.unit,
                     default_cost=cost,
                     default_sales_account="704101",
-                    default_cost_account=payload.account_code or "2011",
+                    default_cost_account=payload.account_code or "2522",  # subcuenta PCGE completa
                     item_class=item_cls,
                     token_type=token_type,
                     token_code=token_code,
@@ -1248,34 +1264,54 @@ async def validate_purchase_items(
 
     response: dict = {**result.__dict__, "product_id": product_id}
 
-    # Asiento contable
-    if payload.post_journal:
+    # Asiento contable — solo cuando NO viene de COMPRAS
+    # Bajo NIC 2 Sistema Permanente: COMPRAS ya debitó la cuenta de inventario (252x/251x)
+    # al registrar la factura. Validar en almacén es solo control físico (kardex).
+    # Crear un asiento adicional aquí duplicaría la deuda con el proveedor (4212).
+    _PURCHASING_MODULES = {"PURCHASING", "COMPRAS", "PURCHASES", "GUIA_REMISION"}
+    _from_purchase = payload.source_module.upper() in _PURCHASING_MODULES
+
+    if payload.post_journal and not _from_purchase:
+        from sqlalchemy import select as _sel, func as _func
+        from src.domain.models.accounting import JournalEntry as _JE
         total_cost = (qty * cost).quantize(D("0.01"))
         cur_date   = date.today()
-        posting = {
-            "tenant_id": payload.tenant_id,
-            "year":  payload.year  or cur_date.year,
-            "month": payload.month or cur_date.month,
-            "entry_date": cur_date,
-            "description": f"Ingreso inventario desde compra {payload.source_doc}",
-            "source_module": "INVENTORY",
-            "source_id": result.movement_id,
-            "currency": "PEN",
-            "user_id": _safe_user_uuid(ctx.get("user_id")),
-            "trace_id": ctx["trace_id"],
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("user-agent"),
-            "lines": [
-                {"account_code": payload.account_code or "2011", "account_name": "Inventarios",
-                 "debit": total_cost, "credit": D("0.00"), "cost_center": payload.cost_center},
-                {"account_code": "4212", "account_name": "Cuentas por pagar comerciales",
-                 "debit": D("0.00"), "credit": total_cost},
-            ],
-        }
-        try:
-            entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting)
-            response["journal_entry_id"] = str(entry.id)
-        except Exception:
-            pass  # movimiento ya creado, asiento falla silenciosamente
+        # source_id único por línea de compra → misma factura+línea = mismo asiento
+        journal_source_id = f"INV-{payload.source_doc}"
+        # Verificar si ya existe asiento para esta línea (idempotencia)
+        async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as _uow:
+            exists = (await _uow.session.execute(
+                _sel(_func.count()).where(
+                    _JE.tenant_id == payload.tenant_id,
+                    _JE.source_module == "INVENTORY",
+                    _JE.source_id == journal_source_id,
+                )
+            )).scalar()
+        if not exists:
+            posting = {
+                "tenant_id": payload.tenant_id,
+                "year":  payload.year  or cur_date.year,
+                "month": payload.month or cur_date.month,
+                "entry_date": cur_date,
+                "description": f"Ingreso inventario desde compra {payload.source_doc}",
+                "source_module": "INVENTORY",
+                "source_id": journal_source_id,
+                "currency": "PEN",
+                "user_id": _safe_user_uuid(ctx.get("user_id")),
+                "trace_id": ctx["trace_id"],
+                "ip_address": request.client.host if request.client else None,
+                "user_agent": request.headers.get("user-agent"),
+                "lines": [
+                    {"account_code": payload.account_code or "2011", "account_name": "Inventarios",
+                     "debit": total_cost, "credit": D("0.00"), "cost_center": payload.cost_center},
+                    {"account_code": "4212", "account_name": "Cuentas por pagar comerciales",
+                     "debit": D("0.00"), "credit": total_cost},
+                ],
+            }
+            try:
+                entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting)
+                response["journal_entry_id"] = str(entry.id)
+            except Exception:
+                pass
 
     return response

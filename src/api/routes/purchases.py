@@ -254,18 +254,21 @@ PCGE_RULE_LIBRARY = [
         "requires_support": True,
     },
     {
+        # 3337 = SOLO herramientas ELÉCTRICAS/MECÁNICAS de alto valor (taladro, amoladora, etc.)
+        # Herramientas MANUALES de bajo valor (pala, pico, comba) → 2522 (suministros)
         "account_code": "3337",
-        "account_name": "Herramientas y utensilios (activo fijo)",
+        "account_name": "Herramientas y utensilios electromecánicos",
         "is_inventory": True,
         "item_class": "HERRAMIENTAS",
         "keywords": [
-            "herramienta", "taladro", "amoladora", "esmeril", "soldadora", "nivel laser",
-            "compresor", "pistola pintura", "llave torquimetro", "destornillador set",
+            "taladro", "amoladora", "esmeril", "soldadora", "nivel laser",
+            "compresor", "pistola pintura", "llave torquimetro", "destornillador electrico",
             "mezcladora concreto", "vibrador concreto", "sierra circular",
-            "martillo neumatico", "jackhammer", "andamio", "escalera metal"
+            "martillo neumatico", "jackhammer", "andamio", "escalera metal",
+            "rotomartillo", "pulidora", "lijadora", "fresadora", "torno"
         ],
         "default_cost_center": "OPS-PROD",
-        "tax_treatment": "Herramienta/utensilio de reemplazo. Evaluar capitalizacion o gasto segun politica.",
+        "tax_treatment": "Herramienta electromecánica. Evaluar capitalización según política de empresa.",
         "deductibility": "REVISION",
         "igv_credit": "SI",
         "requires_support": True,
@@ -675,15 +678,23 @@ BIEN FÍSICO TANGIBLE (ingresa al almacén → account_code = cuenta inventario 
   │ 2412     │ Materias primas no manufact.        │ Arena, piedra chancada, gravilla, mineral, arcilla   │
   │ 2521     │ Materiales auxiliares               │ Materiales auxiliares de produccion                  │
   │ 2522     │ Suministros                         │ Papel bond, toner, utiles, EPP, combustible, aceite  │
-  │          │                                     │ jabon, detergente, lejia, papel higienico, limpieza  │
+  │          │                                     │ jabon, detergente, limpieza, y HERRAMIENTAS MANUALES│
+  │          │                                     │ de bajo valor: PALA, PICO, COMBA, BARRETA, RASTRILLO│
+  │          │                                     │ SERRUCHO, CINCEL, CARRETILLA, MARTILLO MANUAL, etc. │
   │ 2523     │ Repuestos                           │ Repuestos de maquinaria, brocas, filtros, correas    │
   │ 3334     │ Unidades de transporte              │ Vehiculos (activo fijo)                              │
   │ 3336     │ Equipos diversos                    │ Laptops, PCs, servidores, equipos electronicos       │
-  │ 3337     │ Herramientas y utensilios           │ Herramientas, taladros, amoladoras, andamios         │
+  │ 3337     │ Herramientas ELECTROMECÁNICAS       │ SOLO herramientas eléctricas/mecánicas de alto valor │
+  │          │                                     │ taladros, amoladoras, soldadoras, compresoras, sierras│
+  │          │                                     │ NO usar 3337 para palas, picos, combas ni herramientas│
+  │          │                                     │ manuales simples → esas van a 2522                   │
   └──────────┴─────────────────────────────────────┴──────────────────────────────────────────────────────┘
   → is_inventory = true
   → line_type = "INVENTORY_PURCHASE"
   → El account_code del item DEBE ser la cuenta de inventario (2xx o 3xx), NO la cuenta de gasto (6xx)
+  → REGLA CLAVE: Herramientas MANUALES simples (pala, pico, comba, barreta, rastrillo,
+    serrucho, cincel, carretilla, martillo, paleta) → SIEMPRE cuenta 2522, NUNCA 3337
+  → REGLA CLAVE: 3337 es SOLO para herramientas eléctricas/mecánicas (taladro, amoladora, etc.)
 
 SERVICIO / GASTO CORRIENTE (NO ingresa al almacén → account_code = cuenta gasto 6xx):
   - 636xxx: servicios publicos (luz, agua, gas, internet, telefonia)
@@ -696,17 +707,27 @@ SERVICIO / GASTO CORRIENTE (NO ingresa al almacén → account_code = cuenta gas
   → is_inventory = false
   → line_type = "EXPENSE_OR_ASSET"
 
-EJEMPLOS CRITICOS:
-  "Papel Bond A4 x 500 hojas" → cuenta 2522 (INVENTARIO, es bien fisico)
-  "Gasolina 84 octanos 20 gal" → cuenta 2522 (INVENTARIO, es bien fisico)
-  "Casco de seguridad x 5 unds" → cuenta 2522 (INVENTARIO, EPP fisico)
-  "Cemento Portland 42.5kg x 50 bolsas" → cuenta 2411 (INVENTARIO, materia prima)
-  "Laptop HP 15 i5" → cuenta 3336 (INVENTARIO, activo fijo)
-  "Servicio de internet mensual" → cuenta 636101 (SERVICIO, no ingresa almacen)
-  "Honorarios contables" → cuenta 632101 (SERVICIO)
-  "Alquiler local comercial" → cuenta 635101 (SERVICIO)
-  "Mantenimiento correctivo maquina" → cuenta 634101 (SERVICIO)
-  "Flete de transporte" → cuenta 624101 (SERVICIO)
+EJEMPLOS CRITICOS (aplican para CUALQUIER factura):
+  "Papel Bond A4 x 500 hojas"              → cuenta 2522 (INVENTARIO, suministro de oficina)
+  "Gasolina 84 octanos 20 gal"             → cuenta 2522 (INVENTARIO, combustible)
+  "Casco de seguridad x 5 unds"            → cuenta 2522 (INVENTARIO, EPP)
+  "Guantes de cuero x 10 pares"            → cuenta 2522 (INVENTARIO, EPP)
+  "Pala punta de acero con mango x 5"      → cuenta 2522 (INVENTARIO, herramienta manual, NO activo fijo)
+  "Pico punta y pala con mango x 5"        → cuenta 2522 (INVENTARIO, herramienta manual, NO activo fijo)
+  "Comba de 5 libras"                       → cuenta 2522 (INVENTARIO, herramienta manual)
+  "Barreta metalica 1.5m"                  → cuenta 2522 (INVENTARIO, herramienta manual)
+  "Carretilla de obra 5 pie3"              → cuenta 2522 (INVENTARIO, herramienta manual)
+  "Cemento Portland 42.5kg x 50 bolsas"   → cuenta 2411 (INVENTARIO, materia prima)
+  "Acero corrugado 3/8 x 100 barras"       → cuenta 2411 (INVENTARIO, materia prima)
+  "Laptop HP 15 i5"                        → cuenta 3336 (INVENTARIO, equipo electronico)
+  "Taladro percutor 13mm Bosch"            → cuenta 3337 (INVENTARIO, herramienta electrica)
+  "Amoladora angular 7 pulgadas"           → cuenta 3337 (INVENTARIO, herramienta electrica)
+  "Camioneta 4x4"                          → cuenta 3334 (INVENTARIO, vehiculo)
+  "Servicio de internet mensual"           → cuenta 636101 (SERVICIO, no ingresa almacen)
+  "Honorarios contables"                   → cuenta 632101 (SERVICIO)
+  "Alquiler local comercial"               → cuenta 635101 (SERVICIO)
+  "Mantenimiento correctivo maquina"       → cuenta 634101 (SERVICIO)
+  "Flete de transporte"                    → cuenta 624101 (SERVICIO)
 
 Si el comprobante tiene items MIXTOS (algunos bienes fisicos, algunos servicios), clasifica cada uno independientemente.
 
@@ -1185,21 +1206,34 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             item["catalog_nat"]   = match["nat"]
             item["catalog_rub"]   = match["rub"]
             item["catalog_tk"]    = match["tk"]
-            # Usar cuenta CTA del catálogo si no hay account_code o es genérico
-            if not acc or acc in {"659101", "2011"} and match["cta"] != acc:
-                item["account_code"] = match["cta"]
-                item["account_name"] = f"Inventario - {match['name']}"
-            # Actualizar item_class desde catálogo
-            item["item_class"] = item_class_from_nat(match["nat"])
+            # REGLA: El catálogo maestro es autoridad en la clasificación contable.
+            # Si el catálogo dice que una pala es "252" (suministro), se usa 252
+            # aunque la IA de Gemini haya devuelto "333x" (activo fijo).
+            # La IA es buena leyendo texto/montos, pero el catálogo tiene las
+            # reglas PCGE correctas por tipo de bien.
+            cat_cta = match["cta"]   # ej: "252" para herramientas manuales
+            ai_cta  = acc[:3] if acc else ""
+            # Solo respetar la cuenta de la IA si es compatible con el catálogo
+            # (misma familia PCGE: ambas 25x, ambas 33x, etc.)
+            if ai_cta and ai_cta == cat_cta:
+                # IA y catálogo coinciden en familia → preservar subcuenta IA si es más específica
+                item["account_code"] = acc if len(acc) >= len(cat_cta) else cat_cta
+            else:
+                # IA discrepa (ej: IA=3337, catálogo=252) → el catálogo gana
+                item["account_code"] = cat_cta
+            item["account_name"] = match.get("gasto_name", match.get("name", "Inventarios"))
+            item["item_class"]   = item_class_from_nat(match["nat"])
             item["catalog_match"] = True
         else:
-            # No está en catálogo → generar código estructurado con misma estructura
-            cta = acc[:3] if len(acc) >= 3 else "252"
-            nat = infer_nat_from_description(desc, cta)
+            # No está en catálogo → construir código provisional para almacén
+            # account_code (contable) y catalog_code (almacén) son campos separados
+            cta = acc if len(acc) >= 3 else "252"   # mantener subcuenta PCGE completa
+            cta3 = cta[:3]                           # solo primeros 3 dígitos para el token
+            nat = infer_nat_from_description(desc, cta3)
             tk  = infer_tk_from_description(desc, nat)
-            # SEQQ 9999 = pendiente de asignar secuencia real en inventario
-            provisional_code = build_structured_code(cta, nat, "GE", 9999, tk)
-            item["catalog_code"]   = provisional_code
+            # SEQQ 9999 = pendiente de asignar secuencia real al ingresar al almacén
+            provisional_code = build_structured_code(cta3, nat, "GE", 9999, tk)
+            item["catalog_code"]   = provisional_code   # código almacén (≠ account_code)
             item["catalog_name"]   = desc
             item["catalog_unit"]   = _norm_text(item.get("unit")) or "UND"
             item["gasto_account"]  = ""
@@ -1242,6 +1276,8 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         warnings.append("OCR no devolvio items detallados; se creo linea fallback.")
 
     account_lines = []
+    # Ítems de INVENTARIO → línea individual por ítem (trazabilidad Pala/Pico/etc.)
+    # Ítems de GASTO/SERVICIO → se agrupan por cuenta (comportamiento estándar)
     debit_by_key: dict[tuple[str, str, str, str], Decimal] = {}
     credit_by_key: dict[tuple[str, str, str, str], Decimal] = {}
 
@@ -1251,6 +1287,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         cc = _norm_upper(item.get("cost_center")) or fallback_cc
         kind = _norm_text(item.get("line_type")) or "EXPENSE_OR_ASSET"
         amount = _money(item.get("line_subtotal"))
+        desc = _norm_text(item.get("description")) or name
 
         if kind == "INFO_ONLY":
             reconciliation_notes.append(f"Linea informativa no contabilizada: {item.get('description')}.")
@@ -1262,15 +1299,31 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             accounting_warnings.append(f"Redondeo superior a tolerancia automatica: {amount}. Revisar OCR o comprobante.")
 
         if kind == "ADVANCE_PAYMENT":
-            # Si el comprobante muestra abono o saldo a favor como importe positivo, reduce el payable con credito de cuenta puente.
             key = (code, name, "-", kind)
             credit_by_key[key] = credit_by_key.get(key, Decimal("0.00")) + abs(amount)
             continue
 
-        # Deuda anterior, gasto actual, mora y redondeo que incrementa total se reconocen al debe.
         target_cc = cc if code[:1] in {"6", "9"} else "-"
-        key = (code, name, target_cc, kind)
-        debit_by_key[key] = debit_by_key.get(key, Decimal("0.00")) + amount
+
+        # Ítems de inventario: una línea por ítem para ver Pala, Pico, etc. por separado
+        if kind == "INVENTORY_PURCHASE" and amount > 0:
+            qty  = _norm_text(item.get("quantity")) or "1"
+            unit = _norm_text(item.get("unit")) or "UND"
+            account_lines.append({
+                "account_code": code,
+                "account_name": name,
+                "cost_center":  target_cc,
+                "debit":        _money_str(amount),
+                "credit":       "0.00",
+                "line_type":    "INVENTORY_PURCHASE",
+                "description":  f"{desc} ({qty} {unit})",
+                "tax_treatment": item.get("tax_treatment") or "Bien físico de inventario.",
+                "audit_note":   "",
+            })
+        else:
+            # Gastos/servicios: agrupar por cuenta (estándar)
+            key = (code, name, target_cc, kind)
+            debit_by_key[key] = debit_by_key.get(key, Decimal("0.00")) + amount
 
         if item.get("requires_support") and kind not in {"ROUNDING", "PRIOR_BALANCE", "ADVANCE_PAYMENT", "REGULATED_CHARGE", "INFO_ONLY"}:
             tax_warnings.append(f"{item.get('description')}: requiere sustento adicional.")
