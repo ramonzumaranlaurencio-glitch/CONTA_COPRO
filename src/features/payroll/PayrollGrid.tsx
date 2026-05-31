@@ -888,6 +888,24 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
     }
   };
 
+  const syncPayrollChartAccounts = async () => {
+    try {
+      const bearerToken = await ensureToken();
+      const res = await fetch(`${apiBase}/hr/payroll/sync-chart-accounts`, {
+        method: 'POST',
+        headers: jsonHeaders(bearerToken),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        onStatus?.(`✓ Plan contable sincronizado: ${(d.synced_accounts as string[]).join(', ')}`);
+      } else {
+        onStatus?.(`Error al sincronizar cuentas: ${JSON.stringify(d)}`);
+      }
+    } catch {
+      onStatus?.('Error de conexión al sincronizar cuentas de planilla.');
+    }
+  };
+
   const postPayrollJournal = async () => {
     setIsPostingPayroll(true);
     try {
@@ -968,6 +986,13 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
             title={workers.length === 0 ? 'No hay trabajadores registrados' : 'Registrar planilla en Libro Diario'}
           >
             {isPostingPayroll ? 'Posteando...' : 'Postear planilla'}
+          </Button>
+          <Button
+            appearance="subtle"
+            onClick={syncPayrollChartAccounts}
+            title="Registra en el plan contable todas las cuentas PCGE de planilla (4111, 4031, 4032, 6211, 6271, etc.)"
+          >
+            Sincronizar cuentas planilla
           </Button>
           <label className="hr-hero-upload">
             <input

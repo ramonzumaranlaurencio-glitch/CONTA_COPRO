@@ -25,6 +25,7 @@ from src.ai.vector_store import PgVectorAccountingStore
 from src.config import settings
 from src.domain.models.accounting import AccountingPeriod, HrContract, HrWorker, JournalEntry
 from src.infrastructure.db.session import AsyncSessionLocal
+from src.infrastructure.repositories.ledger_repository import LedgerRepository
 from src.infrastructure.unit_of_work import UnitOfWork
 
 router = APIRouter(prefix="/hr", tags=["RRHH IA"])
@@ -535,7 +536,7 @@ async def post_payroll_journal(
         },
         {
             "account_code": "6271",
-            "account_name": "Seguridad y prevision social",
+            "account_name": "Seguridad y previsión social - EsSalud empleador",
             "debit": essalud,
             "credit": Decimal("0.00"),
             "cost_center": payload.cost_center,
@@ -548,7 +549,7 @@ async def post_payroll_journal(
         },
         {
             "account_code": "4032",
-            "account_name": "ONP/AFP por pagar",
+            "account_name": "AFP / ONP por pagar",
             "debit": Decimal("0.00"),
             "credit": pension,
         },
@@ -559,6 +560,40 @@ async def post_payroll_journal(
             "credit": essalud,
         },
     ]
+
+    # Cuentas PCGE que genera planilla — upsert al plan contable antes de postear
+    # Igual al patrón de post_purchase_invoice: garantiza que el libro diario
+    # muestre las partidas aunque el usuario no haya cargado el plan contable manualmente.
+    _PAYROLL_ACCOUNTS = [
+        {"code": "6211", "name": "Sueldos y salarios",                          "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
+        {"code": "6271", "name": "Seguridad y previsión social - EsSalud",      "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
+        {"code": "4111", "name": "Remuneraciones por pagar",                    "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4031", "name": "EsSalud por pagar",                           "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4032", "name": "AFP / ONP por pagar",                         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4034", "name": "SCTR por pagar",                              "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4035", "name": "Renta de quinta categoría por pagar",         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4114", "name": "Gratificaciones por pagar",                   "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4115", "name": "Vacaciones por pagar",                        "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "4116", "name": "CTS por pagar",                               "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
+        {"code": "6214", "name": "Gratificaciones",                             "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
+        {"code": "6215", "name": "Vacaciones",                                  "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
+        {"code": "6216", "name": "CTS",                                         "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
+    ]
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow_acct:
+        repo_acct = LedgerRepository(uow_acct.session)
+        for acct in _PAYROLL_ACCOUNTS:
+            await repo_acct.upsert_chart_account(
+                payload.tenant_id,
+                company_id=payload.company_id,
+                code=acct["code"],
+                name=acct["name"],
+                account_class=acct["class"],
+                statement=acct["statement"],
+                nature=acct["nature"],
+                accepts_cost_center=acct["cost_center"],
+                accepts_partner=False,
+            )
+        await uow_acct.commit()
 
     entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal({
         "tenant_id": payload.tenant_id,
@@ -586,6 +621,48 @@ async def post_payroll_journal(
         "already_posted": False,
         "period": period_code,
     }
+
+
+@router.post("/payroll/sync-chart-accounts")
+async def sync_payroll_chart_accounts(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """
+    Registra/actualiza en el plan contable TODAS las cuentas PCGE que usa planilla.
+    Ejecutar una vez si los asientos de planilla no aparecen en el libro diario.
+    """
+    _PAYROLL_ACCOUNTS = [
+        {"code": "6211", "name": "Sueldos y salarios",                          "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
+        {"code": "6271", "name": "Seguridad y previsión social - EsSalud",      "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
+        {"code": "6214", "name": "Gratificaciones",                             "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
+        {"code": "6215", "name": "Vacaciones",                                  "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
+        {"code": "6216", "name": "CTS",                                         "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
+        {"code": "4111", "name": "Remuneraciones por pagar",                    "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4114", "name": "Gratificaciones por pagar",                   "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4115", "name": "Vacaciones por pagar",                        "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4116", "name": "CTS por pagar",                               "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4031", "name": "EsSalud por pagar",                           "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4032", "name": "AFP / ONP por pagar",                         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4034", "name": "SCTR por pagar",                              "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+        {"code": "4035", "name": "Renta de quinta categoría por pagar",         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
+    ]
+    tenant_id = ctx["tenant_id"]
+    async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
+        repo = LedgerRepository(uow.session)
+        synced = []
+        for acct in _PAYROLL_ACCOUNTS:
+            await repo.upsert_chart_account(
+                tenant_id,
+                company_id=None,
+                code=acct["code"],
+                name=acct["name"],
+                account_class=acct["class"],
+                statement=acct["statement"],
+                nature=acct["nature"],
+                accepts_cost_center=acct["cc"],
+                accepts_partner=False,
+            )
+            synced.append(acct["code"])
+        await uow.commit()
+    return {"ok": True, "synced_accounts": synced, "count": len(synced)}
 
 
 @router.post("/contracts/generate")

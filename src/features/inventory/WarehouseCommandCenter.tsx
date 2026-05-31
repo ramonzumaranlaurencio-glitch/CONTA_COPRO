@@ -748,6 +748,18 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
     };
   }, [loadData, token, tenantId]);
 
+  // Auto-reclasificar herramientas al entrar a la vista de entrega si no hay ninguna
+  useEffect(() => {
+    if (subView !== 'tool_delivery' || !token || !tenantId) return;
+    if (items.filter(i => i.item_class === 'HERRAMIENTAS').length > 0) return;
+    fetch(`${apiBase}/inventory/reclassify-tools`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'X-Tenant-Id': tenantId },
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && d.reclassified > 0) loadData();
+    }).catch(() => {});
+  }, [subView, token, tenantId, apiBase, items, loadData]);
+
   // Cargar reporte por cuenta cuando el usuario abre esa vista
   useEffect(() => {
     if (subView !== 'by_account' || !token || !tenantId) return;
@@ -860,7 +872,31 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       setItems(prev => [...prev, newItem]);
       say(`Artículo creado: ${newItem.token_code} — ${newItem.name}`);
     } else if (form.id) {
-      // Update local
+      // Persist to backend (skip local-only IDs)
+      if (token && !form.id.startsWith('local-')) {
+        try {
+          await fetch(`${apiBase}/inventory/products/${form.id}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'X-Tenant-Id': tenantId, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: form.name,
+              detail_description: form.detail_description,
+              item_class: form.item_class,
+              token_type: form.token_type,
+              area: form.area,
+              unit_of_measure: form.unit_of_measure,
+              default_cost: parseFloat(form.default_cost) || undefined,
+              min_stock: parseFloat(form.min_stock) || undefined,
+              max_stock: parseFloat(form.max_stock) || undefined,
+              brand: form.brand || undefined,
+              specs: form.specs || undefined,
+              location: form.location || undefined,
+              is_active: form.is_active,
+            }),
+          });
+        } catch { /* continue with local update */ }
+      }
+      // Update local state
       setItems(prev => prev.map(it => it.id === form.id ? {
         ...it, name: form.name, detail_description: form.detail_description,
         item_class: form.item_class as ItemClass, token_type: form.token_type as TokenType,
@@ -987,7 +1023,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           const newItem: WarehouseItem = {
             id: `local-${Date.now()}-${p.id}`, sku: code, token_code: code,
             name: catalogMatch?.name || p.product_name,
-            item_class: (cta.startsWith('24') ? 'MATERIA_PRIMA' : cta.startsWith('20') ? 'MERCADERIA' : cta.startsWith('33') ? (tk === 'T' ? 'HERRAMIENTAS' : 'ACTIVO_FIJO') : 'INSUMOS') as any,
+            item_class: (cta.startsWith('24') ? 'MATERIA_PRIMA' : cta.startsWith('20') ? 'MERCADERIA' : cta.startsWith('33') ? (tk === 'T' ? 'HERRAMIENTAS' : 'ACTIVO_FIJO') : (nat === 'HE' || nat === 'HT' || nat === 'MQ') ? 'HERRAMIENTAS' : 'INSUMOS') as any,
             token_type: tk === 'P' ? 'PERMANENTE' : 'TEMPORAL', area: p.area,
             unit_of_measure: catalogMatch?.unit || p.unit || 'UND', default_cost: p.unit_cost,
             default_cost_account: cta, default_sales_account: catalogMatch?.gasto || '6569',

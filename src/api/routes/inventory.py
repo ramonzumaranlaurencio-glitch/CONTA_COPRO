@@ -753,6 +753,39 @@ async def reset_test_data(ctx=Depends(get_current_context)):
         }
 
 
+@router.post("/reclassify-tools")
+async def reclassify_tools(ctx=Depends(get_current_context)):
+    """
+    Reclasifica como HERRAMIENTAS todos los productos cuyo nombre contiene
+    palabras clave de herramientas manuales (pala, pico, comba, etc.) y que
+    actualmente están clasificados como INSUMOS o MERCADERIA.
+    Seguro para ejecutar múltiples veces (idempotente).
+    """
+    from sqlalchemy import select
+    from src.domain.models.inventory import Product
+
+    async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
+        result = await uow.session.execute(
+            select(Product).where(
+                Product.tenant_id == ctx["tenant_id"],
+                Product.item_class != "HERRAMIENTAS",
+            )
+        )
+        products = list(result.scalars().all())
+
+        updated = []
+        for p in products:
+            name_lower = (p.name or "").lower()
+            if any(k in name_lower for k in _TOOL_KEYWORDS):
+                p.item_class = "HERRAMIENTAS"
+                updated.append({"id": str(p.id), "name": p.name, "token_code": p.token_code})
+
+        if updated:
+            await uow.commit()
+
+    return {"ok": True, "reclassified": len(updated), "products": updated}
+
+
 @router.delete("/reset-products")
 async def reset_products(ctx=Depends(get_current_context)):
     """
@@ -928,6 +961,15 @@ def _pcge_account_name(code: str) -> str:
 # PENDING PURCHASES — facturas y guías pendientes de ingreso al almacén
 # =========================================================================
 
+_TOOL_KEYWORDS = {
+    "pala", "pico", "pios", "lampa", "palana", "comba", "martillo", "barreta", "carretilla",
+    "serrucho", "machete", "rastrillo", "zapapico", "azadon", "cincel", "espatula",
+    "llana", "plomada", "escuadra", "paleta", "herramienta", "taladro", "amoladora",
+    "soldadora", "compresor", "mezcladora", "andamio", "vibrador concreto", "rotomartillo",
+    "cortadora", "sierra electrica", "nivel laser",
+}
+
+
 def _infer_item_class(item: dict) -> str:
     # La IA ya puede venir con item_class resuelto
     ai_class = str(item.get("item_class") or "").upper()
@@ -936,6 +978,11 @@ def _infer_item_class(item: dict) -> str:
 
     code = str(item.get("account_code") or "")
     desc = str(item.get("description") or "").lower()
+
+    # Descripción tiene prioridad sobre la cuenta para herramientas manuales:
+    # palas/picos/etc. van en cuenta 252 (suministros) pero son HERRAMIENTAS
+    if any(k in desc for k in _TOOL_KEYWORDS):
+        return "HERRAMIENTAS"
 
     # Por cuenta PCGE
     if code.startswith("33") or code.startswith("34"):
@@ -951,9 +998,7 @@ def _infer_item_class(item: dict) -> str:
     if code.startswith("60") or code.startswith("61"):
         return "MERCADERIA"
 
-    # Por descripcion
-    if any(k in desc for k in ["herramienta", "taladro", "amoladora", "soldadora", "compresor", "mezcladora", "andamio"]):
-        return "HERRAMIENTAS"
+    # Por descripcion (resto)
     if any(k in desc for k in ["laptop", "computadora", "servidor", "equipo electronico", "impresora", "monitor"]):
         return "ACTIVO_FIJO"
     if any(k in desc for k in ["cemento", "arena", "piedra", "acero", "fierro", "ladrillo", "madera", "triplay", "hormigon"]):

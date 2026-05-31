@@ -8,13 +8,13 @@ Documento completo con explicación paso a paso de cada ventana
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak,
-    Image, KeepTogether
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 )
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
+from reportlab.lib.colors import HexColor
 from datetime import datetime
 import os
 
@@ -50,7 +50,7 @@ def create_manual():
         'CustomTitle',
         parent=styles['Heading1'],
         fontSize=28,
-        textColor=colors.HexColor('#0f172a'),
+        textColor=HexColor('#0f172a'),
         spaceAfter=12,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER,
@@ -60,11 +60,11 @@ def create_manual():
         'CustomHeading',
         parent=styles['Heading2'],
         fontSize=16,
-        textColor=colors.HexColor('#1e293b'),
+        textColor=HexColor('#1e293b'),
         spaceAfter=8,
-        spaceBefore=8,
+        spaceBefore=12,
         fontName='Helvetica-Bold',
-        borderColor=colors.HexColor('#3b82f6'),
+        borderColor=HexColor('#3b82f6'),
         borderWidth=2,
         borderPadding=8,
     )
@@ -73,7 +73,7 @@ def create_manual():
         'CustomSubHeading',
         parent=styles['Heading3'],
         fontSize=13,
-        textColor=colors.HexColor('#334155'),
+        textColor=HexColor('#334155'),
         spaceAfter=6,
         spaceBefore=6,
         fontName='Helvetica-Bold',
@@ -103,30 +103,31 @@ def create_manual():
     # ==================== PORTADA ====================
     story.append(Spacer(1, 1.5 * inch))
     story.append(Paragraph("CONTA_PRO", title_style))
-    story.append(Paragraph("ENTERPRISE", title_style))
+    story.append(Paragraph("ENTERPRISE MASTER v1.5", title_style))
     story.append(Spacer(1, 0.3 * inch))
     
     subtitle_style = ParagraphStyle(
         'Subtitle',
         parent=styles['Normal'],
-        fontSize=14,
-        textColor=colors.HexColor('#3b82f6'),
+        fontSize=16,
+        textColor=HexColor('#3b82f6'),
         alignment=TA_CENTER,
         fontName='Helvetica-Bold',
     )
-    story.append(Paragraph("Manual de Usuario - Sistema Contable Empresarial", subtitle_style))
-    story.append(Spacer(1, 0.2 * inch))
+    story.append(Paragraph("Especificaciones Técnicas y Manual de Operaciones", subtitle_style))
+    story.append(Spacer(1, 0.4 * inch))
     
     info_style = ParagraphStyle(
         'Info',
         parent=styles['Normal'],
-        fontSize=10,
+        fontSize=11,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#64748b'),
+        textColor=HexColor('#64748b'),
     )
-    story.append(Paragraph(f"Versión 1.1 | {datetime.now().strftime('%B %Y')}", info_style))
-    story.append(Spacer(1, 0.5 * inch))
-    story.append(Paragraph("Explicación Paso a Paso de Cada Ventana", subtitle_style))
+    story.append(Paragraph(f"Documentación para: Gerencia de Finanzas y Auditoría", info_style))
+    story.append(Paragraph(f"Fecha de Emisión: {datetime.now().strftime('%d de %B, %Y')}", info_style))
+    story.append(Spacer(1, 1 * inch))
+    story.append(Paragraph("SEGURIDAD TRIBUTARIA | INTEGRIDAD CRIPTOGRÁFICA | IA ACCOUNTING", info_style))
     story.append(PageBreak())
     
     # ==================== ÍNDICE ====================
@@ -135,23 +136,23 @@ def create_manual():
     
     toc_items = [
         "1. Descripción General del Sistema",
-        "2. Navegación Principal",
-        "3. Dashboard - Inicio",
-        "4. Contabilidad - Registro de Asientos",
-        "5. Compras & Proveedores",
-        "6. Ventas & Facturación",
-        "7. Tesorería - Gestión de Efectivo",
-        "8. Inventario - Control de Stock",
-        "9. Nómina - Gestión de Empleados",
-        "10. Activos Fijos - Registro y Depreciación",
-        "11. CXC/CXP - Cuentas por Cobrar y Pagar",
-        "12. Libros Electrónicos - Generación de PLE",
-        "13. SUNAT - Cumplimiento Tributario",
-        "14. Reportes Financieros",
-        "15. Portal del Propietario",
-        "16. Configuración General",
-        "17. Flujo de Datos - Arquitectura General",
-        "18. Ledger Engine - Validación Experta Antes de Guardar",
+        "2. Arquitectura de Datos y Seguridad (Hash Chain)",
+        "3. Dashboard Ejecutivo de Mando",
+        "4. Módulo de Contabilidad: El Ledger Engine v1.5",
+        "5. Vision Accounting Engine: IA Aplicada a Compras",
+        "6. Gestión de Ventas e Ingresos",
+        "7. Tesorería Avanzada y Flujo de Caja",
+        "8. Control de Inventarios y Almacenes (Kardex)",
+        "9. Nómina Enterprise: Motor de Planillas 2.0",
+        "10. Gestión de Activos Fijos",
+        "11. Control de Cartera (CXC / CXP)",
+        "12. Libros Electrónicos (PLE / SIRE)",
+        "13. Cumplimiento SUNAT y Auditoría Forense",
+        "14. Financial Reporting Framework",
+        "15. Owner Portal: Inteligencia de Negocios",
+        "16. Configuración y Parametrización",
+        "17. Arquitectura del Sistema (React + FastAPI)",
+        "18. Glosario de Funciones y Troubleshooting",
     ]
     
     for item in toc_items:
@@ -169,68 +170,39 @@ def create_manual():
     CONTA_PRO Enterprise es una solución integral de gestión contable y empresarial 
     diseñada para empresas medianas y grandes en Perú. El sistema integra módulos de 
     contabilidad, facturación, inventario, nómina, activos fijos y reporting, con 
-    cumplimiento total de normativa SUNAT y auditoría de integridad de datos mediante 
-    hash chain (cadena de hashes criptográficos).
+    cumplimiento total de normativa SUNAT.
     <br/><br/>
-    <b>Características principales:</b><br/>
-    • Contabilidad multimoneda con soporte para PEN y USD<br/>
-    • Auditoría automática con integridad de datos mediante hashing<br/>
-    • Cumplimiento SUNAT: PLE 5.1/5.2, SIRE, libros electrónicos<br/>
-    • Dashboard empresarial con métricas en tiempo real<br/>
-    • Generación de reportes financieros automáticos<br/>
-    • Control de inventario con KARDEX<br/>
-    • Gestión de proveedores y clientes<br/>
+    <b>Diferenciadores Enterprise:</b><br/>
+    • <b>Integridad de Datos:</b> Implementación de Hash Chain SHA-256 para evitar alteraciones en el Libro Diario.<br/>
+    • <b>Motor IA Vision:</b> Clasificación automática de gastos complejos (servicios públicos) mediante redes neuronales.<br/>
+    • <b>Ledger Engine:</b> Validador de partida doble y causalidad tributaria en tiempo real.<br/>
+    • <b>Multimoneda Real:</b> Manejo de bimoneda (PEN/USD) con actualización de tipo de cambio SBS.<br/>
     """
     story.append(Paragraph(gen_text, body_style))
     story.append(Spacer(1, 0.2 * inch))
     
-    # 2. Navegación Principal
-    story.append(Paragraph("2️⃣ NAVEGACIÓN PRINCIPAL", heading_style))
+    # 2. Seguridad
+    story.append(Paragraph("2️⃣ ARQUITECTURA DE DATOS Y SEGURIDAD", heading_style))
     story.append(Spacer(1, 0.1 * inch))
     
-    nav_text = """
-    La interfaz principal consta de:<br/><br/>
-    <b>Barra Superior:</b> Búsqueda global (RUC, asientos, facturas, hashes), 
-    indicador de auditoría activa<br/><br/>
-    <b>Panel Lateral Izquierdo:</b> Menú de navegación con los siguientes módulos<br/>
+    seguridad_text = """
+    A diferencia de sistemas básicos, CONTA_PRO Enterprise protege la contabilidad mediante 
+    una <b>Cadena de Hashes (Hash Chain)</b>.
+    <br/><br/>
+    <b>Funcionamiento Técnico:</b><br/>
+    Cada vez que se guarda un asiento contable, el sistema genera una huella digital única (SHA-256) 
+    que incluye el contenido del asiento actual y el hash del asiento anterior. 
+    Si un usuario intentara modificar un valor directamente en la base de datos, la cadena 
+    se rompería y el sistema emitiría una alerta de "Integridad Comprometida".
+    <br/><br/>
+    <b>Beneficio para Auditoría:</b><br/>
+    Garantiza ante SUNAT y socios que la contabilidad es inalterable y veraz.
     """
-    story.append(Paragraph(nav_text, body_style))
-    story.append(Spacer(1, 0.1 * inch))
-    
-    # Tabla de módulos
-    module_data = [
-        ['Módulo', 'Descripción', 'Acceso'],
-        ['🏠 Dashboard', 'Resumen ejecutivo de métricas principales', 'Primer acceso'],
-        ['📊 Contabilidad', 'Registro y análisis de asientos contables', 'Diario'],
-        ['📚 Libros', 'Generación de PLE (Libro Diario, Simplificado)', 'Mensual'],
-        ['📦 Inventario', 'Control de stock y movimientos de almacén', 'Diario'],
-        ['👤 Owner Portal', 'Portal ejecutivo para propietarios', 'A demanda'],
-        ['🧾 Ventas', 'Facturación y gestión de ventas', 'Diario'],
-        ['💳 Compras', 'Registro de compras y proveedores', 'Diario'],
-        ['💰 Tesorería', 'Gestión de efectivo y bancos', 'Diario'],
-        ['👥 CXC/CXP', 'Cuentas por cobrar y por pagar', 'Diario'],
-        ['🔧 Integraciones', 'Conexión con sistemas externos', 'Eventos'],
-        ['⚙️ Configuración', 'Parámetros y ajustes del sistema', 'Admin'],
-    ]
-    
-    module_table = Table(module_data, colWidths=[1.2*inch, 2.8*inch, 1.2*inch])
-    module_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f1f5f9')]),
-    ]))
-    story.append(module_table)
+    story.append(Paragraph(seguridad_text, body_style))
     story.append(PageBreak())
     
     # 3. Dashboard
-    story.append(Paragraph("3️⃣ DASHBOARD - INICIO", heading_style))
+    story.append(Paragraph("3️⃣ DASHBOARD EJECUTIVO DE MANDO", heading_style))
     story.append(Spacer(1, 0.1 * inch))
     
     dashboard_text = """
@@ -256,14 +228,12 @@ def create_manual():
     story.append(Spacer(1, 0.2 * inch))
     
     # 4. Contabilidad
-    story.append(Paragraph("4️⃣ CONTABILIDAD - REGISTRO DE ASIENTOS", heading_style))
+    story.append(Paragraph("4️⃣ MÓDULO DE CONTABILIDAD: EL LEDGER ENGINE v1.5", heading_style))
     story.append(Spacer(1, 0.1 * inch))
     
     accounting_text = """
-    El módulo de Contabilidad es el corazón del sistema. Aquí se registran todos 
-    los movimientos contables de la empresa con auditoría integrada. Utiliza el 
-    <b>Ledger Engine</b>, un flujo inteligente que valida cada asiento contra normativa 
-    SUNAT y Código Tributario antes de permitir guardarlo.
+    El módulo de Contabilidad es el núcleo transaccional. Opera bajo el concepto de 
+    <b>Ledger Engine</b>, un motor que orquesta la validación experta de cada registro.
     <br/><br/>
     <b>📘 INTRODUCCIÓN: QUÉ ES EL PCGE</b><br/>
     El PCGE (Plan Contable General Empresarial) es el catálogo oficial de cuentas 
