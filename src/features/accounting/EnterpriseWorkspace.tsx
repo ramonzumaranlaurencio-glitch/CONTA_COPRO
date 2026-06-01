@@ -47,6 +47,7 @@ const WarehouseCommandCenter = lazy(() => import('../inventory/WarehouseCommandC
 const ApexLogixCore          = lazy(() => import('../inventory/EnterpriseFulfillmentCommandCenter'));
 
 import { PeriodCloseAction } from './PeriodCloseAction';
+import { useTenantStore, type Company } from '../../hooks/useTenantStore';
 import DashboardEnterprise from '../../components/DashboardEnterprise';
 import AccountingLivePanel, { type AccountingMovement, type ChartAccountItem } from '../../components/AccountingLivePanel';
 import AccountDetailPanel from '../../components/AccountDetailPanel';
@@ -88,7 +89,7 @@ type JournalRow = {
   lines?: JournalLineDetail[];
 };
 
-type PanelType = 'VENTA' | 'COMPRA' | 'CHECKLIST' | null;
+type PanelType = 'VENTA' | 'COMPRA' | 'CHECKLIST' | 'NEGOCIOS' | null;
 
 type PurchaseForm = {
   serie: string;
@@ -1818,6 +1819,18 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
             </button>
           );
         })}
+
+          {/* Acceso a negocios — siempre visible en la parte inferior del rail */}
+          <button
+            type="button"
+            className={`rail-item nav-link ${activePanel === 'NEGOCIOS' ? 'active' : ''}`}
+            onClick={() => setActivePanel(p => p === 'NEGOCIOS' ? null : 'NEGOCIOS')}
+            title="Mis Negocios / Empresas"
+            style={{ marginTop: 'auto', borderTop: '1px solid rgba(30,58,95,0.5)', paddingTop: 12 }}
+          >
+            <BuildingBank24Regular />
+            <span className="rail-label">Negocios</span>
+          </button>
         </aside>
 
         <main className="workspace-main">
@@ -1912,8 +1925,110 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         </main>
       </div>
 
+      {/* ── Ventana flotante Mis Negocios ─────────────────────────────────── */}
+      {activePanel === 'NEGOCIOS' && (() => {
+        const { companies, currentCompany, setCompany, addCompany, removeCompany } = useTenantStore.getState();
+        const [nRuc,    setNRuc]    = useState('');
+        const [nNombre, setNNombre] = useState('');
+        const [nRubro,  setNRubro]  = useState('CO');
+        const [nErr,    setNErr]    = useState('');
+
+        const RLIST = [
+          { id:'CO',label:'Comercial'},{ id:'GE',label:'Servicios'},{ id:'CM',label:'Construcción'},
+          { id:'FA',label:'Fabricación'},{ id:'MI',label:'Minería'},{ id:'TR',label:'Transporte'},
+          { id:'SA',label:'Salud'},{ id:'ED',label:'Educación'},{ id:'HO',label:'Hostelería'},
+          { id:'RE',label:'Restaurante'},
+        ];
+
+        const inp2: React.CSSProperties = {
+          padding:'7px 10px', background:'rgba(5,13,26,0.9)', border:'1px solid #1e3a5f',
+          borderRadius:6, color:'#e8f0fe', fontSize:12, outline:'none', width:'100%',
+          boxSizing:'border-box', fontFamily:"'Segoe UI',Arial,sans-serif",
+        };
+
+        const handleAdd = () => {
+          if (!nRuc.trim() || nRuc.trim().length < 11) { setNErr('RUC inválido'); return; }
+          if (!nNombre.trim()) { setNErr('Ingresa la razón social'); return; }
+          addCompany({ id:`tenant-${Date.now()}`, ruc:nRuc.trim(), businessName:nNombre.trim(), rubro: nRubro as any, rubros:[nRubro as any] });
+          setNRuc(''); setNNombre(''); setNRubro('CO'); setNErr('');
+        };
+
+        return (
+          <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,8,18,0.75)', backdropFilter:'blur(4px)' }}
+            onClick={() => setActivePanel(null)}>
+            <div style={{ background:'#080f1f', border:'1px solid #1e3a5f', borderRadius:14, padding:'24px 28px', width:'100%', maxWidth:560, maxHeight:'85vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.8)', position:'relative' }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+                <div>
+                  <h2 style={{ margin:0, color:'#e8f0fe', fontSize:16, fontWeight:800 }}>🏢 Mis Negocios / Empresas</h2>
+                  <p style={{ margin:'3px 0 0', color:'#4d7a9e', fontSize:11 }}>{companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''}</p>
+                </div>
+                <button type="button" onClick={() => setActivePanel(null)} style={{ background:'none', border:'none', color:'#6e93b8', fontSize:18, cursor:'pointer', padding:'4px 8px' }}>✕</button>
+              </div>
+
+              {/* Lista de empresas */}
+              {companies.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'24px 0', color:'#3d6080', fontSize:13 }}>
+                  Sin empresas — agrega tu primera empresa cliente abajo.
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+                  {companies.map((c: Company) => {
+                    const isActive = c.id === currentCompany?.id;
+                    return (
+                      <div key={c.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:10, cursor:'pointer', transition:'all 0.15s', background: isActive ? 'rgba(56,189,248,0.1)' : 'rgba(11,21,37,0.8)', border:`1px solid ${isActive ? '#38bdf8' : '#1e3a5f'}` }}
+                        onClick={() => { setCompany(c.id); setActivePanel(null); }}>
+                        <div>
+                          <div style={{ color: isActive ? '#38bdf8' : '#e8f0fe', fontWeight:700, fontSize:13 }}>{c.businessName}</div>
+                          <div style={{ color:'#4d7a9e', fontSize:11, marginTop:2 }}>RUC {c.ruc} · {c.rubro}</div>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          {isActive && <span style={{ background:'rgba(56,189,248,0.2)', color:'#38bdf8', fontSize:10, fontWeight:800, padding:'2px 10px', borderRadius:20 }}>ACTIVA</span>}
+                          <button type="button" onClick={e => { e.stopPropagation(); removeCompany(c.id); }}
+                            style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, color:'#ef4444', fontSize:11, cursor:'pointer', padding:'3px 8px', fontFamily:"'Segoe UI',Arial,sans-serif" }}>
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Formulario agregar */}
+              <div style={{ background:'rgba(56,189,248,0.04)', border:'1px solid rgba(56,189,248,0.15)', borderRadius:10, padding:'14px 16px' }}>
+                <p style={{ margin:'0 0 10px', color:'#38bdf8', fontSize:12, fontWeight:700 }}>+ Agregar empresa</p>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>RUC</label>
+                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="20XXXXXXXXX" maxLength={11} style={inp2} />
+                  </div>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>Razón social</label>
+                    <input value={nNombre} onChange={e => { setNNombre(e.target.value); setNErr(''); }} placeholder="EMPRESA SAC" style={inp2} />
+                  </div>
+                </div>
+                <div style={{ marginBottom:10 }}>
+                  <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.06em' }}>Rubro</label>
+                  <select value={nRubro} onChange={e => setNRubro(e.target.value)} style={inp2}>
+                    {RLIST.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                </div>
+                {nErr && <p style={{ margin:'0 0 8px', color:'#ef4444', fontSize:11 }}>⚠ {nErr}</p>}
+                <button type="button" onClick={handleAdd}
+                  style={{ padding:'9px 20px', background:'linear-gradient(135deg,#0078d4,#38bdf8)', border:'none', borderRadius:8, color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:"'Segoe UI',Arial,sans-serif" }}>
+                  + Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <SidePanel
-        isOpen={activePanel !== null}
+        isOpen={activePanel !== null && activePanel !== 'NEGOCIOS'}
         onClose={() => setActivePanel(null)}
         title={panelTitle}
         footer={null}
