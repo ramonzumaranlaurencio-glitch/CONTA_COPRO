@@ -302,22 +302,15 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
           });
           const info = await infoRes.json();
-          const name: string = info.name || info.email?.split('@')[0] || 'Usuario Google';
-          const email: string = info.email || '';
+          const given: string  = info.given_name  || '';
+          const family: string = info.family_name || '';
+          const email: string  = info.email || '';
 
-          const backendRes = await fetch('/api/v1/auth/google-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ access_token: tokenResponse.access_token, email, name }),
-          }).catch(() => null);
-
-          if (backendRes?.ok) {
-            const data = await backendRes.json();
-            localStorage.setItem('access_token', data.access_token);
-            onLogin('ACCOUNTANT', data.user?.name || name, data.plan || 'TRIAL_CONTADOR');
-          } else {
-            onLogin('ACCOUNTANT', name, 'TRIAL_CONTADOR');
-          }
+          // Precargar datos y llevar al wizard de registro
+          setAcctData(p => ({ ...p, nombres: given, apellidos: family, email }));
+          setCompData(p => ({ ...p, adminNombres: given, adminApellidos: family, adminEmail: email, emailEmpresa: email }));
+          setGoogleLoading(false);
+          setStep('REG_TYPE');
         } catch {
           const msg = 'No se pudo conectar con Google. Verifica tu conexión.';
           setLandingError(msg);
