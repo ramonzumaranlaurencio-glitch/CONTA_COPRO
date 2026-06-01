@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 router = APIRouter(tags=["Health"])
 
 @router.get("/health")
+@router.get("/salud")
 async def health():
     return {"status": "ok", "service": "CONTA_PRO Enterprise"}
 

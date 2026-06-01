@@ -26,4 +26,4 @@ COPY . .
 EXPOSE 8000
 
 # Correr migraciones y luego levantar el servidor
-CMD alembic upgrade head; uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --log-level info
+CMD ["sh", "-c", "alembic upgrade head; uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --log-level info"]
