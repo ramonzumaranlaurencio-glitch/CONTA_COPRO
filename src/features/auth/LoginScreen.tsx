@@ -189,6 +189,12 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   const [focus, setFocus] = useState('');
   const [hoverOrb, setHoverOrb] = useState(false);
 
+  // Estados del paso ADD_COMPANY (deben estar en el top — Rules of Hooks)
+  const [acNewRuc,    setAcNewRuc]    = useState('');
+  const [acNewNombre, setAcNewNombre] = useState('');
+  const [acNewRubro,  setAcNewRubro]  = useState('COMERCIAL');
+  const [acAddError,  setAcAddError]  = useState('');
+
   // Estado formulario contador
   const [acctData, setAcctData] = useState({
     nombres: '', apellidos: '', dni: '', telefono: '', email: '', password: '', confirmPass: '',
@@ -1176,11 +1182,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
   // ─── AGREGAR EMPRESAS CLIENTE (solo CONTADOR) ─────────────────────────────
   if (step === 'ADD_COMPANY') {
-    const { companies, addCompany } = useTenantStore.getState();
-    const [newRuc, setNewRuc] = React.useState('');
-    const [newNombre, setNewNombre] = React.useState('');
-    const [newRubro, setNewRubro] = React.useState('COMERCIAL');
-    const [addError, setAddError] = React.useState('');
+    const { addCompany } = useTenantStore.getState();
+    // Estados declarados al TOP del componente (acNew* / acAddError)
 
     const RUBROS_LISTA = [
       { id: 'COMERCIAL', label: 'Comercial', icon: '🏪', rCode: 'CO' as Rubro },
@@ -1192,11 +1195,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     ];
 
     const handleAddEmpresa = () => {
-      if (!newRuc.trim() || newRuc.trim().length < 11) { setAddError('El RUC debe tener 11 dígitos.'); return; }
-      if (!newNombre.trim()) { setAddError('Ingresa la razón social.'); return; }
-      const r = RUBROS_LISTA.find(x => x.id === newRubro);
-      addCompany({ id: `tenant-${Date.now()}`, ruc: newRuc.trim(), businessName: newNombre.trim(), rubro: r?.rCode ?? 'GE', rubros: [r?.rCode ?? 'GE'] });
-      setNewRuc(''); setNewNombre(''); setNewRubro('COMERCIAL'); setAddError('');
+      if (!acNewRuc.trim() || acNewRuc.trim().length < 11) { setAcAddError('El RUC debe tener 11 dígitos.'); return; }
+      if (!acNewNombre.trim()) { setAcAddError('Ingresa la razón social.'); return; }
+      const r = RUBROS_LISTA.find(x => x.id === acNewRubro);
+      addCompany({ id: `tenant-${Date.now()}`, ruc: acNewRuc.trim(), businessName: acNewNombre.trim(), rubro: r?.rCode ?? 'GE', rubros: [r?.rCode ?? 'GE'] });
+      setAcNewRuc(''); setAcNewNombre(''); setAcNewRubro('COMERCIAL'); setAcAddError('');
     };
 
     const currentCompanies = useTenantStore.getState().companies;
@@ -1227,13 +1230,13 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RUC (11 dígitos)</label>
-                  <input value={newRuc} onChange={e => { setNewRuc(e.target.value); setAddError(''); }}
+                  <input value={acNewRuc} onChange={e => { setAcNewRuc(e.target.value); setAcAddError(''); }}
                     placeholder="20XXXXXXXXX" maxLength={11}
                     style={{ ...input(false), fontSize: 13, fontFamily: 'Consolas, monospace' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Razón social</label>
-                  <input value={newNombre} onChange={e => { setNewNombre(e.target.value); setAddError(''); }}
+                  <input value={acNewNombre} onChange={e => { setAcNewNombre(e.target.value); setAcAddError(''); }}
                     placeholder="EMPRESA SAC"
                     style={{ ...input(false), fontSize: 13 }} />
                 </div>
@@ -1242,17 +1245,17 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                 <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rubro</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {RUBROS_LISTA.map(r => (
-                    <button key={r.id} type="button" onClick={() => setNewRubro(r.id)} style={{
+                    <button key={r.id} type="button" onClick={() => setAcNewRubro(r.id)} style={{
                       padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                       cursor: 'pointer', fontFamily: "'Segoe UI', Arial, sans-serif",
-                      background: newRubro === r.id ? `${P.accent}22` : 'transparent',
-                      border: `1px solid ${newRubro === r.id ? P.accent : P.border}`,
-                      color: newRubro === r.id ? P.accent : P.muted,
+                      background: acNewRubro === r.id ? `${P.accent}22` : 'transparent',
+                      border: `1px solid ${acNewRubro === r.id ? P.accent : P.border}`,
+                      color: acNewRubro === r.id ? P.accent : P.muted,
                     }}>{r.icon} {r.label}</button>
                   ))}
                 </div>
               </div>
-              {addError && <p style={{ margin: '0 0 8px', color: P.red, fontSize: 11 }}>⚠ {addError}</p>}
+              {acAddError && <p style={{ margin: '0 0 8px', color: P.red, fontSize: 11 }}>⚠ {acAddError}</p>}
               <button type="button" onClick={handleAddEmpresa} style={{ ...btn(P.blue), padding: '9px 20px', fontSize: 12 }}>
                 + Agregar empresa
               </button>
