@@ -29,6 +29,7 @@ import { PurchaseFormEnterprise, type PurchaseSubmitPayload } from './PurchaseFo
 import { CompliancePanel } from '../sunat/CompliancePanel';
 import { SunatMonitor } from '../sunat/SunatMonitor';
 import { DeclaracionMensual } from '../sunat/DeclaracionMensual';
+import { SunatPortalHub } from '../sunat/SunatPortalHub';
 import { AuditHealthDashboard } from '../audit/AuditHealthDashboard';
 import { ComprasEnhanced } from './ComprasEnhanced';
 import { PayrollGrid } from '../payroll/PayrollGrid';
@@ -240,6 +241,7 @@ const railItems = [
   { id: 'inventario',     label: 'Inventario',       icon: Database24Regular,       feature: 'inventory' },
   { id: 'planillas',      label: 'Planillas',        icon: PersonMoney24Regular,    feature: 'payroll' },
   { id: 'declaracion',    label: 'Declaracion SUNAT', icon: ShieldCheckmark24Regular, feature: null },
+  { id: 'sunat_portal',   label: 'Portal SUNAT',      icon: BuildingBank24Regular,    feature: null },
   { id: 'integraciones',  label: 'Integraciones',    icon: Database24Regular,       feature: 'integrations' },
   { id: 'owner',          label: 'Owner Portal',     icon: Database24Regular,       feature: 'superAdmin' },
   { id: 'config',         label: 'Configuracion',    icon: SlideSettings24Regular,  feature: null },
@@ -1327,6 +1329,13 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <DeclaracionMensual />
+        </div>
+      );
+    }
+    if (selectedView === 'sunat_portal') {
+      return (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <SunatPortalHub />
         </div>
       );
     }
