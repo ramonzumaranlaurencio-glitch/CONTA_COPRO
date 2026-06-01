@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 # Python 3.14 on Windows puede colgarse importando extensiones C de SQLAlchemy.
