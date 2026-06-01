@@ -483,7 +483,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             <p style={{ color: P.muted, fontSize: 13, margin: 0 }}>Contabilidad inteligente para Peru · Potenciado con IA</p>
           </div>
 
-          {/* Botón Google */}
+          {/* Botón Google — solo si VITE_GOOGLE_CLIENT_ID está configurado */}
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (<>
           <button type="button" onClick={() => { setLandingError(''); handleGoogleLogin(); }}
             disabled={googleLoading || !gsiReady} style={{
             width: '100%', padding: '12px', marginBottom: 6,
@@ -510,6 +511,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               ⚠ {landingError}
             </div>
           )}
+          </>)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
             <div style={{ flex: 1, height: 1, background: P.border }} />
