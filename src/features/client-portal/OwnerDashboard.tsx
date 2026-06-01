@@ -275,6 +275,34 @@ export const OwnerDashboard = () => {
         {/* ═══════════════ INICIO ═══════════════ */}
         {tab === 'INICIO' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* ── Mi cuenta CONTA_PRO ── */}
+            <div style={{
+              background: `linear-gradient(135deg, ${C.purple}22 0%, ${C.accent}12 50%, ${C.bgCard} 100%)`,
+              border: `1.5px solid ${C.purple}66`,
+              borderRadius: 16, padding: '18px 24px',
+              boxShadow: `0 0 40px ${C.purple}22`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 14,
+                  background: `linear-gradient(135deg, ${C.purple}, ${C.accent})`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+                  boxShadow: `0 4px 20px ${C.purple}55`, flexShrink: 0,
+                }}>⭐</div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, color: C.purple, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Mi cuenta</p>
+                  <p style={{ margin: '2px 0', fontSize: 18, fontWeight: 900, color: C.text }}>CONTA_PRO — Dueño del Sistema</p>
+                  <p style={{ margin: 0, fontSize: 11, color: C.muted }}>contapro · SuperAdmin · Acceso total sin restricciones</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {['♾️ Sin límites', '🤖 IA ilimitada', '🔑 Todos los módulos', '📅 Sin vencimiento', '👥 Todos los clientes'].map((f, i) => (
+                  <span key={i} style={{ background: `${C.purple}22`, color: C.purple, border: `1px solid ${C.purple}44`, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{f}</span>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               <KpiCard icon="👥" label="Total clientes" value={String(kpis.totalClientes)} sub={`${kpis.activos} activos · ${kpis.trials} en trial`} color={C.accent} />
               <KpiCard icon="💰" label="Ingresos del mes" value={`S/ ${fmt(kpis.ingresosMes)}`} sub="Pagos aprobados" color={C.green} />
