@@ -3,6 +3,9 @@
 # ============================================================
 
 # ── CRÍTICO: Secrets y variables de entorno ─────────────────
+# Google OAuth client secret — NUNCA subir a git
+client_secret_*.json
+*client_secret*.json
 .env
 .env.local
 .env.*.local
@@ -89,3 +92,5 @@ api.stdout.log
 # ── Docker local override ────────────────────────────────────
 docker-compose.override.yml
 dist/
+
+.vercel

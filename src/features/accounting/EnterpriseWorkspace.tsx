@@ -239,7 +239,7 @@ const railItems = [
   { id: 'inventario',     label: 'Inventario',       icon: Database24Regular,       feature: 'inventory' },
   { id: 'planillas',      label: 'Planillas',        icon: PersonMoney24Regular,    feature: 'payroll' },
   { id: 'integraciones',  label: 'Integraciones',    icon: Database24Regular,       feature: 'integrations' },
-  { id: 'owner',          label: 'Owner Portal',     icon: Database24Regular,       feature: 'advanced_bi' },
+  { id: 'owner',          label: 'Owner Portal',     icon: Database24Regular,       feature: 'superAdmin' },
   { id: 'config',         label: 'Configuracion',    icon: SlideSettings24Regular,  feature: null },
 ];
 
@@ -632,11 +632,19 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     }
   };
 
+  /**
+   * Construye la URL del libro diario para el ejercicio indicado.
+   * Siempre incluye year para asegurar coherencia contable por periodo fiscal.
+   */
   const buildJournalUrl = (year: number) => {
     const params = new URLSearchParams({ limit: String(MAX_JOURNAL_ROWS), year: String(year) });
     return `${API_BASE}/ledger/journal?${params.toString()}`;
   };
 
+  /**
+   * Carga TODOS los asientos del ejercicio indicado.
+   * Por defecto usa selectedYear (año actual) para mostrar el libro diario completo del año.
+   */
   const loadJournal = async (bearerToken: string, year: number = selectedYear) => {
     const tenantId = getTenantId();
     const endpoint = buildJournalUrl(year);
@@ -759,11 +767,23 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   }, [token]);
 
   // Auto-refresco del libro diario: polling 60s + visibilitychange + foco de ventana
+  // IMPORTANTE: funciona incluso cuando token está vacío (bootstrap falló por backend apagado)
   useEffect(() => {
-    if (!token) return;
-
     const refresh = async () => {
       try {
+        // Si no hay token (bootstrap falló por backend apagado), re-inicializar completo
+        if (!token) {
+          const newToken = await requestDevToken();
+          setToken(newToken);
+          setLoading(true);
+          await Promise.all([
+            loadJournal(newToken, selectedYear),
+            loadChartAccounts(newToken),
+          ]);
+          setStatusMessage(`Reconectado: libro diario ${selectedYear} cargado automáticamente.`);
+          setLoading(false);
+          return;
+        }
         const currentToken = await getValidToken(token);
         if (currentToken) await loadJournal(currentToken, selectedYear);
       } catch { /* no bloquea la UI */ }
@@ -1027,13 +1047,13 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       setStatusMessage(postedMessage);
       setToken(purchaseToken);
 
-      // CONTA_PRO FIX V15:
       // La compra ya fue posteada. Si falla refrescar el Libro Diario,
       // no convertirlo en error de compra ni cerrar la tabla.
+      // Navegar a 'compras' para que el usuario vea la factura recién registrada.
       try {
         await loadJournal(purchaseToken);
         setActivePanel(null);
-        setSelectedView('contabilidad');
+        setSelectedView('compras');
       } catch (journalError) {
         console.warn('CONTA_PRO loadJournal after purchase warning:', journalError);
         setStatusMessage(
@@ -1232,7 +1252,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           igv:       Math.max(0, igv),
           total:     Math.max(debit, credit),
           cuenta:    first.account?.slice(0, 2) || '60',
-          estado:    (first.status === 'REVIEW' ? 'ATIPICO' : first.status === 'POSTED' || first.status === 'POSTEADO' ? 'OK' : 'PENDIENTE') as 'OK' | 'ATIPICO' | 'DUPLICADO' | 'PENDIENTE',
+          estado:    (first.status === 'REVISION' || first.status === 'REVIEW' ? 'ATIPICO' : first.status === 'POSTED' || first.status === 'POSTEADO' ? 'OK' : 'PENDIENTE') as 'OK' | 'ATIPICO' | 'DUPLICADO' | 'PENDIENTE',
         };
       });
       return (

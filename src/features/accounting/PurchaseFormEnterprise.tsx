@@ -320,47 +320,54 @@ const classifyPurchaseItem = (description: string, providerName = '') => {
   const text = `${description} ${providerName}`.toUpperCase();
 
   if (isRoundingLine(description)) {
-    return { accountCode: '659101', accountName: 'Ajuste por redondeo', taxTreatment: 'Redondeo monetario del comprobante. No integra base imponible del IGV, no genera crédito fiscal y solo reconcilia el total a pagar.', aiConfidence: 0.99, aiReason: 'Línea técnica de redondeo/ajuste monetario.', requiresReview: false };
+    return { accountCode: '659101', accountName: 'Ajuste por redondeo', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Redondeo monetario del comprobante. No integra base imponible del IGV, no genera crédito fiscal y solo reconcilia el total a pagar.', aiConfidence: 0.99, aiReason: 'Línea técnica de redondeo/ajuste monetario.', requiresReview: false };
   }
   if (isPriorDebtLine(description)) {
-    return { accountCode: '421201', accountName: 'Cuentas por pagar - deuda anterior', taxTreatment: 'Saldo/deuda anterior. No representa gasto nuevo ni genera nuevo IGV crédito fiscal. Validar que la obligación original fue registrada.', aiConfidence: 0.96, aiReason: 'Saldo anterior incluido en el recibo.', requiresReview: false };
+    return { accountCode: '421201', accountName: 'Cuentas por pagar - deuda anterior', costCenter: '-', taxTreatment: 'Saldo/deuda anterior. No representa gasto nuevo ni genera nuevo IGV crédito fiscal. Validar que la obligación original fue registrada.', aiConfidence: 0.96, aiReason: 'Saldo anterior incluido en el recibo.', requiresReview: false };
   }
   if (isAdvanceOrCreditLine(description)) {
-    return { accountCode: '4212', accountName: 'Compensación / pago a cuenta', taxTreatment: 'Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IGV.', aiConfidence: 0.96, aiReason: 'Abono, crédito o pago a cuenta.', requiresReview: false };
+    return { accountCode: '4212', accountName: 'Compensación / pago a cuenta', costCenter: '-', taxTreatment: 'Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IGV.', aiConfidence: 0.96, aiReason: 'Abono, crédito o pago a cuenta.', requiresReview: false };
   }
   if (isLateFeeLine(description)) {
-    return { accountCode: '659101', accountName: 'Moras, recargos e intereses por servicios', taxTreatment: 'Mora, penalidad o recargo separado del servicio principal. Deducibilidad e IGV sujetos a revisión.', aiConfidence: 0.86, aiReason: 'Mora, recargo o penalidad.', requiresReview: true };
+    return { accountCode: '659101', accountName: 'Moras, recargos e intereses por servicios', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Mora, penalidad o recargo separado del servicio principal. Deducibilidad e IGV sujetos a revisión.', aiConfidence: 0.86, aiReason: 'Mora, recargo o penalidad.', requiresReview: true };
   }
 
+  // Distribución obligatoria por tipo de gasto al centro de costo correcto (PCGE PE)
   if (/AGUA|ALCANTARILLADO|SEDAPAL|LUZ|ELECTRICIDAD|ENEL|LUZ DEL SUR|ENERGIA|GAS|INTERNET|TELEFON|CARGO FIJO/.test(text)) {
-    return { accountCode: '636101', accountName: 'Servicios básicos', taxTreatment: 'IGV crédito fiscal si cumple causalidad, comprobante válido, fehaciencia y anotación oportuna', aiConfidence: 0.95, aiReason: 'Servicio básico identificado por proveedor/descripción.', requiresReview: false };
+    return { accountCode: '636101', accountName: 'Servicios básicos', costCenter: 'LIM-ADM', taxTreatment: 'IGV crédito fiscal si cumple causalidad, comprobante válido, fehaciencia y anotación oportuna', aiConfidence: 0.95, aiReason: 'Servicio básico identificado por proveedor/descripción.', requiresReview: false };
   }
   if (/ASESORIA|CONSULTORIA|CONSULTOR|SERVICIO PROFESIONAL|HONORARIO|AUDITORIA|LEGAL|CONTABLE/.test(text)) {
-    return { accountCode: '632101', accountName: 'Asesoría y consultoría', taxTreatment: 'Gasto deducible sujeto a causalidad, sustento, fehaciencia y bancarización si corresponde', aiConfidence: 0.91, aiReason: 'Servicio profesional o consultoría.', requiresReview: false };
+    return { accountCode: '632101', accountName: 'Asesoría y consultoría', costCenter: 'LIM-ADM', taxTreatment: 'Gasto deducible sujeto a causalidad, sustento, fehaciencia y bancarización si corresponde', aiConfidence: 0.91, aiReason: 'Servicio profesional o consultoría.', requiresReview: false };
   }
   if (/FLETE|TRANSPORTE|DELIVERY|COURIER|MOVILIDAD|TRASLADO|CARGA|ENVIO/.test(text)) {
-    return { accountCode: '624101', accountName: 'Transportes y fletes', taxTreatment: 'Evaluar detracción si corresponde al servicio de transporte', aiConfidence: 0.9, aiReason: 'Gasto de transporte/flete.', requiresReview: false };
+    return { accountCode: '624101', accountName: 'Transportes y fletes', costCenter: 'LOG-ALM', taxTreatment: 'Evaluar detracción si corresponde al servicio de transporte', aiConfidence: 0.9, aiReason: 'Gasto de transporte/flete.', requiresReview: false };
   }
   if (/MANTENIMIENTO|REPARACION|SOPORTE|TECNICO|SERVICIO TECNICO/.test(text)) {
-    return { accountCode: '634101', accountName: 'Mantenimiento y reparaciones', taxTreatment: 'Gasto deducible si está vinculado a bienes del negocio y existe sustento', aiConfidence: 0.88, aiReason: 'Mantenimiento o reparación.', requiresReview: false };
+    return { accountCode: '634101', accountName: 'Mantenimiento y reparaciones', costCenter: 'LIM-ADM', taxTreatment: 'Gasto deducible si está vinculado a bienes del negocio y existe sustento', aiConfidence: 0.88, aiReason: 'Mantenimiento o reparación.', requiresReview: false };
   }
   if (/UTILES|SUMINISTRO|MATERIAL|LIMPIEZA|OFICINA|PAPEL|TONER|TINTA/.test(text)) {
-    return { accountCode: '656101', accountName: 'Suministros diversos', taxTreatment: 'Gasto operativo deducible si cumple causalidad y sustento', aiConfidence: 0.87, aiReason: 'Suministros de operación/oficina.', requiresReview: false };
+    return { accountCode: '656101', accountName: 'Suministros diversos', costCenter: 'LIM-ADM', taxTreatment: 'Gasto operativo deducible si cumple causalidad y sustento', aiConfidence: 0.87, aiReason: 'Suministros de operación/oficina.', requiresReview: false };
   }
   if (/PUBLICIDAD|MARKETING|ANUNCIO|CAMPAÑA|DISEÑO|REDES/.test(text)) {
-    return { accountCode: '637101', accountName: 'Publicidad y marketing', taxTreatment: 'Deducible si acredita necesidad comercial, contrato/orden y sustento documental', aiConfidence: 0.88, aiReason: 'Publicidad o marketing.', requiresReview: false };
+    return { accountCode: '637101', accountName: 'Publicidad y marketing', costCenter: 'LIM-COM', taxTreatment: 'Deducible si acredita necesidad comercial, contrato/orden y sustento documental', aiConfidence: 0.88, aiReason: 'Publicidad o marketing.', requiresReview: false };
   }
   if (/ALQUILER|ARRENDAMIENTO|RENTA|LOCAL|OFICINA/.test(text)) {
-    return { accountCode: '635101', accountName: 'Alquileres', taxTreatment: 'Revisar detracción, contrato y bancarización según corresponda', aiConfidence: 0.9, aiReason: 'Alquiler/arrendamiento.', requiresReview: false };
+    return { accountCode: '635101', accountName: 'Alquileres', costCenter: 'LIM-ADM', taxTreatment: 'Revisar detracción, contrato y bancarización según corresponda', aiConfidence: 0.9, aiReason: 'Alquiler/arrendamiento.', requiresReview: false };
   }
   if (/LAPTOP|COMPUTADORA|IMPRESORA|MAQUINA|EQUIPO|MOBILIARIO|ACTIVO|VEHICULO/.test(text)) {
-    return { accountCode: '336101', accountName: 'Activo fijo - equipos diversos', taxTreatment: 'No enviar directo a gasto; activar y depreciar si supera política de capitalización', aiConfidence: 0.82, aiReason: 'Posible activo fijo. Requiere revisión de capitalización.', requiresReview: true };
+    return { accountCode: '336101', accountName: 'Activo fijo - equipos diversos', costCenter: 'LIM-ADM', taxTreatment: 'No enviar directo a gasto; activar y depreciar si supera política de capitalización', aiConfidence: 0.82, aiReason: 'Posible activo fijo. Requiere revisión de capitalización.', requiresReview: true };
+  }
+  if (/SOFTWARE|SERVIDOR|NUBE|HOSTING|SISTEMA|LICENCIA/.test(text)) {
+    return { accountCode: '632101', accountName: 'Tecnología y sistemas', costCenter: 'TI-CORE', taxTreatment: 'Gasto TI deducible si está vinculado a la operación. Evaluar capitalización si es >1 año.', aiConfidence: 0.88, aiReason: 'Gasto de tecnología/sistemas.', requiresReview: false };
+  }
+  if (/PLANILLA|CAPACITACION|PERSONAL|RRHH/.test(text)) {
+    return { accountCode: '621101', accountName: 'Recursos humanos', costCenter: 'RRHH', taxTreatment: 'Gasto de personal deducible si está relacionado con actividades generadoras de renta.', aiConfidence: 0.87, aiReason: 'Gasto de personal/RRHH.', requiresReview: false };
   }
   if (/MERCADERIA|PRODUCTO PARA VENTA|INVENTARIO|STOCK/.test(text)) {
-    return { accountCode: '601101', accountName: 'Compras de mercaderías', taxTreatment: 'Afecta inventario/kardex y costo de ventas según política', aiConfidence: 0.86, aiReason: 'Mercadería/inventario.', requiresReview: false };
+    return { accountCode: '601101', accountName: 'Compras de mercaderías', costCenter: 'LOG-ALM', taxTreatment: 'Afecta inventario/kardex y costo de ventas según política', aiConfidence: 0.86, aiReason: 'Mercadería/inventario.', requiresReview: false };
   }
 
-  return { accountCode: '659101', accountName: 'Otros gastos de gestión', taxTreatment: 'Requiere revisión contable antes de postear', aiConfidence: 0.55, aiReason: 'No se identificó una regla confiable.', requiresReview: true };
+  return { accountCode: '659101', accountName: 'Otros gastos de gestión', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Requiere revisión contable antes de postear', aiConfidence: 0.55, aiReason: 'No se identificó una regla confiable.', requiresReview: true };
 };
 
 const createItem = (costCenter = DEFAULT_COST_CENTER): PurchaseItem => ({
@@ -603,9 +610,10 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
           next.taxable = next.lineType === 'EXPENSE_OR_ASSET';
           next.requiresSupport = c.requiresReview;
           next.igvAmount = next.taxable ? next.igvAmount : '0.00';
+          // Distribuir al centro de costo correcto según el tipo de gasto (OBLIGATORIO)
           next.costCenter = next.lineType === 'PRIOR_BALANCE' || next.lineType === 'ADVANCE_PAYMENT'
             ? '-'
-            : normalizeCostCenter(form.costCenter || next.costCenter || DEFAULT_COST_CENTER);
+            : normalizeCostCenter(c.costCenter || form.costCenter || next.costCenter || DEFAULT_COST_CENTER);
         }
 
         return next;
