@@ -23,6 +23,7 @@
   },
   "include": [
     "frontend/src",
+    "src",
     "src/features",
     "src/hooks",
     "src/components",

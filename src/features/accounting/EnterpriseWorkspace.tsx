@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, Checkbox, Field, Input, Textarea } from '@fluentui/react-components';
 import {
   Add24Regular,
@@ -22,23 +22,29 @@ import {
   Wallet24Regular,
 } from '@fluentui/react-icons';
 import { SidePanel } from '../../components/ui/SidePanel';
-import { SaleFormEnterprise, type SaleFormData, type SaleSubmitPayload } from './SaleFormEnterprise';
 import { TenantSelector } from '../../components/layout/TenantSelector';
-import { MassiveUpload } from './MassiveUpload';
-import { PurchaseFormEnterprise, type PurchaseSubmitPayload } from './PurchaseFormEnterprise';
-import { CompliancePanel } from '../sunat/CompliancePanel';
-import { SunatMonitor } from '../sunat/SunatMonitor';
-import { DeclaracionMensual } from '../sunat/DeclaracionMensual';
-import { SunatPortalHub } from '../sunat/SunatPortalHub';
-import { AuditHealthDashboard } from '../audit/AuditHealthDashboard';
-import { ComprasEnhanced } from './ComprasEnhanced';
-import { PayrollGrid } from '../payroll/PayrollGrid';
-import { AssetRegister } from '../assets/AssetRegister';
-import { FinancialDashboard } from '../reports/FinancialDashboard';
-import { BooksCenter } from '../reports/BooksCenter';
-import { OwnerDashboard } from '../client-portal/OwnerDashboard';
-import ApexLogixCore from '../inventory/EnterpriseFulfillmentCommandCenter';
-import WarehouseCommandCenter from '../inventory/WarehouseCommandCenter';
+
+// ── Tipos de módulos con imports estáticos (solo los tipos, no el runtime) ──
+import type { SaleFormData, SaleSubmitPayload } from './SaleFormEnterprise';
+import type { PurchaseSubmitPayload } from './PurchaseFormEnterprise';
+
+// ── Lazy imports: Vite genera un chunk separado por cada módulo ──────────────
+const SaleFormEnterprise     = lazy(() => import('./SaleFormEnterprise').then(m => ({ default: m.SaleFormEnterprise })));
+const MassiveUpload          = lazy(() => import('./MassiveUpload').then(m => ({ default: m.MassiveUpload })));
+const PurchaseFormEnterprise = lazy(() => import('./PurchaseFormEnterprise').then(m => ({ default: m.PurchaseFormEnterprise })));
+const ApiConfigPanel         = lazy(() => import('../settings/ApiConfigPanel').then(m => ({ default: m.ApiConfigPanel })));
+const SunatMonitor           = lazy(() => import('../sunat/SunatMonitor').then(m => ({ default: m.SunatMonitor })));
+const DeclaracionMensual     = lazy(() => import('../sunat/DeclaracionMensual').then(m => ({ default: m.DeclaracionMensual })));
+const SunatPortalHub         = lazy(() => import('../sunat/SunatPortalHub').then(m => ({ default: m.SunatPortalHub })));
+const AuditHealthDashboard   = lazy(() => import('../audit/AuditHealthDashboard').then(m => ({ default: m.AuditHealthDashboard })));
+const ComprasEnhanced        = lazy(() => import('./ComprasEnhanced').then(m => ({ default: m.ComprasEnhanced })));
+const PayrollGrid            = lazy(() => import('../payroll/PayrollGrid').then(m => ({ default: m.PayrollGrid })));
+const AssetRegister          = lazy(() => import('../assets/AssetRegister').then(m => ({ default: m.AssetRegister })));
+const FinancialDashboard     = lazy(() => import('../reports/FinancialDashboard').then(m => ({ default: m.FinancialDashboard })));
+const BooksCenter            = lazy(() => import('../reports/BooksCenter').then(m => ({ default: m.BooksCenter })));
+const OwnerDashboard         = lazy(() => import('../client-portal/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
+const WarehouseCommandCenter = lazy(() => import('../inventory/WarehouseCommandCenter'));
+const ApexLogixCore          = lazy(() => import('../inventory/EnterpriseFulfillmentCommandCenter'));
 
 import { PeriodCloseAction } from './PeriodCloseAction';
 import DashboardEnterprise from '../../components/DashboardEnterprise';
@@ -1302,6 +1308,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     }
   };
 
+  const ModuleFallback = <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4d7a9e', fontSize: 13 }}>Cargando módulo...</div>;
+
   const renderPrimaryView = () => {
     if (selectedView === 'dashboard') {
       return <DashboardEnterprise rows={rows} />;
@@ -1346,7 +1354,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       return <SunatMonitor />;
     }
     if (selectedView === 'config') {
-      return <CompliancePanel />;
+      return <ApiConfigPanel />;
     }
     if (selectedView === 'tesoreria') {
       return <AssetRegister />;
@@ -1878,7 +1886,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           )}
 
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {renderPrimaryView()}
+            <Suspense fallback={ModuleFallback}>
+              {renderPrimaryView()}
+            </Suspense>
           </div>
 
           {selectedView !== 'contabilidad' && (
@@ -1908,6 +1918,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         title={panelTitle}
         footer={null}
       >
+        <Suspense fallback={ModuleFallback}>
         {activePanel === 'VENTA' && (
           <SaleFormEnterprise
             form={saleForm}
@@ -1944,6 +1955,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
             </div>
           </div>
         )}
+        </Suspense>
       </SidePanel>
 
       <AccountDetailPanel

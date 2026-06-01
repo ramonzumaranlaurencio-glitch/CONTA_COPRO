@@ -39,6 +39,7 @@ type Step =
   | 'PLAN_ACCOUNTANT'
   | 'PLAN_COMPANY'
   | 'RUBRO'
+  | 'API_CONFIG'
   | 'CONFIRM';
 
 type AccountType = 'ACCOUNTANT' | 'COMPANY' | null;
@@ -149,7 +150,7 @@ const card: React.CSSProperties = {
 // ─── Indicador de pasos ─────────────────────────────────────────────────────
 const stepMap: Record<Step, number> = {
   LANDING: 0, LOGIN: 0, REG_TYPE: 1, REG_ACCOUNTANT: 2, REG_COMPANY: 2,
-  PLAN_ACCOUNTANT: 3, PLAN_COMPANY: 3, RUBRO: 4, CONFIRM: 5,
+  PLAN_ACCOUNTANT: 3, PLAN_COMPANY: 3, RUBRO: 4, API_CONFIG: 5, CONFIRM: 6,
 };
 
 const StepDots = ({ current }: { current: number }) => (
@@ -172,10 +173,13 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   const [selectedPlanName, setSelectedPlanName] = useState('');
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [selectedRubro, setSelectedRubro] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [landingError, setLandingError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [gsiReady, setGsiReady] = useState(false);
@@ -265,15 +269,18 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   }, []);
 
   const handleGoogleLogin = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      setLoginError('VITE_GOOGLE_CLIENT_ID no configurado en .env');
+      setLandingError('Google Sign-In no está configurado. Usa usuario y contraseña.');
+      setLoginError('Google Sign-In no está configurado. Usa usuario y contraseña.');
       return;
     }
     if (!window.google?.accounts?.oauth2) {
-      setLoginError('Script de Google aún cargando, intente en un segundo.');
+      setLandingError('Cargando Google... espera un segundo e intenta de nuevo.');
+      setLoginError('Cargando Google... espera un segundo e intenta de nuevo.');
       return;
     }
+    setLandingError('');
     setLoginError('');
     setGoogleLoading(true);
 
@@ -282,12 +289,15 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       scope: 'openid email profile',
       callback: async (tokenResponse) => {
         if (tokenResponse.error || !tokenResponse.access_token) {
-          setLoginError('Google canceló o denegó el acceso.');
+          const msg = tokenResponse.error === 'popup_closed_by_user'
+            ? 'Cerraste la ventana de Google. Intenta de nuevo.'
+            : 'Google canceló el acceso. Verifica tu cuenta e intenta de nuevo.';
+          setLandingError(msg);
+          setLoginError(msg);
           setGoogleLoading(false);
           return;
         }
         try {
-          // Obtener datos del usuario con el access token
           const infoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
           });
@@ -295,7 +305,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           const name: string = info.name || info.email?.split('@')[0] || 'Usuario Google';
           const email: string = info.email || '';
 
-          // Intentar verificar con nuestro backend
           const backendRes = await fetch('/api/v1/auth/google-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -307,16 +316,50 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             localStorage.setItem('access_token', data.access_token);
             onLogin('ACCOUNTANT', data.user?.name || name, data.plan || 'TRIAL_CONTADOR');
           } else {
-            // Fallback directo con info de Google
             onLogin('ACCOUNTANT', name, 'TRIAL_CONTADOR');
           }
         } catch {
-          setLoginError('Error al obtener datos de Google.');
+          const msg = 'No se pudo conectar con Google. Verifica tu conexión.';
+          setLandingError(msg);
+          setLoginError(msg);
           setGoogleLoading(false);
         }
       },
     });
 
+    client.requestAccessToken();
+  };
+
+  // ─── Google OAuth para REGISTRO — precarga nombre y email del formulario ────
+  const handleGoogleRegister = (targetType: 'ACCOUNTANT' | 'COMPANY') => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google?.accounts?.oauth2) return;
+    setGoogleLoading(true);
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'openid email profile',
+      callback: async (tokenResponse) => {
+        setGoogleLoading(false);
+        if (tokenResponse.error || !tokenResponse.access_token) return;
+        try {
+          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+          });
+          const info = await res.json();
+          const given: string = info.given_name || '';
+          const family: string = info.family_name || '';
+          const email: string = info.email || '';
+          setAccountType(targetType);
+          if (targetType === 'ACCOUNTANT') {
+            setAcctData(p => ({ ...p, nombres: given, apellidos: family, email }));
+            setStep('REG_ACCOUNTANT');
+          } else {
+            setCompData(p => ({ ...p, adminNombres: given, adminApellidos: family, adminEmail: email, emailEmpresa: email }));
+            setStep('REG_COMPANY');
+          }
+        } catch { /* silencioso: el usuario rellena manualmente */ }
+      },
+    });
     client.requestAccessToken();
   };
 
@@ -441,17 +484,20 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           </div>
 
           {/* Botón Google */}
-          <button type="button" onClick={handleGoogleLogin} disabled={googleLoading} style={{
-            width: '100%', padding: '12px', marginBottom: 12,
-            background: googleLoading ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+          <button type="button" onClick={() => { setLandingError(''); handleGoogleLogin(); }}
+            disabled={googleLoading || !gsiReady} style={{
+            width: '100%', padding: '12px', marginBottom: 6,
+            background: (googleLoading || !gsiReady) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
             border: `1px solid ${P.border}`,
-            borderRadius: 10, color: googleLoading ? P.dim : P.text, fontSize: 14, fontWeight: 600,
-            cursor: googleLoading ? 'not-allowed' : 'pointer',
+            borderRadius: 10, color: (googleLoading || !gsiReady) ? P.dim : P.text, fontSize: 14, fontWeight: 600,
+            cursor: (googleLoading || !gsiReady) ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             fontFamily: "'Segoe UI', Arial, sans-serif", transition: 'all 0.2s',
           }}>
             {googleLoading ? (
               <span style={{ fontSize: 13 }}>⏳ Verificando cuenta Google...</span>
+            ) : !gsiReady ? (
+              <span style={{ fontSize: 13 }}>⏳ Cargando Google...</span>
             ) : (
               <>
                 <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
@@ -459,6 +505,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               </>
             )}
           </button>
+          {landingError && (
+            <div style={{ background: `${P.red}18`, border: `1px solid ${P.red}44`, borderRadius: 8, padding: '9px 14px', marginBottom: 8, color: P.red, fontSize: 12, fontWeight: 500 }}>
+              ⚠ {landingError}
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
             <div style={{ flex: 1, height: 1, background: P.border }} />
@@ -568,6 +619,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             </div>
           </div>
 
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0 12px' }}>
             <div style={{ flex: 1, height: 1, background: P.border }} />
             <span style={{ color: P.dim, fontSize: 11 }}>o ingresa con</span>
@@ -590,6 +642,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               </>
             )}
           </button>
+          </>)}
 
           <div style={{ textAlign: 'center', marginTop: 12 }}>
             <button type="button" onClick={() => setStep('REG_TYPE')} style={{ background: 'none', border: 'none', color: P.accent, fontSize: 13, cursor: 'pointer', fontFamily: "'Segoe UI', Arial, sans-serif" }}>
@@ -612,6 +665,34 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           <button type="button" onClick={() => setStep('LANDING')} style={{ background: 'none', border: 'none', color: P.muted, fontSize: 12, cursor: 'pointer', marginBottom: 16, padding: 0, fontFamily: "'Segoe UI', Arial, sans-serif" }}>← Volver</button>
           <h2 style={{ color: P.text, fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>Crear cuenta</h2>
           <p style={{ color: P.dim, fontSize: 13, margin: '0 0 24px' }}>¿Cómo deseas usar CONTA_PRO?</p>
+
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <div style={{ marginBottom: 18 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: P.dim, textAlign: 'center' }}>Acceso rápido — Google autocompleta tus datos</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {([
+                  { label: 'Contador con Google', type: 'ACCOUNTANT' as const },
+                  { label: 'Empresa con Google', type: 'COMPANY' as const },
+                ] as const).map(o => (
+                  <button key={o.type} type="button" disabled={googleLoading} onClick={() => handleGoogleRegister(o.type)} style={{
+                    padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: `1px solid ${P.border}`,
+                    borderRadius: 9, color: googleLoading ? P.dim : P.text, fontSize: 12, fontWeight: 600,
+                    cursor: googleLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontFamily: "'Segoe UI', Arial, sans-serif",
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    {googleLoading ? 'Cargando...' : o.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 0' }}>
+                <div style={{ flex: 1, height: 1, background: P.border }} />
+                <span style={{ color: P.dim, fontSize: 11 }}>o elige tu tipo de cuenta</span>
+                <div style={{ flex: 1, height: 1, background: P.border }} />
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             {[
@@ -807,7 +888,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       setSelectedPlanName(plan.name);
       const isMaestro = plan.id.includes('MAESTRO');
       if (isMaestro || step === 'PLAN_ACCOUNTANT') {
-        setStep('CONFIRM');
+        setStep('API_CONFIG');
       } else {
         setStep('RUBRO');
       }
@@ -882,7 +963,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <button type="button" onClick={() => setStep('PLAN_COMPANY')} style={{ ...btn(P.accent, true) }}>← Volver</button>
-            <button type="button" onClick={() => { if (selectedRubro) setStep('CONFIRM'); }} style={{ ...btn(selectedRubro ? P.green : P.dim), opacity: selectedRubro ? 1 : 0.4, cursor: selectedRubro ? 'pointer' : 'not-allowed' }}>
+            <button type="button" onClick={() => { if (selectedRubro) setStep('API_CONFIG'); }} style={{ ...btn(selectedRubro ? P.green : P.dim), opacity: selectedRubro ? 1 : 0.4, cursor: selectedRubro ? 'pointer' : 'not-allowed' }}>
               Confirmar →
             </button>
           </div>
@@ -890,6 +971,116 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       </div>
     </div>
   );
+
+  // ─── CONFIGURACIÓN DE API (Google Gemini) ──────────────────────────────────
+  if (step === 'API_CONFIG') {
+    const prevStep = accountType === 'COMPANY' ? 'RUBRO' : 'PLAN_ACCOUNTANT';
+    const needsAI = selectedPlan.includes('PLUS') || selectedPlan.includes('PRO') || selectedPlan.includes('MAESTRO');
+
+    const saveAndContinue = () => {
+      if (geminiKey.trim()) {
+        // Guardar en localStorage con prefijo del usuario para que sea suya
+        localStorage.setItem('user_gemini_api_key', geminiKey.trim());
+      }
+      setStep('CONFIRM');
+    };
+
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Segoe UI', Arial, sans-serif", position: 'relative', overflow: 'hidden', padding: '20px' }}>
+        <Background />
+        <div style={{ width: '100%', maxWidth: 560, position: 'relative', zIndex: 1 }}>
+          <Logo3D size={48} />
+          <StepDots current={4} />
+          <div style={{ ...card, padding: '28px 32px', boxShadow: `0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px ${P.border}` }}>
+            <button type="button" onClick={() => setStep(prevStep as any)} style={{ background: 'none', border: 'none', color: P.muted, fontSize: 12, cursor: 'pointer', marginBottom: 14, padding: 0, fontFamily: "'Segoe UI', Arial, sans-serif" }}>← Volver</button>
+
+            <h2 style={{ color: P.text, fontSize: 18, fontWeight: 800, margin: '0 0 4px' }}>🤖 Tu clave Google Gemini (IA)</h2>
+            <p style={{ color: P.dim, fontSize: 12, margin: '0 0 20px' }}>
+              Para que la IA lea tus facturas automáticamente, necesitas tu propia clave gratuita de Google. Así tus operaciones son tuyas y no consumes cuota ajena.
+            </p>
+
+            {/* Pasos para obtener la clave */}
+            <div style={{ background: `${P.accent}08`, border: `1px solid ${P.accent}33`, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 800, color: P.accent }}>📋 Cómo obtener tu clave Gemini GRATIS (5 minutos):</p>
+              {[
+                { n: '1', text: 'Ir a', link: 'https://aistudio.google.com/apikey', label: 'aistudio.google.com/apikey', desc: ' (tu cuenta Gmail)' },
+                { n: '2', text: 'Hacer clic en', label: '"Create API key"', desc: ' (botón azul)' },
+                { n: '3', text: 'Seleccionar', label: '"Create API key in new project"', desc: '' },
+                { n: '4', text: 'Copiar la clave generada', label: '(empieza con AIza...)', desc: ' y pegarla abajo' },
+              ].map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: P.accent, color: '#000', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.n}</span>
+                  <span style={{ fontSize: 12, color: P.muted, lineHeight: 1.5 }}>
+                    {s.text}{' '}
+                    {s.link ? (
+                      <button type="button" onClick={() => window.open(s.link, '_blank')} style={{ background: 'none', border: 'none', color: P.accent, fontWeight: 700, cursor: 'pointer', fontSize: 12, fontFamily: "'Segoe UI', Arial, sans-serif", textDecoration: 'underline', padding: 0 }}>
+                        {s.label}
+                      </button>
+                    ) : (
+                      <strong style={{ color: P.text }}>{s.label}</strong>
+                    )}
+                    <span style={{ color: P.dim }}>{s.desc}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Input clave */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: P.muted, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Tu clave Gemini API
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  value={geminiKey}
+                  onChange={e => setGeminiKey(e.target.value)}
+                  placeholder="AIzaSy... (pega aquí tu clave)"
+                  style={{ ...input(false), paddingRight: 70, fontFamily: 'Consolas, monospace', fontSize: 13 }}
+                />
+                <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: P.muted, fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: "'Segoe UI', Arial, sans-serif",
+                }}>{showGeminiKey ? 'OCULTAR' : 'VER'}</button>
+              </div>
+              {geminiKey && geminiKey.startsWith('AIza') && (
+                <p style={{ margin: '5px 0 0', fontSize: 11, color: P.green }}>✓ Formato válido de clave Gemini</p>
+              )}
+            </div>
+
+            {/* Qué incluye */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+              <div style={{ background: `${P.green}10`, border: `1px solid ${P.green}33`, borderRadius: 8, padding: '10px 12px' }}>
+                <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: P.green }}>✓ Con tu clave Gemini</p>
+                <p style={{ margin: 0, fontSize: 10, color: P.dim }}>La IA lee tus facturas pixel por pixel. Cuota tuya (1 millón tokens/mes gratis).</p>
+              </div>
+              <div style={{ background: `rgba(255,255,255,0.04)`, border: `1px solid ${P.border}`, borderRadius: 8, padding: '10px 12px' }}>
+                <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: P.muted }}>Sin clave Gemini</p>
+                <p style={{ margin: 0, fontSize: 10, color: P.dim }}>Puedes ingresar facturas manualmente. La IA no estará disponible para ti.</p>
+              </div>
+            </div>
+
+            {/* Info audio de voz */}
+            <div style={{ background: `${P.blue}10`, border: `1px solid ${P.blue}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
+              <p style={{ margin: 0, fontSize: 11, color: P.muted }}>
+                <strong style={{ color: P.accent }}>🔊 Audio de voz:</strong> Ya es gratis con tu navegador (Google Chrome). No necesitas ninguna clave. Funciona automáticamente desde tu dispositivo.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button type="button" onClick={() => setStep('CONFIRM')} style={{ ...btn(P.muted, true), fontSize: 12 }}>
+                Omitir por ahora
+              </button>
+              <button type="button" onClick={saveAndContinue} style={{ ...btn(geminiKey.startsWith('AIza') ? P.green : P.accent), fontSize: 12 }}>
+                {geminiKey.startsWith('AIza') ? '✓ Guardar y continuar →' : 'Continuar sin IA →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── CONFIRMACIÓN ──────────────────────────────────────────────────────────
   if (step === 'CONFIRM') {
