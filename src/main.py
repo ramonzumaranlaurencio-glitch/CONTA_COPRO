@@ -93,7 +93,8 @@ async def _apply_schema_patches() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await _apply_schema_patches()
+    # Patches de esquema en background — no bloquea el arranque ni la health check
+    asyncio.create_task(_apply_schema_patches())
     dispatcher = get_dispatcher()
     register_default_handlers(dispatcher)
     await dispatcher.start()
