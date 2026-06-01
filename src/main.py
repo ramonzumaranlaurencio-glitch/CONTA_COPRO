@@ -94,15 +94,22 @@ async def _apply_schema_patches() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Patches de esquema en background — no bloquea el arranque ni la health check
-    asyncio.create_task(_apply_schema_patches())
-    dispatcher = get_dispatcher()
-    register_default_handlers(dispatcher)
-    await dispatcher.start()
+    # Todo el startup en try/except — uvicorn arranca siempre aunque no haya DB
+    try:
+        asyncio.create_task(_apply_schema_patches())
+        dispatcher = get_dispatcher()
+        register_default_handlers(dispatcher)
+        await dispatcher.start()
+    except Exception:
+        pass
     try:
         yield
     finally:
-        await dispatcher.stop()
+        try:
+            dispatcher = get_dispatcher()
+            await dispatcher.stop()
+        except Exception:
+            pass
 
 
 def create_app() -> FastAPI:
