@@ -267,14 +267,14 @@ const DEMO_DISPATCH: DispatchItem[] = [];
 // HELPERS
 // ============================================================
 const fmt = (n: number, dec = 2) =>
-  n.toLocaleString('es-PE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  n.toLocaleString('es-CO', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
 const fmtDate = (iso: string) => {
-  try { return new Date(iso).toLocaleDateString('es-PE'); } catch { return iso; }
+  try { return new Date(iso).toLocaleDateString('es-CO'); } catch { return iso; }
 };
 
 const fmtDateTime = (iso: string) => {
-  try { return new Date(iso).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return iso; }
+  try { return new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return iso; }
 };
 
 function generateCode(cls: ItemClass, area: Area, seq: number, tokenType: TokenType): string {
@@ -1919,7 +1919,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                     <span style={{ fontSize: 11, color: C.textMut }}>horas</span>
                     {toolForm.expected_return && (
                       <span style={{ fontSize: 11, color: C.accentY, fontWeight: 700 }}>
-                        → vence {new Date(toolForm.expected_return).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                        → vence {new Date(toolForm.expected_return).toLocaleString('es-CO', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
                       </span>
                     )}
                   </div>

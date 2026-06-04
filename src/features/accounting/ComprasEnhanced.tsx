@@ -54,7 +54,7 @@ interface ComprasEnhancedProps {
 
 /* ─── Helpers ─── */
 const fmt = (n: number) =>
-  n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /* ─── Sub-componentes ─── */
 
@@ -107,7 +107,7 @@ const DonutChart = ({
   const cx = 50, cy = 50, r = 36, sw = 12;
   const circ = 2 * Math.PI * r;
   let offset = -circ / 4;
-  const fmtK = (n: number) => n >= 1000 ? `S/ ${(n / 1000).toFixed(1)}k` : `S/ ${fmt(n)}`;
+  const fmtK = (n: number) => n >= 1000000 ? `$ ${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `$ ${(n / 1000).toFixed(0)}k` : `$ ${fmt(n)}`;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
       <svg width={100} height={100} style={{ flexShrink: 0 }}>
@@ -217,7 +217,7 @@ export const ComprasEnhanced = ({
     const out: { icon: string; text: string; detail: string; risk: 'alto' | 'medio'; action: string; actionType: 'alert' | 'warn' }[] = [];
     const noHab = docs.filter(d => d.estado === 'ATIPICO' || d.ruc.length < 11);
     if (noHab.length > 0) {
-      out.push({ icon: '🔴', text: `${noHab.length} Proveedores No Habidos detectados`, detail: `Monto observado S/ ${fmt(noHab.reduce((s, d) => s + d.total, 0))}`, risk: 'alto', action: 'Ver', actionType: 'alert' });
+      out.push({ icon: '🔴', text: `${noHab.length} Proveedores NIT inactivo DIAN`, detail: `Monto observado $ ${fmt(noHab.reduce((s, d) => s + d.total, 0))}`, risk: 'alto', action: 'Ver', actionType: 'alert' });
     }
     const atip = docs.find(d => d.estado === 'ATIPICO');
     if (atip) {
@@ -302,10 +302,10 @@ export const ComprasEnhanced = ({
         {/* ── KPIs ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {[
-            { label: 'COMPRAS PERÍODO',     value: `S/ ${fmt(kpis.total)}`, sub: `${kpis.count} comprobantes`,            color: C.purple, icon: '📦', borderTop: C.purple },
-            { label: 'PROVEED. NO HABIDOS', value: String(kpis.noHabidos),  sub: `S/ 14,200.50 obs.`,                     color: C.red,    icon: '🚨', borderTop: C.red    },
-            { label: 'SIN DETR. DEPOSITADA',value: String(kpis.sinDetraccion * 3), sub: 'Crédito fiscal riesgo',          color: C.yellow, icon: '⚡', borderTop: C.yellow },
-            { label: 'IGV COMPRAS',         value: `S/ ${fmt(kpis.totalIgv)}`, sub: 'Cta. 4011',                          color: C.accent, icon: '🏛️', borderTop: C.accent },
+            { label: 'COMPRAS PERÍODO',      value: `$ ${fmt(kpis.total)}`, sub: `${kpis.count} comprobantes`,            color: C.purple, icon: '📦', borderTop: C.purple },
+            { label: 'PROVEED. NIT INACTIVO',value: String(kpis.noHabidos), sub: `NIT sin validar DIAN`,                  color: C.red,    icon: '🚨', borderTop: C.red    },
+            { label: 'SIN RETEFUENTE',       value: String(kpis.sinDetraccion * 3), sub: 'IVA descontable riesgo',        color: C.yellow, icon: '⚡', borderTop: C.yellow },
+            { label: 'IVA COMPRAS',          value: `$ ${fmt(kpis.totalIgv)}`, sub: 'Cta. 2408',                          color: C.accent, icon: '🏛️', borderTop: C.accent },
           ].map((k, i) => (
             <div key={i} style={{
               background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
@@ -540,11 +540,11 @@ export const ComprasEnhanced = ({
                   </p>
                   {[
                     ['Proveedor', sel.proveedor],
-                    ['RUC',       sel.ruc],
+                    ['NIT',       sel.ruc],
                     ['Fecha',     sel.fecha],
-                    ['Base',      `S/ ${fmt(sel.base)}`],
-                    ['IGV',       `S/ ${fmt(sel.igv)}`],
-                    ['Total',     `S/ ${fmt(sel.total)}`],
+                    ['Base',      `$ ${fmt(sel.base)}`],
+                    ['IVA',       `$ ${fmt(sel.igv)}`],
+                    ['Total',     `$ ${fmt(sel.total)}`],
                     ['Cuenta',    `${sel.cuenta}xx`],
                   ].map(([k, v]) => (
                     <div key={k} style={{

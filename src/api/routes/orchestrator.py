@@ -73,12 +73,12 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
             "doc_type": "01",
             "serie": serie,
             "number": number,
-            "customer_ruc": payload.payload.ruc,
+            "customer_nit": payload.payload.ruc,
             "subtotal": subtotal,
-            "igv": igv,
+            "iva": igv,
             "total": total,
-            "currency": "PEN",
-            "cost_center": "LIM-COM",
+            "currency": "COP",
+            "cost_center": "BOG-COM",
             "invoice_id": str(uuid4()),
             "trace_id": ctx["trace_id"],
             "user_id": ctx["user_id"],
@@ -115,8 +115,8 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
         else:
             sunat_result = {
                 "status": "QUEUED",
-                "topic": "sunat.invoice.post",
-                "message": "Documento enviado a cola de integracion SUNAT.",
+                "topic": "dian.invoice.post",
+                "message": "Documento enviado a cola de integracion DIAN Colombia.",
             }
 
     return {

@@ -27,7 +27,7 @@ type InteractiveTableProps = {
   handleAmountClick: (id: string) => void;
 };
 
-const formatCurrency = (amount: number) => amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatCurrency = (amount: number) => `$ ${amount.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 export const InteractiveTable = ({ rows, handleAccountClick, handleAmountClick }: InteractiveTableProps) => {
   return (

@@ -141,7 +141,7 @@ class ReportExportService:
 
         chart = BarChart()
         chart.title = "Comparativo Estado de Resultados"
-        chart.y_axis.title = "PEN"
+        chart.y_axis.title = "COP"
         chart.x_axis.title = "Indicador"
         data = Reference(ws, min_col=2, max_col=3, min_row=4, max_row=8)
         cats = Reference(ws, min_col=1, min_row=5, max_row=8)

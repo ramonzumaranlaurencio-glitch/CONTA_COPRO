@@ -46,9 +46,9 @@ const toNum = (v: string | number | undefined | null) => {
   return isFinite(n) ? n : 0;
 };
 const fmt = (n: number) =>
-  `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const fmtK = (n: number) =>
-  n >= 1000 ? `S/ ${(n / 1000).toFixed(1)}k` : fmt(n);
+  n >= 1000000 ? `$ ${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `$ ${(n / 1000).toFixed(0)}k` : fmt(n);
 const modUp = (r: DashboardRow) => String(r.sourceModule ?? '').toUpperCase();
 const isVenta  = (r: DashboardRow) => modUp(r) === 'BILLING'   || modUp(r) === 'VENTAS';
 const isCompra = (r: DashboardRow) => modUp(r) === 'PURCHASING' || modUp(r) === 'COMPRAS';
@@ -320,12 +320,12 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
     { label: 'Planillas',     count: rows.filter(r => modUp(r) === 'PAYROLL').length, amount: 0, color: C.orange },
   ];
 
-  /* Libros PLE */
+  /* Declaraciones DIAN */
   const ple = [
-    { name: 'Libro Diario (5.1)',         count: asientosTotal,        badge: asientosTotal > 0 ? 'LISTO'     : 'VACÍO',     type: asientosTotal > 0 ? 'ok' as const : 'neutral' as const },
-    { name: 'Registro de Ventas (14.1)',  count: ventasRows.length,    badge: ventasRows.length > 0 ? 'LISTO' : 'VACÍO',     type: ventasRows.length > 0 ? 'ok' as const : 'neutral' as const },
-    { name: 'Registro de Compras (8.1)',  count: comprasRows.length,   badge: comprasRows.length > 0 ? 'LISTO': 'VACÍO',     type: comprasRows.length > 0 ? 'ok' as const : 'neutral' as const },
-    { name: 'Libro Mayor',                count: rows.length,          badge: rows.length > 0 ? 'PENDIENTE'  : 'VACÍO',      type: rows.length > 0 ? 'warn' as const : 'neutral' as const },
+    { name: 'Libro Diario',                count: asientosTotal,        badge: asientosTotal > 0 ? 'LISTO'     : 'VACÍO',     type: asientosTotal > 0 ? 'ok' as const : 'neutral' as const },
+    { name: 'F300 — Declaración IVA',      count: ventasRows.length,    badge: ventasRows.length > 0 ? 'LISTO' : 'VACÍO',     type: ventasRows.length > 0 ? 'ok' as const : 'neutral' as const },
+    { name: 'F350 — Retención en Fuente',  count: comprasRows.length,   badge: comprasRows.length > 0 ? 'LISTO': 'VACÍO',     type: comprasRows.length > 0 ? 'ok' as const : 'neutral' as const },
+    { name: 'Libro Mayor',                 count: rows.length,          badge: rows.length > 0 ? 'PENDIENTE'  : 'VACÍO',      type: rows.length > 0 ? 'warn' as const : 'neutral' as const },
   ];
 
   /* Auditoría — hallazgos calculados desde datos reales */
@@ -340,7 +340,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
       out.push({ icon: '🔴', text: 'Factura Duplicada detectada', detail: `Coincidencia por monto y proveedor con distinta serie`, risk: 'alto', action: 'Revisar' });
     }
     if (comprasTotal > 3500) {
-      out.push({ icon: '⚠️', text: '12 facturas sin constancia de depósito', detail: 'Riesgo de pérdida de crédito fiscal IGV', risk: 'medio', action: 'Ver' });
+      out.push({ icon: '⚠️', text: '12 facturas sin ReteFuente aplicada', detail: 'Riesgo de rechazo IVA descontable por DIAN', risk: 'medio', action: 'Ver' });
     }
     if (out.length === 0 && rows.length === 0) {
       out.push({ icon: 'ℹ️', text: 'Sin hallazgos — registre operaciones', detail: 'La auditoría IA se activa con datos del período', risk: 'bajo', action: 'Ver' });
@@ -354,7 +354,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
   /* Periodo y régimen */
   const now = new Date();
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const mypeLimitPct = comprasTotal > 0 ? Math.min(99, Math.round((comprasTotal / 1700000) * 100)) : 0;
+  const mypeLimitPct = comprasTotal > 0 ? Math.min(99, Math.round((comprasTotal / 3900000000) * 100)) : 0; // límite SIMPLE Colombia
 
   const noData = rows.length === 0;
 
@@ -422,13 +422,13 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
           }
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <div style={{ flex: 1, padding: '8px 12px', background: C.bgRow, borderRadius: 8, borderLeft: `3px solid ${C.accent}` }}>
-              <p style={{ margin: 0, fontSize: 10, color: C.textMut, fontWeight: 700 }}>DEBE</p>
+              <p style={{ margin: 0, fontSize: 10, color: C.textMut, fontWeight: 700 }}>DÉBITO $</p>
               <p style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 800, color: C.accent, fontFamily: 'Consolas, monospace' }}>
                 {fmt(rows.reduce((s, r) => s + toNum(r.debit), 0))}
               </p>
             </div>
             <div style={{ flex: 1, padding: '8px 12px', background: C.bgRow, borderRadius: 8, borderLeft: `3px solid ${C.red}` }}>
-              <p style={{ margin: 0, fontSize: 10, color: C.textMut, fontWeight: 700 }}>HABER</p>
+              <p style={{ margin: 0, fontSize: 10, color: C.textMut, fontWeight: 700 }}>CRÉDITO $</p>
               <p style={{ margin: '3px 0 0', fontSize: 15, fontWeight: 800, color: C.red, fontFamily: 'Consolas, monospace' }}>
                 {fmt(rows.reduce((s, r) => s + toNum(r.credit), 0))}
               </p>
@@ -464,11 +464,11 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
         </Card>
       </div>
 
-      {/* ══ FILA 2: Régimen + Módulos + Libros PLE ══ */}
+      {/* ══ FILA 2: Régimen + Módulos + Declaraciones DIAN ══ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', gap: 14, marginBottom: 14 }}>
 
         {/* Régimen tributario */}
-        <Card title="Régimen tributario" subtitle="Proyección MYPE" icon="🏛️" accent={C.yellow}>
+        <Card title="Régimen tributario" subtitle="Proyección SIMPLE Colombia" icon="🏛️" accent={C.yellow}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span style={{ fontSize: 11, color: C.textMut }}>Estado</span>
             <Badge label="Alerta" type="warn" />
@@ -494,7 +494,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
               {mypeLimitPct}%
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textMut, textAlign: 'center' }}>
-              del límite MYPE
+              del límite SIMPLE
             </p>
           </div>
 
@@ -503,10 +503,10 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
             border: `1px solid ${C.yellow}33`, borderRadius: 8, marginTop: 8,
           }}>
             <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.yellow }}>
-              Proyección: Régimen General en julio
+              Proyección: Régimen Ordinario Colombia
             </p>
             <p style={{ margin: '4px 0 0', fontSize: 10, color: C.textMut }}>
-              Revisar estrategia tributaria antes de julio 2026
+              Revisar obligaciones DIAN antes de julio 2026
             </p>
           </div>
         </Card>
@@ -557,9 +557,9 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
           </div>
         </Card>
 
-        {/* Libros PLE */}
+        {/* Declaraciones DIAN */}
         <Card
-          title="Libros PLE"
+          title="Declaraciones DIAN"
           subtitle="Estado del período activo"
           icon="📚"
           accent={C.accent}
@@ -570,7 +570,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
               color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
               boxShadow: `0 2px 6px ${C.accent}44`,
             }}>
-              Generar PLE
+              Generar F300 DIAN
             </button>
           }
         >
@@ -728,7 +728,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: C.header }}>
-                {['FECHA', 'DOCUMENTO', 'RUC / PARTNER', 'GLOSA', 'CUENTA', 'DEBE', 'HABER', 'ESTADO'].map((h, i) => (
+                {['FECHA', 'DOCUMENTO', 'NIT / PARTNER', 'GLOSA', 'CUENTA', 'DEBE', 'HABER', 'ESTADO'].map((h, i) => (
                   <th key={i} style={{
                     padding: '8px 10px', textAlign: i >= 5 && i <= 6 ? 'right' : i === 7 ? 'center' : 'left',
                     fontSize: 10, fontWeight: 700, color: C.textMut,

@@ -14,30 +14,38 @@ from src.infrastructure.adapters.ai.vision_provider import get_vision_client, is
 
 router = APIRouter(prefix="/purchases", tags=["Purchases IA"])
 
-CENTRO_COSTO_DEFAULT = "LIM-ADM"
-ROUNDING_EXPENSE_ACCOUNT = "659101"
-ROUNDING_INCOME_ACCOUNT = "759901"
-PRIOR_BALANCE_ACCOUNT = "421201"
-PAYABLE_ACCOUNT = "4212"
-IGV_CREDIT_ACCOUNT = "40111"
-AUTO_ROUNDING_TOLERANCE = Decimal("0.50")
+CENTRO_COSTO_DEFAULT = "BOG-ADM"
+ROUNDING_EXPENSE_ACCOUNT = "539595"   # Gastos varios PUC Colombia
+ROUNDING_INCOME_ACCOUNT  = "429595"   # Ingresos diversos PUC Colombia
+PRIOR_BALANCE_ACCOUNT    = "220505"   # Proveedores PUC Colombia
+PAYABLE_ACCOUNT          = "2205"     # Proveedores nacionales PUC
+IVA_DESCONTABLE_ACCOUNT  = "2408"     # IVA por pagar (descontable) PUC
+AUTO_ROUNDING_TOLERANCE  = Decimal("0.50")
 
 COST_CENTER_LIBRARY = {
-    "LIM-ADM": {
-        "name": "Administracion Lima",
+    "BOG-ADM": {
+        "name": "Administracion Bogota",
         "keywords": ["administracion", "oficina", "gerencia", "servicios publicos", "luz", "agua", "internet", "telefono"],
     },
-    "LIM-COM": {
-        "name": "Comercial Lima",
+    "BOG-COM": {
+        "name": "Comercial Bogota",
         "keywords": ["venta", "comercial", "marketing", "publicidad", "cliente", "campaña"],
+    },
+    "MED-OPS": {
+        "name": "Operaciones Medellin",
+        "keywords": ["produccion", "planta", "maquina", "operacion", "energia productiva"],
+    },
+    "CAL-OPS": {
+        "name": "Operaciones Cali",
+        "keywords": ["produccion cali", "planta cali", "operacion cali"],
     },
     "FIN-TES": {
         "name": "Tesoreria y Finanzas",
-        "keywords": ["banco", "comision bancaria", "interes financiero", "tesoreria"],
+        "keywords": ["banco", "comision bancaria", "interes financiero", "tesoreria", "gmf", "4x1000"],
     },
     "FIN-CXP": {
         "name": "Cuentas por Pagar",
-        "keywords": ["proveedor", "cuentas por pagar", "cxp", "deuda anterior", "saldo anterior"],
+        "keywords": ["proveedor", "cuentas por pagar", "cxp", "saldo anterior"],
     },
     "FIN-CXC": {
         "name": "Cuentas por Cobrar",
@@ -47,216 +55,185 @@ COST_CENTER_LIBRARY = {
         "name": "Tecnologia y Sistemas",
         "keywords": ["software", "servidor", "nube", "hosting", "sistema", "licencia", "computadora", "laptop"],
     },
-    "OPS-PROD": {
-        "name": "Operaciones Produccion",
-        "keywords": ["produccion", "planta", "maquina", "operacion", "energia productiva"],
-    },
     "LOG-ALM": {
         "name": "Logistica Almacen",
         "keywords": ["flete", "transporte", "almacen", "logistica", "courier", "delivery"],
     },
     "RRHH": {
         "name": "Recursos Humanos",
-        "keywords": ["planilla", "capacitacion", "personal", "rrhh"],
+        "keywords": ["nomina", "capacitacion", "personal", "rrhh", "bienestar"],
     },
 }
 
-PCGE_RULE_LIBRARY = [
+PUC_RULE_LIBRARY = [
     # ── SERVICIOS / GASTOS CORRIENTES (no ingresan al almacén) ──────────────
     {
-        "account_code": "636101",
-        "account_name": "Servicios basicos",
+        "account_code": "513540",
+        "account_name": "Servicios publicos (administracion)",
         "is_inventory": False,
         "keywords": [
-            "agua", "alcantarillado", "sedapal", "luz", "electricidad", "energia", "energia activa",
-            "hidrandina", "enel", "luz del sur", "gas", "internet", "telefono", "telefonia",
-            "cargo fijo", "alumbrado publico", "reconexion", "mantenimiento electrico"
+            "agua", "acueducto", "epm", "empresas publicas", "luz", "electricidad", "energia",
+            "codensa", "celsia", "electrificadora", "gas natural", "surtigas", "gases del caribe",
+            "internet", "telefono", "telefonia", "claro", "movistar", "tigo", "etb", "une",
+            "cargo fijo", "alumbrado publico", "reconexion", "mantenimiento electrico",
+            "acometida", "contador energia"
         ],
-        "default_cost_center": "LIM-ADM",
-        "tax_treatment": "IGV credito fiscal si cumple causalidad, comprobante valido, RUC valido y anotacion oportuna.",
+        "default_cost_center": "BOG-ADM",
+        "tax_treatment": "IVA descontable si cumple causalidad, NIT valido en DIAN y factura electronica con CUFE.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "632101",
-        "account_name": "Asesoria y consultoria",
+        "account_code": "513035",
+        "account_name": "Honorarios y consultoria",
         "is_inventory": False,
         "keywords": ["asesoria", "consultoria", "consultor", "legal", "contable", "auditoria", "honorario", "profesional"],
-        "default_cost_center": "LIM-ADM",
-        "tax_treatment": "Gasto deducible sujeto a causalidad, fehaciencia, sustento documental y bancarizacion cuando corresponda.",
+        "default_cost_center": "BOG-ADM",
+        "tax_treatment": "Aplicar ReteFuente 11% persona juridica / 10% persona natural declarante. IVA descontable 19%.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "624101",
-        "account_name": "Transportes y fletes",
+        "account_code": "513575",
+        "account_name": "Transporte, fletes y acarreos",
         "is_inventory": False,
-        "keywords": ["flete", "transporte", "courier", "delivery", "traslado", "carga", "envio"],
+        "keywords": ["flete", "transporte", "courier", "delivery", "traslado", "carga", "envio", "mensajeria"],
         "default_cost_center": "LOG-ALM",
-        "tax_treatment": "Evaluar detraccion si corresponde por servicio de transporte de bienes y validar sustento.",
+        "tax_treatment": "ReteFuente 3.5% sobre valor bruto. IVA descontable. Verificar NIT transportador en DIAN.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "634101",
-        "account_name": "Mantenimiento y reparaciones (servicio)",
+        "account_code": "513545",
+        "account_name": "Mantenimiento y reparaciones",
         "is_inventory": False,
         "keywords": ["mantenimiento", "reparacion", "soporte tecnico", "servicio tecnico"],
-        "default_cost_center": "LIM-ADM",
-        "tax_treatment": "Gasto deducible si esta vinculado con bienes o actividades del negocio.",
+        "default_cost_center": "BOG-ADM",
+        "tax_treatment": "ReteFuente 4% servicios. IVA descontable 19%. Verificar NIT proveedor activo en DIAN.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "635101",
-        "account_name": "Alquileres",
+        "account_code": "513510",
+        "account_name": "Arrendamientos",
         "is_inventory": False,
-        "keywords": ["alquiler", "arrendamiento", "renta", "local"],
-        "default_cost_center": "LIM-ADM",
-        "tax_treatment": "Revisar contrato, comprobante, detraccion si corresponde y fehaciencia del uso del inmueble.",
+        "keywords": ["alquiler", "arrendamiento", "renta", "local", "bodega", "oficina arrendada"],
+        "default_cost_center": "BOG-ADM",
+        "tax_treatment": "ReteFuente 3.5% arrendamiento inmueble. IVA si arrendador es responsable. Verificar contrato.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
-        "requires_support": False,
+        "iva_credit": "REVISION",
+        "requires_support": True,
     },
     {
-        "account_code": "637101",
-        "account_name": "Publicidad y marketing",
+        "account_code": "513570",
+        "account_name": "Publicidad, propaganda y promocion",
         "is_inventory": False,
-        "keywords": ["publicidad", "marketing", "anuncio", "campaña", "redes", "diseño grafico"],
-        "default_cost_center": "LIM-COM",
-        "tax_treatment": "Deducible si acredita necesidad comercial, causalidad, fehaciencia y sustento documental.",
+        "keywords": ["publicidad", "marketing", "anuncio", "campaña", "redes", "diseño grafico", "pauta"],
+        "default_cost_center": "BOG-COM",
+        "tax_treatment": "IVA descontable 19%. ReteFuente 4% si servicio. Acreditar necesidad comercial y causalidad.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     # ── INVENTARIO — BIENES FÍSICOS QUE INGRESAN AL ALMACÉN ─────────────────
     {
-        "account_code": "2011",
-        "account_name": "Mercaderias manufacturadas",
+        "account_code": "1430",
+        "account_name": "Mercancias no fabricadas por la empresa",
         "is_inventory": True,
         "item_class": "MERCADERIA",
         "keywords": [
-            "mercaderia", "producto para venta", "articulo para reventa", "producto terminado para venta",
+            "mercancia", "producto para venta", "articulo para reventa", "producto terminado para venta",
             "stock para venta", "producto comercial", "articulo comercial"
         ],
         "default_cost_center": "LOG-ALM",
-        "tax_treatment": "Bien inventariable para reventa. Afecta kardex. IGV credito fiscal si cumple requisitos.",
+        "tax_treatment": "Bien inventariable para reventa. Afecta kardex. IVA descontable si NIT valido en DIAN.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "2012",
-        "account_name": "Mercaderias no manufacturadas",
-        "is_inventory": True,
-        "item_class": "MERCADERIA",
-        "keywords": [
-            "commodity", "producto agricola para venta", "producto pesquero para venta",
-            "mineral para venta", "materia prima para reventa"
-        ],
-        "default_cost_center": "LOG-ALM",
-        "tax_treatment": "Bien inventariable no manufacturado para reventa. Afecta kardex.",
-        "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
-        "requires_support": False,
-    },
-    {
-        "account_code": "2411",
-        "account_name": "Materias primas para productos manufacturados",
+        "account_code": "1435",
+        "account_name": "Materias primas",
         "is_inventory": True,
         "item_class": "MATERIA_PRIMA",
         "keywords": [
-            "cemento", "portland", "acero", "fierro corrugado", "varilla", "madera tornillo",
-            "triplay", "plywood", "ladrillo", "ceramica", "porcelanato", "pintura",
-            "concreto", "mortero", "yeso", "cal viva", "barniz", "laca",
-            "tela", "hilo", "cuero", "plastico resina", "caucho", "vidrio"
+            "cemento", "concreto", "acero", "varilla corrugada", "madera",
+            "triplex", "plywood", "ladrillo", "ceramica", "porcelanato", "pintura",
+            "mortero", "yeso", "cal", "barniz", "laca", "resina",
+            "tela", "hilo", "cuero", "plastico", "caucho", "vidrio",
+            "arena", "gravilla", "piedra triturada", "ripio", "agregado", "arcilla"
         ],
-        "default_cost_center": "OPS-PROD",
-        "tax_treatment": "Materia prima para produccion. Afecta kardex. IGV credito fiscal si cumple requisitos.",
+        "default_cost_center": "MED-OPS",
+        "tax_treatment": "Materia prima para produccion. Afecta kardex. IVA descontable si cumple requisitos DIAN.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "2412",
-        "account_name": "Materias primas para productos no manufacturados",
-        "is_inventory": True,
-        "item_class": "MATERIA_PRIMA",
-        "keywords": [
-            "arena", "piedra chancada", "gravilla", "ripio", "hormigon", "agregado grueso",
-            "agregado fino", "mineral", "concentrado", "tierra", "arcilla"
-        ],
-        "default_cost_center": "OPS-PROD",
-        "tax_treatment": "Materia prima no manufacturada. Afecta kardex.",
-        "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
-        "requires_support": False,
-    },
-    {
-        "account_code": "2522",
-        "account_name": "Suministros",
+        "account_code": "1455",
+        "account_name": "Materiales, repuestos y accesorios",
         "is_inventory": True,
         "item_class": "INSUMOS",
         "keywords": [
-            "papel bond", "papel a4", "papel a3", "papel oficio", "toner", "cartucho tinta",
-            "utiles escritorio", "archivador", "folder", "cinta adhesiva", "masking tape",
+            "papel bond", "papel a4", "papel oficio", "toner", "cartucho tinta",
+            "utiles escritorio", "archivador", "folder", "cinta adhesiva",
             "lapiz", "boligrafo", "engrapadora", "perforadora", "post it", "resma",
-            "jabon", "detergente", "lejia", "desinfectante", "papel higienico", "escoba",
-            "trapeador", "bolsa plastica", "guante de latex", "alcohol gel",
-            "gasolina", "diesel", "petroleo", "combustible", "aceite motor", "lubricante",
-            "grasa industrial", "gnv", "gas natural vehicular",
-            "casco seguridad", "guante cuero", "guante nitrilo", "lentes seguridad",
-            "zapatos seguridad", "chaleco reflectivo", "tapones oidos", "mascarilla n95",
-            "arnes seguridad", "epp", "equipos proteccion personal",
-            "suministro", "insumo", "consumible"
+            "jabon", "detergente", "hipoclorito", "desinfectante", "papel higienico", "escoba",
+            "trapero", "bolsa", "guante latex", "alcohol", "gel antibacterial",
+            "gasolina", "acpm", "diesel", "combustible", "aceite motor", "lubricante",
+            "grasa industrial", "gas natural vehicular",
+            "casco", "guante cuero", "guante nitrilo", "lentes seguridad",
+            "botas seguridad", "chaleco reflectivo", "tapa oidos", "respirador",
+            "arnes", "epp", "elemento proteccion personal",
+            "suministro", "insumo", "consumible",
+            "repuesto", "pieza cambio", "broca", "cuchilla",
+            "filtro aceite", "filtro aire", "correa", "rodamiento",
+            "valvula", "sello", "empaque", "retenedor"
         ],
         "default_cost_center": "LOG-ALM",
-        "tax_treatment": "Suministro inventariable. Afecta kardex. IGV credito fiscal si cumple requisitos.",
+        "tax_treatment": "Suministro/repuesto inventariable. Afecta kardex. IVA descontable si cumple requisitos DIAN.",
         "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": False,
     },
     {
-        "account_code": "2523",
-        "account_name": "Repuestos",
-        "is_inventory": True,
-        "item_class": "INSUMOS",
-        "keywords": [
-            "repuesto", "pieza de recambio", "refaccion", "spare part", "broca", "cuchilla",
-            "filtro aceite", "filtro aire", "correa", "faja", "rodamiento", "cojinete",
-            "banda transportadora", "valvula", "sello mecanico", "empaque", "retenedor"
-        ],
-        "default_cost_center": "LOG-ALM",
-        "tax_treatment": "Repuesto inventariable. Afecta kardex. Evaluar si supera politica de capitalizacion.",
-        "deductibility": "DEDUCIBLE",
-        "igv_credit": "SI",
-        "requires_support": False,
-    },
-    {
-        "account_code": "3336",
-        "account_name": "Equipos diversos (activo fijo)",
+        "account_code": "1528",
+        "account_name": "Equipo de computo y comunicacion (activo fijo)",
         "is_inventory": True,
         "item_class": "ACTIVO_FIJO",
         "keywords": [
-            "laptop", "computadora", "pc escritorio", "monitor", "impresora laser",
+            "laptop", "computador", "computadora", "pc escritorio", "monitor", "impresora",
             "escaner", "proyector", "servidor", "switch", "router", "ups",
-            "telefono ip", "tablet", "celular corporativo",
-            "refrigeradora", "aire acondicionado", "grupo electrogeno"
+            "telefono ip", "tablet", "celular corporativo", "camara ip"
         ],
-        "default_cost_center": "LIM-ADM",
-        "tax_treatment": "Activo fijo. Capitalizar si supera politica. Depreciar segun vida util. IGV sujeto a revision.",
+        "default_cost_center": "TI-CORE",
+        "tax_treatment": "Activo fijo depreciable (3 años). IVA descontable. Capitalizar si supera 50% UVT (2026: ~$2.330.000 COP).",
         "deductibility": "REVISION",
-        "igv_credit": "REVISION",
+        "iva_credit": "REVISION",
         "requires_support": True,
     },
     {
-        # 3337 = SOLO herramientas ELÉCTRICAS/MECÁNICAS de alto valor (taladro, amoladora, etc.)
-        # Herramientas MANUALES de bajo valor (pala, pico, comba) → 2522 (suministros)
-        "account_code": "3337",
+        "account_code": "1520",
+        "account_name": "Maquinaria y equipo (activo fijo)",
+        "is_inventory": True,
+        "item_class": "ACTIVO_FIJO",
+        "keywords": [
+            "maquina", "maquinaria", "equipo industrial", "horno", "prensa",
+            "compresor industrial", "planta electrica", "grupo electrogeno",
+            "refrigerador industrial", "aire acondicionado", "planta de agua"
+        ],
+        "default_cost_center": "MED-OPS",
+        "tax_treatment": "Activo fijo depreciable (10 años). IVA descontable. Capitalizar. Verificar soporte tecnico.",
+        "deductibility": "REVISION",
+        "iva_credit": "REVISION",
+        "requires_support": True,
+    },
+    {
+        "account_code": "1520",
         "account_name": "Herramientas y utensilios electromecánicos",
         "is_inventory": True,
         "item_class": "HERRAMIENTAS",
@@ -264,69 +241,66 @@ PCGE_RULE_LIBRARY = [
             "taladro", "amoladora", "esmeril", "soldadora", "nivel laser",
             "compresor", "pistola pintura", "llave torquimetro", "destornillador electrico",
             "mezcladora concreto", "vibrador concreto", "sierra circular",
-            "martillo neumatico", "jackhammer", "andamio", "escalera metal",
-            "rotomartillo", "pulidora", "lijadora", "fresadora", "torno"
+            "martillo neumatico", "andamio", "escalera metalica",
+            "pulidora", "lijadora", "fresadora", "torno"
         ],
-        "default_cost_center": "OPS-PROD",
-        "tax_treatment": "Herramienta electromecánica. Evaluar capitalización según política de empresa.",
+        "default_cost_center": "MED-OPS",
+        "tax_treatment": "Herramienta electromecánica. Evaluar capitalización según política de empresa Colombia.",
         "deductibility": "REVISION",
-        "igv_credit": "SI",
+        "iva_credit": "SI",
         "requires_support": True,
     },
 ]
 
-# Mapa rapido cuenta inventario → clase de articulo (para auto-crear en almacen)
+# Alias para compatibilidad con código que referencie PCGE_RULE_LIBRARY
+PCGE_RULE_LIBRARY = PUC_RULE_LIBRARY
+
+# Mapa rapido cuenta inventario PUC → clase de articulo (para auto-crear en almacen)
 INVENTARIO_ACCOUNT_CLASS: dict[str, str] = {
-    "20": "MERCADERIA",
-    "21": "MERCADERIA",
-    "22": "MERCADERIA",
-    "24": "MATERIA_PRIMA",
-    "25": "INSUMOS",
-    "26": "INSUMOS",
-    "33": "ACTIVO_FIJO",
-    "34": "ACTIVO_FIJO",
+    "14": "MERCADERIA",   # 14xx = Inventarios PUC Colombia
+    "15": "ACTIVO_FIJO",  # 15xx = Propiedades planta y equipo
+    "16": "ACTIVO_FIJO",  # 16xx = Intangibles
 }
 
-# ─── OSINERGMIN: Electricidad ────────────────────────────────────────────────
+# ─── Reglas servicios públicos domiciliarios Colombia (CREG) ─────────────────
 ELECTRIC_REGULATED_RULES = [
     {
-        "keywords": ("APORTE LEY", "LEY 28749", "LEY NRO. 28749", "LEY NRO 28749"),
-        "account_code": "636105",
-        "account_name": "Energia electrica - Aporte Ley 28749",
+        "keywords": ("CONTRIBUCION LEY", "FONDO ESPECIAL", "CARGO SOCIAL"),
+        "account_code": "513542",
+        "account_name": "Servicios publicos - Contribucion especial",
         "taxable": False,
-        "tax_treatment": "Cargo regulado Ley 28749 no afecto al IGV; subcuenta de electricidad.",
+        "tax_treatment": "Cargo regulado no sujeto a IVA; subcuenta de servicios publicos.",
     },
     {
-        "keywords": ("FOSE", "FISE", "LEY 27510", "FONDO SOCIAL"),
-        "account_code": "636106",
-        "account_name": "Energia electrica - FOSE/FISE",
+        "keywords": ("SUBSIDIO ESTRATOS", "SUBSIDIO TARIFA", "APORTE SOLIDARIDAD"),
+        "account_code": "513543",
+        "account_name": "Servicios publicos - Subsidio/aporte solidaridad",
         "taxable": False,
-        "tax_treatment": "Cargo regulado FOSE/FISE no afecto al IGV.",
+        "tax_treatment": "Cargo regulado por solidaridad no afecto a IVA.",
     },
     {
-        "keywords": ("ALUMBRADO PUBLICO", "ALUMBRADO PÚBLICO", "MRSE ALUMBRADO"),
-        "account_code": "636103",
-        "account_name": "Energia electrica - Alumbrado publico",
-        "taxable": True,
-        "tax_treatment": "Cargo regulado de alumbrado publico afecto al IGV.",
+        "keywords": ("ALUMBRADO PUBLICO", "ALUMBRADO PÚBLICO", "IMPUESTO ALUMBRADO"),
+        "account_code": "513040",
+        "account_name": "Impuestos - Alumbrado publico",
+        "taxable": False,
+        "tax_treatment": "Impuesto municipal de alumbrado publico (no es IVA ni servicio).",
     },
     {
-        "keywords": ("CARGO FIJO", "CARGO FIJO ELECTRICIDAD"),
-        "account_code": "636102",
-        "account_name": "Energia electrica - Cargo fijo",
+        "keywords": ("CARGO FIJO", "CARGO FIJO ENERGIA", "CARGO FIJO GAS"),
+        "account_code": "513541",
+        "account_name": "Servicios publicos - Cargo fijo",
         "taxable": True,
-        "tax_treatment": "Cargo fijo regulado del servicio electrico afecto al IGV.",
+        "tax_treatment": "Cargo fijo regulado del servicio publico domiciliario sujeto a IVA.",
     },
     {
         "keywords": (
-            "REPOSICION Y MANTENIMIENTO", "REPOSICIÓN Y MANTENIMIENTO",
-            "REPOSICION", "REPOSICIÓN", "MANTENIMIENTO ELECTRICO", "MANTENIMIENTO ELÉCTRICO",
-            "CARGO POR REPOSICION",
+            "MANTENIMIENTO RED", "CARGO MANTENIMIENTO", "MANTENIMIENTO ELECTRICO",
+            "MANTENIMIENTO RED GAS",
         ),
-        "account_code": "636104",
-        "account_name": "Energia electrica - Reposicion y mantenimiento",
+        "account_code": "513544",
+        "account_name": "Servicios publicos - Cargo mantenimiento red",
         "taxable": True,
-        "tax_treatment": "Cargo regulado de reposicion y mantenimiento afecto al IGV.",
+        "tax_treatment": "Cargo regulado de mantenimiento de red sujeto a IVA.",
     },
     {
         "keywords": (
@@ -336,7 +310,7 @@ ELECTRIC_REGULATED_RULES = [
         "account_code": "636101",
         "account_name": "Energia electrica - Consumo activo",
         "taxable": True,
-        "tax_treatment": "Consumo de energia electrica activa afecto al IGV.",
+        "tax_treatment": "Consumo de energia electrica activa afecto al IVA.",
     },
 ]
 
@@ -347,7 +321,7 @@ WATER_REGULATED_RULES = [
         "account_code": "636201",
         "account_name": "Agua potable - Cargo fijo",
         "taxable": True,
-        "tax_treatment": "Cargo fijo regulado del servicio de agua potable afecto al IGV.",
+        "tax_treatment": "Cargo fijo regulado del servicio de agua potable afecto al IVA.",
     },
     {
         "keywords": (
@@ -357,7 +331,7 @@ WATER_REGULATED_RULES = [
         "account_code": "636202",
         "account_name": "Agua potable - Consumo",
         "taxable": True,
-        "tax_treatment": "Consumo de agua potable afecto al IGV.",
+        "tax_treatment": "Consumo de agua potable afecto al IVA.",
     },
     {
         "keywords": (
@@ -367,14 +341,14 @@ WATER_REGULATED_RULES = [
         "account_code": "636203",
         "account_name": "Agua potable - Alcantarillado y saneamiento",
         "taxable": True,
-        "tax_treatment": "Cargo de alcantarillado y saneamiento afecto al IGV.",
+        "tax_treatment": "Cargo de alcantarillado y saneamiento afecto al IVA.",
     },
     {
         "keywords": ("SUNASS", "APORTE SUNASS", "REGULACION SUNASS"),
         "account_code": "636204",
         "account_name": "Agua potable - Aporte SUNASS",
         "taxable": False,
-        "tax_treatment": "Cargo regulado SUNASS no afecto al IGV.",
+        "tax_treatment": "Cargo regulado SUNASS no afecto al IVA.",
     },
 ]
 
@@ -385,7 +359,7 @@ GAS_REGULATED_RULES = [
         "account_code": "636301",
         "account_name": "Gas natural - Cargo fijo",
         "taxable": True,
-        "tax_treatment": "Cargo fijo regulado del servicio de gas natural afecto al IGV.",
+        "tax_treatment": "Cargo fijo regulado del servicio de gas natural afecto al IVA.",
     },
     {
         "keywords": (
@@ -395,14 +369,14 @@ GAS_REGULATED_RULES = [
         "account_code": "636302",
         "account_name": "Gas natural - Consumo",
         "taxable": True,
-        "tax_treatment": "Consumo de gas natural afecto al IGV.",
+        "tax_treatment": "Consumo de gas natural afecto al IVA.",
     },
     {
         "keywords": ("TRANSPORTE GAS", "CARGO TRANSPORTE", "DISTRIBUCION GAS"),
         "account_code": "636303",
         "account_name": "Gas natural - Transporte y distribucion",
         "taxable": True,
-        "tax_treatment": "Cargo de transporte y distribucion de gas afecto al IGV.",
+        "tax_treatment": "Cargo de transporte y distribucion de gas afecto al IVA.",
     },
 ]
 
@@ -416,7 +390,7 @@ TELECOM_REGULATED_RULES = [
         "account_code": "636401",
         "account_name": "Telecomunicaciones - Cargo fijo / renta basica",
         "taxable": True,
-        "tax_treatment": "Cargo fijo de telecomunicaciones afecto al IGV.",
+        "tax_treatment": "Cargo fijo de telecomunicaciones afecto al IVA.",
     },
     {
         "keywords": (
@@ -426,7 +400,7 @@ TELECOM_REGULATED_RULES = [
         "account_code": "636402",
         "account_name": "Telecomunicaciones - Internet",
         "taxable": True,
-        "tax_treatment": "Servicio de internet afecto al IGV.",
+        "tax_treatment": "Servicio de internet afecto al IVA.",
     },
     {
         "keywords": (
@@ -436,7 +410,7 @@ TELECOM_REGULATED_RULES = [
         "account_code": "636403",
         "account_name": "Telecomunicaciones - Telefonia",
         "taxable": True,
-        "tax_treatment": "Servicio de telefonia afecto al IGV.",
+        "tax_treatment": "Servicio de telefonia afecto al IVA.",
     },
     {
         "keywords": (
@@ -446,28 +420,28 @@ TELECOM_REGULATED_RULES = [
         "account_code": "636404",
         "account_name": "Telecomunicaciones - Television por cable",
         "taxable": True,
-        "tax_treatment": "Servicio de television por cable afecto al IGV.",
+        "tax_treatment": "Servicio de television por cable afecto al IVA.",
     },
     {
         "keywords": ("OSIPTEL", "APORTE OSIPTEL", "FITEL"),
         "account_code": "636405",
         "account_name": "Telecomunicaciones - Aporte OSIPTEL/FITEL",
         "taxable": False,
-        "tax_treatment": "Aporte regulado OSIPTEL/FITEL no afecto al IGV.",
+        "tax_treatment": "Aporte regulado OSIPTEL/FITEL no afecto al IVA.",
     },
 ]
 
 
 LEGAL_TAX_REVIEW_LIBRARY = [
-    "Causalidad del gasto: relacion directa o razonable con generacion de renta o mantenimiento de fuente.",
+    "Causalidad del gasto (Art. 107 ET Colombia): relacion directa o razonable con actividad productora de renta.",
     "Fehaciencia: conservar comprobante, contrato, orden, guia, evidencia de prestacion, conformidad y medio de pago.",
-    "Bancarizacion: revisar umbrales y medios de pago exigidos para deduccion tributaria cuando aplique.",
-    "IGV credito fiscal: validar comprobante valido, operacion gravada, adquisicion vinculada, RUC habido/activo y anotacion oportuna.",
-    "Detraccion: revisar servicios sujetos al SPOT segun naturaleza del servicio y porcentaje vigente.",
+    "Bancarizacion: en Colombia operaciones > $1.000.000 COP requieren pago bancarizado para ser deducibles (Art. 771-5 ET).",
+    "IVA descontable: validar factura electronica con CUFE, NIT activo en DIAN, operacion gravada, vinculada con actividad generadora de IVA.",
+    "Retencion en la fuente: aplicar tarifas correctas segun concepto (compras 3.5%, servicios 4%, honorarios 11%) y verificar cuantia minima.",
     "Retencion/percepcion: evaluar condicion del proveedor, regimen aplicable y comprobante.",
     "No deducibles u observados: multas, sanciones, gastos personales, liberalidades o conceptos sin causalidad.",
-    "Servicios publicos: separar consumo actual, cargo fijo, alumbrado publico, mantenimiento, deuda anterior, pagos a cuenta, mora/intereses, redondeos e IGV.",
-    "Redondeo monetario: linea tecnica de conciliacion. No integra base imponible del IGV ni genera credito fiscal; no debe bloquear si esta dentro de tolerancia razonable.",
+    "Servicios publicos Colombia: separar consumo actual, cargo fijo, alumbrado publico (impuesto municipal), mantenimiento red, deuda anterior, mora/intereses e IVA.",
+    "Redondeo monetario: linea tecnica de conciliacion. No integra base gravable del IVA ni genera IVA descontable; no debe bloquear si esta dentro de tolerancia razonable.",
 ]
 
 
@@ -514,9 +488,27 @@ def _only_digits(value: Any) -> str:
     return re.sub(r"\D", "", str(value or ""))
 
 
-def _is_valid_ruc(value: Any) -> bool:
+def _is_valid_nit(value: Any) -> bool:
+    """Valida NIT colombiano con algoritmo módulo 11 de la DIAN.
+    Acepta NIT de 9 dígitos (sin dígito de verificación) o 10 (con dígito).
+    """
     digits = _only_digits(value)
-    return len(digits) == 11 and digits[:2] in {"10", "15", "17", "20"}
+    if len(digits) not in (9, 10) or digits[0] == '0':
+        return False
+    if len(digits) == 9:
+        return True  # formato sin dígito de verificación es válido estructuralmente
+    # Verificar dígito de control (posición 10)
+    nit_base = digits[:9]
+    check = int(digits[9])
+    factors = [3, 7, 13, 17, 19, 23, 29, 37, 41]  # de derecha a izquierda
+    total = sum(int(d) * f for d, f in zip(reversed(nit_base), factors))
+    remainder = total % 11
+    expected = remainder if remainder <= 1 else 11 - remainder
+    return expected == check
+
+
+# Alias para compatibilidad con código existente que use _is_valid_ruc
+_is_valid_ruc = _is_valid_nit
 
 
 def _line_kind(description: str, code: str = "") -> str:
@@ -541,7 +533,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "cost_center": fallback_cost_center,
             "tax_treatment": "Redondeo monetario del comprobante. No integra base imponible del IGV, no genera credito fiscal y se usa para reconciliar el total impreso.",
             "deductibility": "DEDUCIBLE",
-            "igv_credit": "NO",
+            "iva_credit": "NO",
             "requires_support": False,
             "line_type": "ROUNDING",
             "is_inventory": False,
@@ -556,7 +548,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "cost_center": "-",
             "tax_treatment": "Saldo/deuda de periodo anterior. No representa gasto nuevo ni genera nuevo IGV credito fiscal; validar que la obligacion original fue registrada.",
             "deductibility": "REVISION",
-            "igv_credit": "NO",
+            "iva_credit": "NO",
             "requires_support": False,
             "line_type": "PRIOR_BALANCE",
             "is_inventory": False,
@@ -571,7 +563,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "cost_center": "-",
             "tax_treatment": "Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IGV; se aplica como compensacion de cuenta por pagar.",
             "deductibility": "NO_DEDUCIBLE",
-            "igv_credit": "NO",
+            "iva_credit": "NO",
             "requires_support": False,
             "line_type": "ADVANCE_PAYMENT",
             "is_inventory": False,
@@ -586,7 +578,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "cost_center": fallback_cost_center,
             "tax_treatment": "Mora, penalidad o recargo. No mezclar con el servicio principal. Deducibilidad e IGV sujetos a revision y sustento.",
             "deductibility": "REVISION",
-            "igv_credit": "NO",
+            "iva_credit": "NO",
             "requires_support": True,
             "line_type": "LATE_FEE",
             "is_inventory": False,
@@ -606,12 +598,12 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
                 "cost_center": cc,
                 "tax_treatment": rule["tax_treatment"],
                 "deductibility": rule["deductibility"],
-                "igv_credit": rule["igv_credit"],
+                "iva_credit": rule["iva_credit"],
                 "requires_support": bool(rule.get("requires_support", False)),
                 "line_type": "INVENTORY_PURCHASE" if is_inv else "EXPENSE_OR_ASSET",
                 "is_inventory": is_inv,
                 "item_class": rule.get("item_class"),
-                "ai_reason": f"Clasificado por regla PCGE/local: {rule['account_name']}.",
+                "ai_reason": f"Clasificado por regla PUC/local Colombia: {rule['account_name']}.",
                 "ai_confidence": 0.93,
             }
     return {
@@ -620,7 +612,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
         "cost_center": fallback_cost_center,
         "tax_treatment": "Requiere revision contable y tributaria por falta de regla confiable.",
         "deductibility": "REVISION",
-        "igv_credit": "REVISION",
+        "iva_credit": "REVISION",
         "requires_support": True,
         "line_type": "EXPENSE_OR_ASSET",
         "is_inventory": False,
@@ -661,78 +653,75 @@ def _json_schema_instruction() -> str:
     return f"""
 Devuelve SOLO JSON valido, sin markdown, sin explicaciones fuera del JSON.
 
-Eres CONTA_PRO Vision Accounting Engine, motor contable, tributario, legal-documentario y de auditoria para un ERP peruano empresarial.
+Eres CONTA_COLPRO Vision Accounting Engine, motor contable, tributario, legal-documentario y de auditoria para un ERP colombiano empresarial bajo normativa DIAN y Estatuto Tributario de Colombia.
 
 ══════════════════════════════════════════════════════════════════
 DETECCIÓN OBLIGATORIA: INVENTARIO vs GASTO/SERVICIO
 ══════════════════════════════════════════════════════════════════
 REGLA FUNDAMENTAL: Determina si cada ítem es un BIEN FÍSICO TANGIBLE o un SERVICIO.
 
-BIEN FÍSICO TANGIBLE (ingresa al almacén → account_code = cuenta inventario 2xx o 3xx):
+BIEN FÍSICO TANGIBLE (ingresa al almacén → account_code = cuenta inventario PUC Colombia 14xx o 15xx):
   ┌──────────┬─────────────────────────────────────┬──────────────────────────────────────────────────────┐
-  │ Cuenta   │ Nombre                              │ Cuando usar                                          │
+  │ Cuenta   │ Nombre PUC Colombia                 │ Cuando usar                                          │
   ├──────────┼─────────────────────────────────────┼──────────────────────────────────────────────────────┤
-  │ 2011     │ Mercaderías manufact.               │ Productos para reventa manufacturados                │
-  │ 2012     │ Mercaderías no manufact.            │ Commodities, productos no manufact. para reventa     │
-  │ 2411     │ Materias primas manufact.           │ Cemento, acero, fierro, madera, ladrillo, pintura    │
-  │ 2412     │ Materias primas no manufact.        │ Arena, piedra chancada, gravilla, mineral, arcilla   │
-  │ 2521     │ Materiales auxiliares               │ Materiales auxiliares de produccion                  │
-  │ 2522     │ Suministros                         │ Papel bond, toner, utiles, EPP, combustible, aceite  │
-  │          │                                     │ jabon, detergente, limpieza, y HERRAMIENTAS MANUALES│
-  │          │                                     │ de bajo valor: PALA, PICO, COMBA, BARRETA, RASTRILLO│
-  │          │                                     │ SERRUCHO, CINCEL, CARRETILLA, MARTILLO MANUAL, etc. │
-  │ 2523     │ Repuestos                           │ Repuestos de maquinaria, brocas, filtros, correas    │
-  │ 3334     │ Unidades de transporte              │ Vehiculos (activo fijo)                              │
-  │ 3336     │ Equipos diversos                    │ Laptops, PCs, servidores, equipos electronicos       │
-  │ 3337     │ Herramientas ELECTROMECÁNICAS       │ SOLO herramientas eléctricas/mecánicas de alto valor │
-  │          │                                     │ taladros, amoladoras, soldadoras, compresoras, sierras│
-  │          │                                     │ NO usar 3337 para palas, picos, combas ni herramientas│
-  │          │                                     │ manuales simples → esas van a 2522                   │
+  │ 1430     │ Mercancias no fabricadas            │ Productos para reventa (comercio)                    │
+  │ 1435     │ Materias primas                     │ Cemento, acero, madera, ladrillo, pintura, tela      │
+  │          │                                     │ Arena, gravilla, piedra triturada, mineral, arcilla  │
+  │ 1455     │ Materiales, repuestos y accesorios  │ Papel, toner, utiles, elementos aseo, EPP            │
+  │          │                                     │ combustible, aceite, lubricantes, repuestos maq.     │
+  │          │                                     │ HERRAMIENTAS MANUALES de bajo valor: PALA, PICO,     │
+  │          │                                     │ COMBA, BARRETA, RASTRILLO, SERRUCHO, CINCEL, etc.    │
+  │ 1540     │ Flota y equipo de transporte        │ Vehiculos (activo fijo)                              │
+  │ 1528     │ Equipo de computo y comunicacion    │ Laptops, PCs, servidores, equipos electronicos       │
+  │ 1520     │ Maquinaria y equipo                 │ Herramientas ELECTROMECÁNICAS de alto valor          │
+  │          │                                     │ taladros, amoladoras, soldadoras, compresoras        │
+  │          │                                     │ NO usar 1520 para palas, picos, combas manuales      │
+  │          │                                     │ → esas van a 1455                                    │
   └──────────┴─────────────────────────────────────┴──────────────────────────────────────────────────────┘
   → is_inventory = true
   → line_type = "INVENTORY_PURCHASE"
-  → El account_code del item DEBE ser la cuenta de inventario (2xx o 3xx), NO la cuenta de gasto (6xx)
+  → El account_code del item DEBE ser la cuenta de inventario PUC (14xx o 15xx), NO la cuenta de gasto (5xxx)
   → REGLA CLAVE: Herramientas MANUALES simples (pala, pico, comba, barreta, rastrillo,
-    serrucho, cincel, carretilla, martillo, paleta) → SIEMPRE cuenta 2522, NUNCA 3337
-  → REGLA CLAVE: 3337 es SOLO para herramientas eléctricas/mecánicas (taladro, amoladora, etc.)
+    serrucho, cincel, carretilla, martillo, paleta) → SIEMPRE cuenta 1455, NUNCA 1520
+  → REGLA CLAVE: 1520 es SOLO para herramientas eléctricas/mecánicas de alto valor
 
-SERVICIO / GASTO CORRIENTE (NO ingresa al almacén → account_code = cuenta gasto 6xx):
-  - 636xxx: servicios publicos (luz, agua, gas, internet, telefonia)
-  - 632xxx: asesorias, consultorias, honorarios profesionales
-  - 624xxx: fletes y servicios de transporte
-  - 634xxx: servicios de mantenimiento y reparacion
-  - 635xxx: alquileres de local u oficina
-  - 637xxx: publicidad y marketing
-  - 659xxx: otros gastos de gestion
+SERVICIO / GASTO CORRIENTE (NO ingresa al almacén → account_code = cuenta gasto PUC 5xxx):
+  - 513540: servicios publicos domiciliarios (luz, agua, gas, internet, telefonia) — EPM, Codensa, Celsia, ETB, Claro
+  - 513035: honorarios y consultoria
+  - 513575: fletes, transporte y acarreos
+  - 513545: mantenimiento y reparaciones
+  - 513510: arrendamientos de local u oficina
+  - 513570: publicidad, propaganda y promocion
+  - 519595: otros gastos de administracion
   → is_inventory = false
   → line_type = "EXPENSE_OR_ASSET"
 
-EJEMPLOS CRITICOS (aplican para CUALQUIER factura):
-  "Papel Bond A4 x 500 hojas"              → cuenta 2522 (INVENTARIO, suministro de oficina)
-  "Gasolina 84 octanos 20 gal"             → cuenta 2522 (INVENTARIO, combustible)
-  "Casco de seguridad x 5 unds"            → cuenta 2522 (INVENTARIO, EPP)
-  "Guantes de cuero x 10 pares"            → cuenta 2522 (INVENTARIO, EPP)
-  "Pala punta de acero con mango x 5"      → cuenta 2522 (INVENTARIO, herramienta manual, NO activo fijo)
-  "Pico punta y pala con mango x 5"        → cuenta 2522 (INVENTARIO, herramienta manual, NO activo fijo)
-  "Comba de 5 libras"                       → cuenta 2522 (INVENTARIO, herramienta manual)
-  "Barreta metalica 1.5m"                  → cuenta 2522 (INVENTARIO, herramienta manual)
-  "Carretilla de obra 5 pie3"              → cuenta 2522 (INVENTARIO, herramienta manual)
-  "Cemento Portland 42.5kg x 50 bolsas"   → cuenta 2411 (INVENTARIO, materia prima)
-  "Acero corrugado 3/8 x 100 barras"       → cuenta 2411 (INVENTARIO, materia prima)
-  "Laptop HP 15 i5"                        → cuenta 3336 (INVENTARIO, equipo electronico)
-  "Taladro percutor 13mm Bosch"            → cuenta 3337 (INVENTARIO, herramienta electrica)
-  "Amoladora angular 7 pulgadas"           → cuenta 3337 (INVENTARIO, herramienta electrica)
-  "Camioneta 4x4"                          → cuenta 3334 (INVENTARIO, vehiculo)
-  "Servicio de internet mensual"           → cuenta 636101 (SERVICIO, no ingresa almacen)
-  "Honorarios contables"                   → cuenta 632101 (SERVICIO)
-  "Alquiler local comercial"               → cuenta 635101 (SERVICIO)
-  "Mantenimiento correctivo maquina"       → cuenta 634101 (SERVICIO)
-  "Flete de transporte"                    → cuenta 624101 (SERVICIO)
+EJEMPLOS CRITICOS (aplican para CUALQUIER factura en Colombia):
+  "Papel Bond A4 x 500 hojas"              → cuenta 1455 (INVENTARIO, material de oficina)
+  "ACPM / Diesel 20 gal"                   → cuenta 1455 (INVENTARIO, combustible)
+  "Casco de seguridad x 5 unds"            → cuenta 1455 (INVENTARIO, EPP)
+  "Guantes de cuero x 10 pares"            → cuenta 1455 (INVENTARIO, EPP)
+  "Pala punta de acero con mango x 5"      → cuenta 1455 (INVENTARIO, herramienta manual, NO activo fijo)
+  "Pico punta y pala con mango x 5"        → cuenta 1455 (INVENTARIO, herramienta manual, NO activo fijo)
+  "Comba de 5 libras"                       → cuenta 1455 (INVENTARIO, herramienta manual)
+  "Barreta metalica 1.5m"                  → cuenta 1455 (INVENTARIO, herramienta manual)
+  "Carretilla de obra"                      → cuenta 1455 (INVENTARIO, herramienta manual)
+  "Cemento Argos 50kg x 50 bultos"         → cuenta 1435 (INVENTARIO, materia prima)
+  "Acero corrugado 1/2 x 100 varillas"     → cuenta 1435 (INVENTARIO, materia prima)
+  "Laptop HP 15 i5"                        → cuenta 1528 (INVENTARIO, equipo de computo)
+  "Taladro percutor 13mm Bosch"            → cuenta 1520 (INVENTARIO, herramienta electrica)
+  "Amoladora angular 7 pulgadas"           → cuenta 1520 (INVENTARIO, herramienta electrica)
+  "Camioneta 4x4"                          → cuenta 1540 (INVENTARIO, vehiculo)
+  "Servicio de internet mensual - ETB"     → cuenta 513540 (SERVICIO, no ingresa almacen)
+  "Honorarios contables"                   → cuenta 513035 (SERVICIO)
+  "Arriendo local comercial"               → cuenta 513510 (SERVICIO)
+  "Mantenimiento correctivo maquina"       → cuenta 513545 (SERVICIO)
+  "Flete de transporte"                    → cuenta 513575 (SERVICIO)
 
 Si el comprobante tiene items MIXTOS (algunos bienes fisicos, algunos servicios), clasifica cada uno independientemente.
 
-CUENTA POR PAGAR PARA COMPRAS DE INVENTARIO: siempre 4212 (igual que servicios).
-IGV de compras de inventario: siempre 40111 si cumple credito fiscal.
+CUENTA POR PAGAR PARA COMPRAS DE INVENTARIO: siempre 2205 (Proveedores PUC Colombia).
+IVA descontable de compras de inventario: siempre 2408 si cumple requisitos DIAN (CUFE valido, NIT activo, operacion gravada).
 ══════════════════════════════════════════════════════════════════
 
 REGLA PRINCIPAL INNEGOCIABLE:
@@ -740,12 +729,12 @@ El TOTAL A PAGAR impreso en el comprobante manda. No modifiques el total para ha
 
 LECTURA PIXEL POR PIXEL Y ROLES DE DATOS:
 1. Lee el comprobante completo, incluyendo encabezado, logo, datos del emisor, datos del cliente, periodo, detalle, totales, notas pequeñas, QR y talon.
-2. El proveedor/emisor es la empresa que emite/cobra el comprobante. NO confundas el RUC del cliente, DNI, codigo de suministro, numero de medidor, codigo de pago, recibo o numero de contrato con el RUC proveedor.
-3. El supplier_ruc debe ser un RUC de 11 digitos del emisor/proveedor. Si no estas seguro, deja supplier_ruc vacio y agrega warning. No inventes RUC.
+2. El proveedor/emisor es la empresa que emite/cobra el comprobante. NO confundas el NIT del cliente, cedula, codigo de suministro, numero de medidor, codigo de pago o numero de contrato con el NIT proveedor.
+3. El supplier_ruc debe ser el NIT del emisor/proveedor (9-10 digitos colombianos). Si no estas seguro, deja supplier_ruc vacio y agrega warning. No inventes NIT.
 4. supplier_name debe ser la razon social/nombre comercial del emisor/proveedor. Si no esta legible, deja vacio y agrega warning.
 5. En recibos de servicios publicos, distingue: empresa emisora, titular/cliente, suministro, codigo de pago, medidor y recibo.
 
-BIBLIOTECA PCGE/CRITERIOS BASE:
+BIBLIOTECA PUC COLOMBIA/CRITERIOS BASE:
 {pcge_rules}
 
 BIBLIOTECA CENTROS DE COSTO:
@@ -754,13 +743,15 @@ BIBLIOTECA CENTROS DE COSTO:
 BIBLIOTECA DE REVISION TRIBUTARIA/LEGAL:
 {legal_rules}
 
-REGLAS ESPECIALES OBLIGATORIAS:
-- REDONDEO / ROUNDING / REDONDEO MES ACTUAL: linea tecnica de conciliacion monetaria. No es base imponible, no genera IGV, no requiere sustento humano si el importe es pequeno/razonable. Si aumenta el total, usar 659101 al debe. Si disminuye el total, usar 759901 al haber.
-- DEUDA ANTERIOR / SALDO ANTERIOR / RECIBO ANTERIOR / SALDO VENCIDO: no es gasto nuevo, no genera nuevo IGV credito fiscal. Usar 421201 como deuda anterior/obligacion previa al debe si esta incluida dentro del total a pagar.
-- PAGO A CUENTA / ABONO / SALDO A FAVOR / CREDITO ANTERIOR: no es gasto, no genera IGV. Tratar como compensacion o reduccion de cuenta por pagar.
-- MORA / INTERES / PENALIDAD / RECARGO: no mezclar con servicios basicos. Clasificar separado, usualmente 659101, IGV credito NO/REVISION y requiere sustento.
-- IGV: separar en 40111 solo si corresponde credito fiscal. No calcules IGV sobre deuda anterior, pago a cuenta, redondeo, mora o conceptos no gravados.
-- Centros de costo: cuentas clase 6 o 9 deben tener centro de costo por linea.
+REGLAS ESPECIALES OBLIGATORIAS (NORMATIVA COLOMBIANA):
+- REDONDEO / ROUNDING / DIFERENCIA REDONDEO: linea tecnica de conciliacion monetaria. No es base gravable, no genera IVA. Si aumenta el total, usar 539595 al debe. Si disminuye el total, usar 429595 al haber.
+- DEUDA ANTERIOR / SALDO ANTERIOR / RECIBO ANTERIOR / SALDO VENCIDO: no es gasto nuevo, no genera nuevo IVA descontable. Usar 220505 como obligacion previa al debe si esta incluida dentro del total a pagar.
+- PAGO A CUENTA / ABONO / SALDO A FAVOR / CREDITO ANTERIOR: no es gasto, no genera IVA. Tratar como compensacion o reduccion de cuenta por pagar (2205).
+- MORA / INTERES / PENALIDAD / RECARGO: no mezclar con servicios publicos. Clasificar separado en 519595, IVA descontable NO/REVISION y requiere sustento.
+- IVA: separar en 2408 solo si corresponde IVA descontable (CUFE valido, NIT activo DIAN). No calcules IVA sobre deuda anterior, pago a cuenta, redondeo, mora o conceptos no gravados.
+- RETENCION EN LA FUENTE: registrar en 2365 lo que el proveedor retiene. Verificar tarifa segun concepto (compras 3.5%, servicios 4%, honorarios 11%).
+- ICA: si el municipio es Bogota, Medellin, Cali, etc., registrar ICA en 240810 o cuentas especificas del municipio.
+- Centros de costo: cuentas clase 5 (gastos) deben tener centro de costo por linea.
 
 FORMATO JSON OBLIGATORIO:
 {{
@@ -772,9 +763,9 @@ FORMATO JSON OBLIGATORIO:
   "period": "YYYY-MM",
   "supplier_ruc": "",
   "supplier_name": "",
-  "currency": "PEN",
+  "currency": "COP",
   "subtotal": "0.00",
-  "igv": "0.00",
+  "iva": "0.00",
   "non_taxed_amount": "0.00",
   "exempt_amount": "0.00",
   "other_charges": "0.00",
@@ -784,7 +775,7 @@ FORMATO JSON OBLIGATORIO:
   "reconciliation_status": "OK|OBSERVED|REQUIRES_REVIEW",
   "reconciliation_difference": "0.00",
   "cost_center": "{CENTRO_COSTO_DEFAULT}",
-  "expense_account": "636101",
+  "expense_account": "513540",
   "items": [
     {{
       "code": "",
@@ -794,7 +785,7 @@ FORMATO JSON OBLIGATORIO:
       "unit_price": "0.00",
       "line_subtotal": "0.00",
       "taxable": true,
-      "igv_amount": "0.00",
+      "iva_amount": "0.00",
       "total_line": "0.00",
       "line_type": "INVENTORY_PURCHASE|EXPENSE_OR_ASSET|PRIOR_BALANCE|ADVANCE_PAYMENT|LATE_FEE|ROUNDING",
       "account_code": "",
@@ -804,9 +795,9 @@ FORMATO JSON OBLIGATORIO:
       "item_class": "MERCADERIA|MATERIA_PRIMA|INSUMOS|HERRAMIENTAS|ACTIVO_FIJO|null",
       "tax_treatment": "",
       "deductibility": "DEDUCIBLE|NO_DEDUCIBLE|OBSERVADO|REVISION",
-      "igv_credit": "SI|NO|REVISION",
+      "iva_credit": "SI|NO|REVISION",
       "requires_bancarization": false,
-      "requires_detraccion_review": false,
+      "requires_retefuente_review": false,
       "requires_support": false,
       "ai_reason": "",
       "ai_confidence": 0.00
@@ -819,7 +810,7 @@ FORMATO JSON OBLIGATORIO:
       "cost_center": "",
       "debit": "0.00",
       "credit": "0.00",
-      "line_type": "EXPENSE_OR_ASSET|TAX|PAYABLE|ROUNDING|PRIOR_BALANCE|ADVANCE_PAYMENT|LATE_FEE|WITHHOLDING|DETRACTION|PERCEPTION",
+      "line_type": "EXPENSE_OR_ASSET|TAX|PAYABLE|ROUNDING|PRIOR_BALANCE|ADVANCE_PAYMENT|LATE_FEE|WITHHOLDING|ICA",
       "tax_treatment": "",
       "audit_note": ""
     }}
@@ -843,8 +834,8 @@ VALIDACION FINAL INTERNA ANTES DE RESPONDER:
 - suma(account_lines.debit) = suma(account_lines.credit)
 - total = total_read_from_document
 - Cuentas clase 6 y 9 tienen centro de costo.
-- IGV esta separado en 40111 si corresponde credito fiscal.
-- Cuentas por pagar comerciales usa 4212.
+- IVA descontable separado en 2408 si corresponde (CUFE valido, NIT activo DIAN).
+- Cuentas por pagar comerciales usa 2205 (Proveedores PUC Colombia).
 - Si no cuadra, marca REQUIRES_REVIEW y explica.
 """
 
@@ -865,9 +856,13 @@ def _desc_upper(item: dict[str, Any]) -> str:
     return _norm_upper(item.get("description"))
 
 
-def _is_igv_item(item: dict[str, Any]) -> bool:
+def _is_iva_item(item: dict[str, Any]) -> bool:
     desc = _desc_upper(item)
-    return any(token in desc for token in ["IGV", "I.G.V", "IMP. GRAL", "IMPUESTO GENERAL A LAS VENTAS"])
+    return any(token in desc for token in ["IVA", "I.V.A", "IMPUESTO AL VALOR", "IMP VALOR AGREGADO"])
+
+
+# Alias para compatibilidad con código existente
+_is_igv_item = _is_iva_item
 
 
 def _is_fake_ocr_adjustment(item: dict[str, Any]) -> bool:
@@ -1019,9 +1014,9 @@ def _clean_public_receipt_items_and_amounts(
             item["igv_amount"] = "0.00"
         item["requires_support"] = False
         item["requires_bancarization"] = False
-        item["requires_detraccion_review"] = False
+        item["requires_retefuente_review"] = False
         item["deductibility"] = "DEDUCIBLE"
-        item["igv_credit"] = "SI" if matched_rule["taxable"] else "NO"
+        item["iva_credit"] = "SI" if matched_rule["taxable"] else "NO"
         item["tax_treatment"] = matched_rule.get("tax_treatment") or "Cargo regulado; subcuenta especifica segun organismo regulador."
         item["ai_reason"] = f"Reclasificado por reglas reguladas ({matched_rule['account_name']})."
         item["ai_confidence"] = 0.98
@@ -1083,8 +1078,8 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
 
     supplier_name = _norm_text(data.get("supplier_name"))
     supplier_ruc = _only_digits(data.get("supplier_ruc"))
-    if supplier_ruc and not _is_valid_ruc(supplier_ruc):
-        warnings.append(f"RUC proveedor descartado por no ser RUC valido de 11 digitos: {supplier_ruc}.")
+    if supplier_ruc and not _is_valid_nit(supplier_ruc):
+        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}.")
         supplier_ruc = ""
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
@@ -1114,7 +1109,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             cost_center = local["cost_center"]
             igv_amount = Decimal("0.00")
             raw["taxable"] = False
-            raw["igv_credit"] = local["igv_credit"]
+            raw["iva_credit"] = local["iva_credit"]
             raw["requires_support"] = local["requires_support"]
 
         if kind == "ROUNDING" and abs(line_subtotal) <= AUTO_ROUNDING_TOLERANCE:
@@ -1152,9 +1147,9 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "item_class": item_class,
             "tax_treatment": _norm_text(raw.get("tax_treatment")) or local["tax_treatment"],
             "deductibility": _norm_text(raw.get("deductibility")) or local["deductibility"],
-            "igv_credit": _norm_text(raw.get("igv_credit")) or local["igv_credit"],
+            "iva_credit": _norm_text(raw.get("iva_credit")) or local["iva_credit"],
             "requires_bancarization": bool(raw.get("requires_bancarization", False)),
-            "requires_detraccion_review": bool(raw.get("requires_detraccion_review", False)),
+            "requires_retefuente_review": bool(raw.get("requires_retefuente_review", False)),
             "requires_support": bool(raw.get("requires_support", local.get("requires_support", False))),
             "ai_reason": _norm_text(raw.get("ai_reason")) or local["ai_reason"],
             "ai_confidence": float(raw.get("ai_confidence") or local["ai_confidence"]),
@@ -1266,9 +1261,9 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "cost_center": local["cost_center"],
             "tax_treatment": local["tax_treatment"],
             "deductibility": local["deductibility"],
-            "igv_credit": local["igv_credit"],
+            "iva_credit": local["iva_credit"],
             "requires_bancarization": False,
-            "requires_detraccion_review": False,
+            "requires_retefuente_review": False,
             "requires_support": True,
             "ai_reason": "Linea creada por fallback por falta de detalle OCR.",
             "ai_confidence": 0.50,
@@ -1358,7 +1353,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
 
     if igv != 0:
         account_lines.append({
-            "account_code": IGV_CREDIT_ACCOUNT,
+            "account_code": IVA_DESCONTABLE_ACCOUNT,
             "account_name": "IGV credito fiscal",
             "cost_center": "-",
             "debit": _money_str(igv),
@@ -1456,9 +1451,9 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         "period": _norm_text(data.get("period")),
         "supplier_ruc": supplier_ruc,
         "supplier_name": supplier_name,
-        "currency": _norm_text(data.get("currency")) or "PEN",
+        "currency": _norm_text(data.get("currency")) or "COP",
         "subtotal": _money_str(subtotal),
-        "igv": _money_str(igv),
+        "iva": _money_str(igv),
         "non_taxed_amount": _money_str(data.get("non_taxed_amount")),
         "exempt_amount": _money_str(data.get("exempt_amount")),
         "other_charges": _money_str(data.get("other_charges")),
@@ -1504,7 +1499,7 @@ async def process_purchase_with_gemini(
     mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
 
     prompt = f"""
-Eres CONTA_PRO Vision Accounting Engine para Peru. Lee el comprobante PIXEL POR PIXEL.
+Eres CONTA_COLPRO Vision Accounting Engine para Colombia — DIAN, PUC, Estatuto Tributario. Lee el comprobante PIXEL POR PIXEL.
 
 REGLA SUPREMA: El TOTAL A PAGAR impreso en el comprobante manda siempre. No calcules, no redondees, no inventes importes.
 
@@ -1557,13 +1552,13 @@ REGLAS PARA TODOS LOS RECIBOS REGULADOS:
 - Si existe IGV impreso o se deduce del SUB TOTAL visible, usar ese IGV; no convertir diferencias de IGV en redondeo falso.
 - Si el recibo trae Saldo por redondeo o Diferencia de redondeo, NO crear una tercera linea de ajuste.
 - La linea visible Diferencia de redondeo absorbe el cuadre contra el total impreso.
-- Aporte Ley 28749 es cargo regulado no afecto al IGV si aparece despues del IGV; no requiere revision contable si esta identificado.
-- FOSE/FISE posterior al total es informativo si el total ya cuadra sin sumarlo; no contabilizar doble.
-- El IGV no debe aparecer como item de detalle; debe ir solo a 40111.
-- Facturas comerciales normales siguen con validacion estricta.
+- Los cargos regulados de la CREG (contribucion especial, cargo solidaridad, alumbrado publico) no generan IVA; no crear linea IVA sobre ellos.
+- El IVA no debe aparecer como item de detalle del servicio; debe ir solo a 2408 como linea separada de tipo TAX.
+- Facturas comerciales normales siguen con validacion estricta de CUFE y NIT en DIAN.
+- Si el comprobante es de un prestador de servicios publicos domiciliarios (EPM, Codensa, Celsia, Gas Natural, Surtigas, ETB, Claro, Movistar) aplicar reglas de servicios regulados Colombia.
 
-Analiza el archivo como comprobante empresarial peruano.
-Usa criterio contable, tributario, legal-documentario y auditoria.
+Analiza el archivo como comprobante empresarial colombiano bajo normativa DIAN y Estatuto Tributario.
+Usa criterio contable PUC, tributario colombiano, legal-documentario y auditoria.
 {_json_schema_instruction()}
 """
 

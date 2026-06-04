@@ -35,13 +35,14 @@ const PurchaseFormEnterprise = lazy(() => import('./PurchaseFormEnterprise').the
 const ApiConfigPanel         = lazy(() => import('../settings/ApiConfigPanel').then(m => ({ default: m.ApiConfigPanel })));
 const SunatMonitor           = lazy(() => import('../sunat/SunatMonitor').then(m => ({ default: m.SunatMonitor })));
 const DeclaracionMensual     = lazy(() => import('../sunat/DeclaracionMensual').then(m => ({ default: m.DeclaracionMensual })));
-const SunatPortalHub         = lazy(() => import('../sunat/SunatPortalHub').then(m => ({ default: m.SunatPortalHub })));
+const SunatPortalHub         = lazy(() => import('../sunat/DianPortalHub').then(m => ({ default: m.DianPortalHub })));
 const AuditHealthDashboard   = lazy(() => import('../audit/AuditHealthDashboard').then(m => ({ default: m.AuditHealthDashboard })));
 const ComprasEnhanced        = lazy(() => import('./ComprasEnhanced').then(m => ({ default: m.ComprasEnhanced })));
 const PayrollGrid            = lazy(() => import('../payroll/PayrollGrid').then(m => ({ default: m.PayrollGrid })));
 const AssetRegister          = lazy(() => import('../assets/AssetRegister').then(m => ({ default: m.AssetRegister })));
 const FinancialDashboard     = lazy(() => import('../reports/FinancialDashboard').then(m => ({ default: m.FinancialDashboard })));
 const BooksCenter            = lazy(() => import('../reports/BooksCenter').then(m => ({ default: m.BooksCenter })));
+const NormativasBancarias    = lazy(() => import('./NormativasBancarias').then(m => ({ default: m.NormativasBancarias })));
 const OwnerDashboard         = lazy(() => import('../client-portal/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
 const WarehouseCommandCenter = lazy(() => import('../inventory/WarehouseCommandCenter'));
 const ApexLogixCore          = lazy(() => import('../inventory/EnterpriseFulfillmentCommandCenter'));
@@ -215,7 +216,7 @@ const statusLabel = (status?: string) => {
 
 const formatMoney = (value: string | number | undefined | null) => {
   const amount = toNumber(value);
-  return amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return amount.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 
@@ -245,8 +246,9 @@ const railItems = [
   { id: 'cxcxp',          label: 'CXC/CXP',          icon: BuildingBank24Regular,   feature: null },
   { id: 'inventario',     label: 'Inventario',       icon: Database24Regular,       feature: 'inventory' },
   { id: 'planillas',      label: 'Planillas',        icon: PersonMoney24Regular,    feature: 'payroll' },
-  { id: 'declaracion',    label: 'Declaracion SUNAT', icon: ShieldCheckmark24Regular, feature: null },
-  { id: 'sunat_portal',   label: 'Portal SUNAT',      icon: BuildingBank24Regular,    feature: null },
+  { id: 'declaracion',    label: 'Declaracion DIAN',  icon: ShieldCheckmark24Regular, feature: null },
+  { id: 'sunat_portal',   label: 'Portal DIAN',       icon: BuildingBank24Regular,    feature: null },
+  { id: 'normativas',     label: 'Normativas Banco',  icon: BuildingBank24Regular,    feature: null },
   { id: 'integraciones',  label: 'Integraciones',    icon: Database24Regular,       feature: 'integrations' },
   { id: 'owner',          label: 'Owner Portal',     icon: Database24Regular,       feature: 'superAdmin' },
   { id: 'config',         label: 'Configuracion',    icon: SlideSettings24Regular,  feature: null },
@@ -332,9 +334,9 @@ export const EnterpriseWorkspace = ({ userRole = 'ADMIN', userPlan = 'PREMIUM' }
   const [loading, setLoading] = useState(true);
   const [railExpanded, setRailExpanded] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelType>(null);
-  const [statusMessage, setStatusMessage] = useState('Inicializando CONTA_PRO Enterprise...');
+  const [statusMessage, setStatusMessage] = useState('Inicializando CONTA_COLPRO Enterprise Colombia...');
   const [aiMessage, setAiMessage] = useState('Motor IA en espera');
-  const [copilotQuestion, setCopilotQuestion] = useState('Detecta riesgos SUNAT y diferencias materiales de mayo 2026.');
+  const [copilotQuestion, setCopilotQuestion] = useState('Detecta riesgos DIAN y diferencias materiales del período activo.');
   const [isRunningAi, setIsRunningAi] = useState(false);
   const [selectedView, setSelectedView] = useState('dashboard');
   
@@ -443,12 +445,12 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         const voice =
           voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name) && /male|hombre|jorge|pablo|diego/i.test(v.name)) ||
           voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name)) ||
-          voices.find(v => v.lang === 'es-PE') ||
+          voices.find(v => v.lang === 'es-CO') ||
           voices.find(v => v.lang.startsWith('es'));
 
         const utter = new SpeechSynthesisUtterance(text);
         if (voice) utter.voice = voice;
-        utter.lang   = 'es-PE';
+        utter.lang   = 'es-CO';
         utter.rate   = 0.91;
         utter.pitch  = 0.88;
         utter.volume = 0.82;
@@ -546,13 +548,13 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
     const sumCredit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.credit), 0);
     const sumDebit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.debit), 0);
-    const f = (v: number) => `S/ ${v.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const f = (v: number) => `$ ${v.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     const empty = rows.length === 0;
 
     return [
       ['Ventas', empty ? '—' : f(sumCredit(ventas))],
       ['Compras', empty ? '—' : f(sumDebit(compras))],
-      ['IGV neto', empty ? '—' : f(sumCredit(igvRows) - sumDebit(igvRows))],
+      ['IVA neto', empty ? '—' : f(sumCredit(igvRows) - sumDebit(igvRows))],
       ['Asientos', empty ? '—' : String(rows.length)],
       ['Periodo', `${DEFAULT_PERIOD.year}-${String(DEFAULT_PERIOD.month).padStart(2, '0')}`],
     ];
@@ -1247,7 +1249,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       <html>
         <head><title>Reporte Diario</title></head>
         <body style="font-family:Segoe UI,Arial,sans-serif;padding:20px;">
-          <h1>CONTA_PRO Enterprise - Libro Diario</h1>
+          <h1>CONTA_COLPRO Enterprise - Libro Diario PUC Colombia</h1>
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead><tr><th style="border:1px solid #ddd;padding:6px;text-align:left">Fecha</th><th style="border:1px solid #ddd;padding:6px;text-align:left">Periodo</th><th style="border:1px solid #ddd;padding:6px;text-align:left">Glosa</th><th style="border:1px solid #ddd;padding:6px;text-align:right">Debe</th><th style="border:1px solid #ddd;padding:6px;text-align:right">Haber</th></tr></thead>
             <tbody>${lines}</tbody>
@@ -1361,6 +1363,13 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <SunatPortalHub />
+        </div>
+      );
+    }
+    if (selectedView === 'normativas') {
+      return (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <NormativasBancarias />
         </div>
       );
     }
@@ -1558,7 +1567,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                           type="button"
                           className={`grid-row grid-row-group row-status-${badge.cls}`}
                           onClick={() => toggleEntryExpansion(s.entryId)}
-                          title={s.validatorStatus === 'DESCUADRADO' ? `Varianza S/ ${s.variance.toFixed(2)}` : ''}
+                          title={s.validatorStatus === 'DESCUADRADO' ? `Varianza $ ${s.variance.toFixed(0)}` : ''}
                         >
                           <span>{entry.expanded ? '▼' : '▶'} {s.date}</span>
                           <span>{s.period}</span>
@@ -1785,11 +1794,11 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       <header className="enterprise-topbar">
         <div className="brand-wrap">
           <BuildingBank24Regular />
-          <strong>CONTA_PRO Enterprise</strong>
-          <Badge appearance="filled" color="brand">SPA Enterprise</Badge>
+          <strong>CONTA_COLPRO Enterprise</strong>
+          <Badge appearance="filled" color="brand">COL Enterprise</Badge>
           <TenantSelector />
         </div>
-        <Input contentBefore={<Search24Regular />} placeholder="Buscar RUC, asiento, hash, XML" className="top-search" />
+        <Input contentBefore={<Search24Regular />} placeholder="Buscar NIT, asiento, hash, CUFE DIAN" className="top-search" />
         <div className="top-right-badges">
           <Badge appearance="outline" icon={<LockClosed24Regular />}>Tenant aislado</Badge>
           <Badge appearance="outline" icon={<ShieldCheckmark24Regular />}>Auditoria activa</Badge>

@@ -2,45 +2,54 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field, Input, MessageBar, MessageBarBody, Textarea } from '@fluentui/react-components';
 import { Bot24Regular, DocumentPdf24Regular, PeopleTeam24Regular, ShieldCheckmark24Regular } from '@fluentui/react-icons';
 
+// ─── TIPOS COLOMBIA — CST / Ley 100/1993 / Decreto 1072/2015 ─────────────────
 type WorkerForm = {
   nombres: string;
   apellidos: string;
-  dni: string;
+  dni: string;               // Cédula de Ciudadanía Colombia (5-12 dígitos)
   fecha_nacimiento: string;
   fecha_inicio_contrato: string;
   fecha_fin_contrato: string;
   direccion_domicilio: string;
-  direccion_reniec: string;
+  departamento: string;      // Departamento / Ciudad
   telefono: string;
   email: string;
   profesion: string;
   experiencia: string;
   estudios_realizados: string;
   cargo_postulado: string;
-  sueldo_pactado: string;
-  pension_system: string;
+  sueldo_pactado: string;    // En COP
+  pension_system: string;    // AFP_PORVENIR | AFP_PROTECCION | AFP_COLFONDOS | AFP_OLD_MUTUAL | RPM_COLPENSIONES
   habilidades_clave: string;
-  // Nuevos campos solicitados
-  regimen_laboral: string;
+  // Datos contrato Colombia
+  tipo_contrato: string;     // INDEFINIDO | TERMINO_FIJO | OBRA_LABOR | APRENDIZAJE
+  tipo_salario: string;      // ORDINARIO | INTEGRAL
   area_centro_costo: string;
   estado_trabajador: 'ACTIVO' | 'CESADO' | 'SUSPENDIDO';
-  asignacion_familiar: string;
+  clase_riesgo_arl: string;  // I | II | III | IV | V
+  eps_nombre: string;
+  ccf_nombre: string;
+  // Devengado
   horas_extras: string;
-  bonificaciones: string;
+  bonificaciones_const: string;    // Constitutivas de salario
+  bonificaciones_no_const: string; // No constitutivas
   comisiones: string;
-  gratificaciones: string;
-  cts: string;
-  utilidades: string;
-  afp_onp_monto: string;
-  renta_quinta: string;
-  adelantos: string;
-  prestamos: string;
-  faltas_tardanzas: string;
-  essalud: string;
-  sctr: string;
-  vida_ley: string;
   dias_trabajados: string;
-  vacaciones_pendientes: string;
+  dias_vacaciones: string;
+  dias_incapacidad: string;
+  // Deducciones
+  afp_empleado: string;      // 4% calculado
+  eps_empleado: string;      // 4% calculado
+  fondo_solidaridad: string; // 1%+ si ≥ 4 SMMLV
+  retefuente: string;        // Art. 383 ET
+  libranza: string;
+  adelantos: string;
+  otras_deducciones: string;
+  // Provisiones (informativo)
+  cesantias: string;         // 8.33% (Art. 249 CST)
+  int_cesantias: string;     // 1%/mes (Art. 99 Ley 50/1990)
+  prima_servicios: string;   // 8.33% (Art. 306 CST)
+  vacaciones_acum: string;   // 4.17% (Art. 186 CST)
 };
 
 type WorkerRow = WorkerForm & {
@@ -105,64 +114,78 @@ type RequirementDatabaseEntry = {
 const emptyForm: WorkerForm = {
   nombres: '',
   apellidos: '',
-  dni: '',
+  dni: '',              // Cédula de Ciudadanía
   fecha_nacimiento: '',
   fecha_inicio_contrato: '',
   fecha_fin_contrato: '',
   direccion_domicilio: '',
-  direccion_reniec: '',
+  departamento: '',     // Dpto./Ciudad
   telefono: '',
   email: '',
   profesion: '',
   experiencia: '',
   estudios_realizados: '',
   cargo_postulado: '',
-  sueldo_pactado: '0.00',
-  pension_system: 'AFP',
+  sueldo_pactado: '0',  // COP (sin centavos para nómina colombiana)
+  pension_system: 'AFP_PORVENIR',
   habilidades_clave: '',
-  regimen_laboral: '728',
-  area_centro_costo: 'LIM-ADM',
+  tipo_contrato: 'INDEFINIDO',
+  tipo_salario: 'ORDINARIO',
+  area_centro_costo: 'COL-ADM',
   estado_trabajador: 'ACTIVO',
-  asignacion_familiar: '0.00',
-  horas_extras: '0.00',
-  bonificaciones: '0.00',
-  comisiones: '0.00',
-  gratificaciones: '0.00',
-  cts: '0.00',
-  utilidades: '0.00',
-  afp_onp_monto: '0.00',
-  renta_quinta: '0.00',
-  adelantos: '0.00',
-  prestamos: '0.00',
-  faltas_tardanzas: '0.00',
-  essalud: '0.00',
-  sctr: '0.00',
-  vida_ley: '0.00',
+  clase_riesgo_arl: 'I',
+  eps_nombre: 'Nueva EPS',
+  ccf_nombre: 'Compensar',
+  horas_extras: '0',
+  bonificaciones_const: '0',
+  bonificaciones_no_const: '0',
+  comisiones: '0',
   dias_trabajados: '30',
-  vacaciones_pendientes: '0',
+  dias_vacaciones: '0',
+  dias_incapacidad: '0',
+  afp_empleado: '0',
+  eps_empleado: '0',
+  fondo_solidaridad: '0',
+  retefuente: '0',
+  libranza: '0',
+  adelantos: '0',
+  otras_deducciones: '0',
+  cesantias: '0',
+  int_cesantias: '0',
+  prima_servicios: '0',
+  vacaciones_acum: '0',
 };
 
 const payrollViews: Array<{ id: PayrollView; label: string; icon: string }> = [
-  { id: 'registro',   label: 'Registro',       icon: '📝' },
-  { id: 'cv',         label: 'Hoja de vida IA', icon: '🤖' },
-  { id: 'requisitos', label: 'Requisitos',      icon: '📋' },
-  { id: 'contrato',   label: 'Contrato',        icon: '📄' },
-  { id: 'boleta',     label: 'Boleta de pago',  icon: '💰' },
+  { id: 'registro',   label: 'Registro',          icon: '📝' },
+  { id: 'cv',         label: 'Hoja de vida IA',   icon: '🤖' },
+  { id: 'requisitos', label: 'Requisitos',         icon: '📋' },
+  { id: 'contrato',   label: 'Contrato',           icon: '📄' },
+  { id: 'boleta',     label: 'Comprobante Nómina', icon: '💰' },
 ];
 
+// ─── REQUISITOS DE CONTRATACIÓN COLOMBIA ──────────────────────────────────────
 const hiringRequirements: RequirementItem[] = [
-  { id: 'copia_dni_vigente', category: 'Identidad', name: 'Copia DNI vigente', note: 'Ambas caras, clara y legible', required: true },
-  { id: 'foto_tamano_carne', category: 'Identidad', name: 'Foto tamano carne', note: 'Fondo blanco para ficha interna', required: true },
-  { id: 'ficha_datos_personales', category: 'Identidad', name: 'Ficha de datos personales', note: 'Formato interno de la empresa', required: true },
-  { id: 'hoja_vida_documentada', category: 'Academico', name: 'Hoja de vida documentada', note: 'CV actualizado y sustentado', required: true },
-  { id: 'constancia_diploma_estudios', category: 'Academico', name: 'Constancia o diploma de estudios', note: 'Segun puesto y perfil requerido', required: true },
-  { id: 'certificados_laborales_anteriores', category: 'Laboral', name: 'Certificados laborales anteriores', note: 'Experiencia declarada por el trabajador', required: false },
-  { id: 'antecedentes_policiales', category: 'Legal', name: 'Antecedentes policiales', note: 'Emision no mayor a 90 dias', required: true },
-  { id: 'antecedentes_penales', category: 'Legal', name: 'Antecedentes penales', note: 'Emision no mayor a 90 dias', required: true },
-  { id: 'antecedentes_judiciales', category: 'Legal', name: 'Antecedentes judiciales', note: 'Segun politica del puesto', required: true },
-  { id: 'declaracion_jurada_domicilio', category: 'Laboral', name: 'Declaracion jurada de domicilio', note: 'Direccion actual y trazabilidad RENIEC', required: true },
-  { id: 'ficha_afp_onp', category: 'Laboral', name: 'Ficha AFP / ONP', note: 'Sistema pensionario y CUSPP si aplica', required: true },
-  { id: 'cuenta_bancaria_haberes', category: 'Laboral', name: 'Cuenta bancaria de haberes', note: 'CCI o cuenta sueldo validada', required: true },
+  // Identidad
+  { id: 'copia_cedula_vigente',      category: 'Identidad',  name: 'Copia Cédula de Ciudadanía vigente',         note: 'Ambas caras, clara y legible',                         required: true  },
+  { id: 'foto_tamano_carne',         category: 'Identidad',  name: 'Foto tamaño carné',                           note: 'Fondo blanco, para ficha interna',                      required: true  },
+  { id: 'ficha_datos_personales',    category: 'Identidad',  name: 'Ficha de datos personales',                  note: 'Formato interno con datos de contacto y emergencias',   required: true  },
+  // Académico
+  { id: 'hoja_vida_documentada',     category: 'Academico',  name: 'Hoja de vida documentada',                   note: 'CV actualizado, formato Minerva u hoja de vida libre',  required: true  },
+  { id: 'diploma_titulo_estudios',   category: 'Academico',  name: 'Diploma / título de estudios',               note: 'Según perfil y cargo requerido',                        required: true  },
+  { id: 'tarjeta_profesional',       category: 'Academico',  name: 'Tarjeta profesional (si aplica)',             note: 'Cargos regulados: ingenieros, médicos, abogados, etc.', required: false },
+  // Laboral
+  { id: 'certificados_laborales',    category: 'Laboral',    name: 'Certificados laborales anteriores',           note: 'Confirmar experiencia declarada en el CV',              required: false },
+  { id: 'autorizacion_descuentos',   category: 'Laboral',    name: 'Autorización de descuentos de nómina',        note: 'Art. 149 CST — firma del trabajador obligatoria',       required: true  },
+  { id: 'cuenta_bancaria',           category: 'Laboral',    name: 'Cuenta bancaria (Nequi/Daviplata/banco)',     note: 'Para dispersión de nómina',                             required: true  },
+  // Seguridad social
+  { id: 'afiliacion_eps',            category: 'Seg. Social','name': 'Formulario afiliación EPS',                 note: 'Art. 204 Ley 100/1993 — obligatorio antes del primer día', required: true },
+  { id: 'afiliacion_afp',            category: 'Seg. Social','name': 'Formulario afiliación AFP / Colpensiones',  note: 'Art. 20 Ley 100/1993',                                  required: true  },
+  { id: 'afiliacion_ccf',            category: 'Seg. Social','name': 'Formulario afiliación Caja de Compensación', note: 'Ley 21/1982 — derecho a subsidio familiar',           required: true  },
+  // Legal
+  { id: 'antecedentes_disciplinarios', category: 'Legal',   name: 'Certificado de antecedentes disciplinarios',  note: 'Procuraduría — no mayor a 30 días',                     required: true  },
+  { id: 'antecedentes_fiscales',     category: 'Legal',      name: 'Certificado de antecedentes fiscales',        note: 'Contraloría — para cargos con manejo de recursos',      required: false },
+  { id: 'antecedentes_judiciales',   category: 'Legal',      name: 'Certificado judicial (SIJIN/Policía)',        note: 'Antecedentes penales — no mayor a 90 días',             required: true  },
 ];
 
 const DEFAULT_TENANT_ID = '11111111-1111-1111-1111-111111111111';
@@ -341,8 +364,10 @@ const toPayrollNumber = (value: string | number | undefined | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatPEN = (value: number) =>
-  `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCOP = (value: number) =>
+  `$ ${Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+// Alias para compatibilidad con código existente
+const formatPEN = formatCOP;
 
 const normalizeWorkerStatus = (value: unknown): WorkerForm['estado_trabajador'] => {
   const normalized = String(value ?? 'ACTIVO').toUpperCase();
@@ -425,7 +450,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
   const filteredWorkers = useMemo(() => {
     const needle = filter.toLowerCase();
     return workers.filter((worker) => {
-      const matchesText = `${worker.nombres} ${worker.apellidos} ${worker.dni} ${worker.cargo_postulado} ${worker.area_centro_costo}`
+      const matchesText = `${worker.nombres} ${worker.apellidos} ${worker.dni} ${worker.cargo_postulado} ${worker.area_centro_costo} ${worker.departamento}`
         .toLowerCase()
         .includes(needle);
       const matchesStatus = statusFilter === 'TODOS' || worker.estado_trabajador === statusFilter;
@@ -527,41 +552,46 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           ...emptyForm,
           nombres: String(item.nombres ?? ''),
           apellidos: String(item.apellidos ?? ''),
-          dni: String(item.dni ?? ''),
+          dni: String(item.dni ?? ''),                    // Cédula de Ciudadanía
           fecha_nacimiento: String(item.fecha_nacimiento ?? ''),
           fecha_inicio_contrato: String(item.fecha_inicio_contrato ?? ''),
           fecha_fin_contrato: String(item.fecha_fin_contrato ?? ''),
           direccion_domicilio: String(item.direccion_domicilio ?? ''),
-          direccion_reniec: String(item.direccion_reniec ?? ''),
+          departamento: String(item.departamento ?? item.direccion_reniec ?? ''),
           telefono: String(item.telefono ?? ''),
           email: String(item.email ?? ''),
           profesion: String(item.profesion ?? ''),
           experiencia: String(item.experiencia ?? ''),
           estudios_realizados: String(item.estudios_realizados ?? ''),
           cargo_postulado: String(item.cargo_postulado ?? ''),
-          sueldo_pactado: String(item.sueldo_pactado ?? '0.00'),
-          pension_system: String(item.pension_system ?? 'AFP'),
+          sueldo_pactado: String(item.sueldo_pactado ?? '0'),
+          pension_system: String(item.pension_system ?? 'AFP_PORVENIR'),
           habilidades_clave: Array.isArray(item.habilidades_clave) ? (item.habilidades_clave as string[]).join(', ') : String(item.habilidades_clave ?? ''),
-          regimen_laboral: String(item.regimen_laboral ?? '728'),
-          area_centro_costo: String(item.area_centro_costo ?? 'LIM-ADM'),
+          tipo_contrato: String(item.tipo_contrato ?? 'INDEFINIDO'),
+          tipo_salario: String(item.tipo_salario ?? 'ORDINARIO'),
+          area_centro_costo: String(item.area_centro_costo ?? 'COL-ADM'),
           estado_trabajador: normalizeWorkerStatus(item.estado_trabajador),
-          asignacion_familiar: String(item.asignacion_familiar ?? '0.00'),
-          horas_extras: String(item.horas_extras ?? '0.00'),
-          bonificaciones: String(item.bonificaciones ?? '0.00'),
-          comisiones: String(item.comisiones ?? '0.00'),
-          gratificaciones: String(item.gratificaciones ?? '0.00'),
-          cts: String(item.cts ?? '0.00'),
-          utilidades: String(item.utilidades ?? '0.00'),
-          afp_onp_monto: String(item.afp_onp_monto ?? '0.00'),
-          renta_quinta: String(item.renta_quinta ?? '0.00'),
-          adelantos: String(item.adelantos ?? '0.00'),
-          prestamos: String(item.prestamos ?? '0.00'),
-          faltas_tardanzas: String(item.faltas_tardanzas ?? '0.00'),
-          essalud: String(item.essalud ?? '0.00'),
-          sctr: String(item.sctr ?? '0.00'),
-          vida_ley: String(item.vida_ley ?? '0.00'),
+          clase_riesgo_arl: String(item.clase_riesgo_arl ?? 'I'),
+          eps_nombre: String(item.eps_nombre ?? 'Nueva EPS'),
+          ccf_nombre: String(item.ccf_nombre ?? 'Compensar'),
+          horas_extras: String(item.horas_extras ?? '0'),
+          bonificaciones_const: String(item.bonificaciones_const ?? '0'),
+          bonificaciones_no_const: String(item.bonificaciones_no_const ?? '0'),
+          comisiones: String(item.comisiones ?? '0'),
           dias_trabajados: String(item.dias_trabajados ?? '30'),
-          vacaciones_pendientes: String(item.vacaciones_pendientes ?? '0'),
+          dias_vacaciones: String(item.dias_vacaciones ?? '0'),
+          dias_incapacidad: String(item.dias_incapacidad ?? '0'),
+          afp_empleado: String(item.afp_empleado ?? '0'),
+          eps_empleado: String(item.eps_empleado ?? '0'),
+          fondo_solidaridad: String(item.fondo_solidaridad ?? '0'),
+          retefuente: String(item.retefuente ?? '0'),
+          libranza: String(item.libranza ?? '0'),
+          adelantos: String(item.adelantos ?? '0'),
+          otras_deducciones: String(item.otras_deducciones ?? '0'),
+          cesantias: String(item.cesantias ?? '0'),
+          int_cesantias: String(item.int_cesantias ?? '0'),
+          prima_servicios: String(item.prima_servicios ?? '0'),
+          vacaciones_acum: String(item.vacaciones_acum ?? '0'),
           id: String(item.worker_id ?? item.id ?? crypto.randomUUID()),
           worker_code: String(item.worker_code ?? ''),
           compliance_status: String(item.compliance_status ?? 'READY'),
@@ -621,12 +651,11 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
       const batch = Array.isArray(payload.workers_batch) ? payload.workers_batch : [];
       const worker = (payload.worker || (batch[0]?.worker ?? {})) as Record<string, unknown>;
 
-      // Auto-calculate derived financial fields from extracted salary
+      // Auto-cálculo Colombia — Ley 100/1993
       const extractedSalary = Number.parseFloat(String(worker.sueldo_pactado || '0')) || 0;
-      const extractedPension = String(worker.pension_system || 'AFP').toUpperCase();
-      const pensionRate = extractedPension === 'ONP' ? 0.13 : 0.1334;
-      const autoEssalud = extractedSalary > 0 ? (extractedSalary * 0.09).toFixed(2) : null;
-      const autoPension = extractedSalary > 0 ? (extractedSalary * pensionRate).toFixed(2) : null;
+      const autoAfpEmpleado = extractedSalary > 0 ? Math.round(extractedSalary * 0.04).toString() : null;   // 4% Art. 20
+      const autoEpsEmpleado = extractedSalary > 0 ? Math.round(extractedSalary * 0.04).toString() : null;   // 4% Art. 204
+      const autoRetefuente = null; // Se calcula con tabla Art. 383 ET — se deja para el motor
 
       const nextRequirements = buildRequirementRecordsFromExtraction(
         worker.requirements,
@@ -659,9 +688,10 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
         sueldo_pactado: String(worker.sueldo_pactado || '0.00'),
         pension_system: String(worker.pension_system || prev.pension_system || 'AFP'),
         habilidades_clave: Array.isArray(worker.habilidades_clave) ? worker.habilidades_clave.join(', ') : '',
-        // Auto-calculated from extracted salary (pixel-to-field mapping)
-        ...(autoEssalud !== null ? { essalud: autoEssalud } : {}),
-        ...(autoPension !== null ? { afp_onp_monto: autoPension } : {}),
+        // Auto-calculados Colombia — Ley 100/1993
+        ...(autoAfpEmpleado !== null ? { afp_empleado: autoAfpEmpleado } : {}),
+        ...(autoEpsEmpleado !== null ? { eps_empleado: autoEpsEmpleado } : {}),
+        ...(autoRetefuente !== null ? { retefuente: autoRetefuente } : {}),
       }));
       setRequirementRecords(nextRequirements);
       const batchAlerts = batch.length > 1

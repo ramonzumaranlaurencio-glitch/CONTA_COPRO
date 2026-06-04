@@ -42,7 +42,7 @@ def _safe_user_uuid(user_id: str | None) -> str:
             return str(UUID(user_id))
         except Exception:
             pass
-    return "22222222-2222-2222-2222-222222222222"
+    raise HTTPException(status_code=401, detail="Usuario no válido para operación de auditoría")
 
 
 def _product_to_dict(product) -> dict:
@@ -154,10 +154,10 @@ class MovementCreatePayload(BaseModel):
     post_cost_entry: bool = True
     year: int | None = None
     month: int | None = None
-    cogs_account: str = "6911"
-    inventory_account: str = "2011"
-    adjustment_account: str = "7599"
-    cost_center: str = "INV-OPS"
+    cogs_account: str = "6135"       # Costo de ventas PUC Colombia
+    inventory_account: str = "1430"  # Mercancias no fabricadas PUC Colombia
+    adjustment_account: str = "4295" # Ingresos no operacionales PUC Colombia
+    cost_center: str = "LOG-ALM"
 
 
 class GenerateCodePayload(BaseModel):
@@ -174,10 +174,10 @@ class ValidatePurchasesPayload(BaseModel):
     year: int | None = None
     month: int | None = None
     post_cost_entry: bool = True
-    cogs_account: str = "6911"
-    inventory_account: str = "2011"
-    adjustment_account: str = "7599"
-    cost_center: str = "INV-OPS"
+    cogs_account: str = "6135"       # Costo de ventas PUC Colombia
+    inventory_account: str = "1430"  # Mercancias no fabricadas PUC Colombia
+    adjustment_account: str = "4295" # Ingresos no operacionales PUC Colombia
+    cost_center: str = "LOG-ALM"
 
 
 # =========================================================================
@@ -398,54 +398,58 @@ async def register_movement(payload: MovementCreatePayload, request: Request, ct
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        response = {**result.__dict__}
+        if payload.post_cost_entry:
+            movement_type = payload.movement_type.upper()
+            effective_qty = Decimal(str(result.qty))
+            effective_cost = Decimal(str(result.unit_cost))
+            total_cost = (effective_qty * effective_cost).quantize(Decimal("0.01"))
+            current_date = date.today()
+            if movement_type == "EXIT":
+                description = f"Costo de ventas por salida inventario {payload.movement_reference or result.movement_id}"
+                lines = [
+                    {"account_code": payload.cogs_account, "account_name": "Costo de ventas", "debit": total_cost, "credit": Decimal("0.00"), "cost_center": payload.cost_center, "document_number": payload.source_document},
+                    {"account_code": payload.inventory_account, "account_name": "Inventarios", "debit": Decimal("0.00"), "credit": total_cost, "document_number": payload.source_document},
+                ]
+            elif movement_type == "ENTRY":
+                description = f"Ingreso inventario {payload.movement_reference or result.movement_id}"
+                lines = [
+                    {"account_code": payload.inventory_account, "account_name": "Inventarios", "debit": total_cost, "credit": Decimal("0.00"), "document_number": payload.source_document},
+                    {"account_code": payload.adjustment_account, "account_name": "Ajuste positivo de inventario", "debit": Decimal("0.00"), "credit": total_cost, "document_number": payload.source_document},
+                ]
+            else:
+                raise HTTPException(status_code=422, detail="movement_type debe ser ENTRY o EXIT")
+
+            posting_payload = {
+                "tenant_id": payload.tenant_id,
+                "year": payload.year or current_date.year,
+                "month": payload.month or current_date.month,
+                "entry_date": current_date,
+                "description": description,
+                "source_module": "INVENTORY",
+                "source_id": result.movement_id,
+                "currency": "COP",
+                "user_id": _safe_user_uuid(ctx.get("user_id")),
+                "trace_id": ctx["trace_id"],
+                "ip_address": request.client.host if request.client else None,
+                "user_agent": request.headers.get("user-agent"),
+                "lines": lines,
+            }
+            try:
+                entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting_payload)
+                response["cost_entry"] = {
+                    "entry_id": str(entry.id),
+                    "row_hash": entry.row_hash,
+                    "amount": str(total_cost),
+                    "movement_type": movement_type,
+                    "cogs_account": payload.cogs_account,
+                    "inventory_account": payload.inventory_account,
+                }
+            except Exception as exc:
+                raise HTTPException(status_code=502, detail=f"Error en asiento contable: {exc}") from exc
+
         await uow.commit()
-
-    response = {**result.__dict__}
-    if payload.post_cost_entry:
-        movement_type = payload.movement_type.upper()
-        effective_qty = Decimal(str(result.qty))
-        effective_cost = Decimal(str(result.unit_cost))
-        total_cost = (effective_qty * effective_cost).quantize(Decimal("0.01"))
-        current_date = date.today()
-        if movement_type == "EXIT":
-            description = f"Costo de ventas por salida inventario {payload.movement_reference or result.movement_id}"
-            lines = [
-                {"account_code": payload.cogs_account, "account_name": "Costo de ventas", "debit": total_cost, "credit": Decimal("0.00"), "cost_center": payload.cost_center, "document_number": payload.source_document},
-                {"account_code": payload.inventory_account, "account_name": "Inventarios", "debit": Decimal("0.00"), "credit": total_cost, "document_number": payload.source_document},
-            ]
-        elif movement_type == "ENTRY":
-            description = f"Ingreso inventario {payload.movement_reference or result.movement_id}"
-            lines = [
-                {"account_code": payload.inventory_account, "account_name": "Inventarios", "debit": total_cost, "credit": Decimal("0.00"), "document_number": payload.source_document},
-                {"account_code": payload.adjustment_account, "account_name": "Ajuste positivo de inventario", "debit": Decimal("0.00"), "credit": total_cost, "document_number": payload.source_document},
-            ]
-        else:
-            raise HTTPException(status_code=422, detail="movement_type debe ser ENTRY o EXIT")
-
-        posting_payload = {
-            "tenant_id": payload.tenant_id,
-            "year": payload.year or current_date.year,
-            "month": payload.month or current_date.month,
-            "entry_date": current_date,
-            "description": description,
-            "source_module": "INVENTORY",
-            "source_id": result.movement_id,
-            "currency": "PEN",
-            "user_id": _safe_user_uuid(ctx.get("user_id")),
-            "trace_id": ctx["trace_id"],
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("user-agent"),
-            "lines": lines,
-        }
-        entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting_payload)
-        response["cost_entry"] = {
-            "entry_id": str(entry.id),
-            "row_hash": entry.row_hash,
-            "amount": str(total_cost),
-            "movement_type": movement_type,
-            "cogs_account": payload.cogs_account,
-            "inventory_account": payload.inventory_account,
-        }
     return response
 
 
@@ -493,22 +497,22 @@ async def get_kardex(product_id: str, warehouse_id: str | None = None, limit: in
 
 # Motivos de salida → cuenta débito y nombre del asiento
 EXIT_REASON_CONFIG: dict[str, dict] = {
-    # Consumo operativo / producción
-    "CONSUMO":          {"debit_account": "6569", "debit_name": "Suministros consumidos en operación",      "label": "Consumo / Uso operativo"},
-    "PRODUCCION":       {"debit_account": "9110", "debit_name": "Costo de producción - materiales",          "label": "Uso en producción"},
-    "VENTA":            {"debit_account": "6912", "debit_name": "Costo de ventas",                           "label": "Salida por venta"},
-    # Bajas
-    "BAJA_DESGASTE":    {"debit_account": "65491","debit_name": "Baja por desgaste / deterioro",             "label": "Baja por desgaste"},
-    "BAJA_ANTIGUEDAD":  {"debit_account": "65491","debit_name": "Baja por obsolescencia / antigüedad",       "label": "Baja por antigüedad"},
-    "BAJA_VENCIMIENTO": {"debit_account": "65491","debit_name": "Baja por vencimiento / caducidad",          "label": "Baja por vencimiento"},
-    "BAJA_PERDIDA":     {"debit_account": "65921","debit_name": "Pérdida extraordinaria - extravío",         "label": "Baja por pérdida/extravío"},
-    "BAJA_ROBO":        {"debit_account": "65921","debit_name": "Pérdida extraordinaria - robo/sustracción", "label": "Baja por robo"},
-    "BAJA_SINIESTRO":   {"debit_account": "65921","debit_name": "Pérdida por siniestro / desastre",          "label": "Baja por siniestro"},
+    # Consumo operativo / producción — cuentas PUC Colombia
+    "CONSUMO":          {"debit_account": "519595","debit_name": "Elementos de aseo y consumibles operativos", "label": "Consumo / Uso operativo"},
+    "PRODUCCION":       {"debit_account": "713595","debit_name": "Costo de produccion - materiales",           "label": "Uso en producción"},
+    "VENTA":            {"debit_account": "6135",  "debit_name": "Costo de ventas - mercancias",               "label": "Salida por venta"},
+    # Bajas — cuentas PUC Colombia
+    "BAJA_DESGASTE":    {"debit_account": "529520","debit_name": "Perdida por deterioro de inventarios",       "label": "Baja por desgaste"},
+    "BAJA_ANTIGUEDAD":  {"debit_account": "529520","debit_name": "Perdida por obsolescencia de inventarios",   "label": "Baja por antigüedad"},
+    "BAJA_VENCIMIENTO": {"debit_account": "529520","debit_name": "Perdida por vencimiento / caducidad",        "label": "Baja por vencimiento"},
+    "BAJA_PERDIDA":     {"debit_account": "529595","debit_name": "Perdida extraordinaria - extravio",          "label": "Baja por pérdida/extravío"},
+    "BAJA_ROBO":        {"debit_account": "529595","debit_name": "Perdida extraordinaria - robo/sustraccion",  "label": "Baja por robo"},
+    "BAJA_SINIESTRO":   {"debit_account": "529595","debit_name": "Perdida por siniestro / catastrofe",         "label": "Baja por siniestro"},
     # Otros
-    "DEVOLUCION":       {"debit_account": "4212", "debit_name": "Devolución a proveedor",                    "label": "Devolución a proveedor"},
-    "TRANSFERENCIA":    {"debit_account": "2011", "debit_name": "Transferencia entre almacenes",              "label": "Transferencia entre almacenes"},
-    "AJUSTE":           {"debit_account": "65491","debit_name": "Ajuste de inventario - diferencia",          "label": "Ajuste de inventario"},
-    "OTRO":             {"debit_account": "65491","debit_name": "Baja / salida - otros conceptos",            "label": "Otro motivo"},
+    "DEVOLUCION":       {"debit_account": "2205",  "debit_name": "Devolucion a proveedor - cuenta por pagar", "label": "Devolución a proveedor"},
+    "TRANSFERENCIA":    {"debit_account": "1430",  "debit_name": "Transferencia entre almacenes",              "label": "Transferencia entre almacenes"},
+    "AJUSTE":           {"debit_account": "519595","debit_name": "Ajuste de inventario - diferencia",          "label": "Ajuste de inventario"},
+    "OTRO":             {"debit_account": "519595","debit_name": "Baja / salida - otros conceptos",            "label": "Otro motivo"},
 }
 
 
@@ -570,7 +574,7 @@ async def register_exit(payload: ExitPayload, request: Request, ctx=Depends(get_
         total_cost = (payload.qty * unit_cost).quantize(Decimal("0.01"))
 
         # Cuenta de inventario del producto (crédito al sacar del almacén)
-        inventory_account = product.default_cost_account or "252"
+        inventory_account = product.default_cost_account or "1430"
 
         # Registrar movimiento kardex
         service = InventoryService(repo)
@@ -591,8 +595,6 @@ async def register_exit(payload: ExitPayload, request: Request, ctx=Depends(get_
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-
-        await uow.commit()
 
         journal_entry_id = None
         if payload.post_journal and total_cost > 0:
@@ -618,7 +620,7 @@ async def register_exit(payload: ExitPayload, request: Request, ctx=Depends(get_
                     "description":   f"Salida inventario [{payload.exit_reason}] {product.name} - {label}",
                     "source_module": "INVENTORY_EXIT",
                     "source_id":     ref,
-                    "currency":      "PEN",
+                    "currency":      "COP",
                     "trace_id":      str(_uuid.uuid4()),
                     "lines": [
                         {
@@ -639,7 +641,9 @@ async def register_exit(payload: ExitPayload, request: Request, ctx=Depends(get_
                 })
                 journal_entry_id = str(entry.id)
             except Exception as exc:
-                journal_entry_id = f"ERROR: {exc}"
+                raise HTTPException(status_code=502, detail=f"Error en asiento contable: {exc}") from exc
+
+        await uow.commit()
 
         return {
             "ok":              True,
@@ -729,10 +733,10 @@ async def debug_pending(ctx=Depends(get_current_context)):
 
 @router.delete("/reset-test-data")
 async def reset_test_data(ctx=Depends(get_current_context)):
-    """
-    Elimina movimientos y saldos de inventario del tenant.
-    Los productos NO se tocan. Solo para desarrollo.
-    """
+    """Elimina movimientos y saldos. Solo habilitado con ENABLE_RESET_ENDPOINTS=true."""
+    import os
+    if os.getenv("ENABLE_RESET_ENDPOINTS", "false").lower() != "true":
+        raise HTTPException(status_code=403, detail="Endpoint deshabilitado en produccion. Establezca ENABLE_RESET_ENDPOINTS=true para habilitar.")
     from sqlalchemy import delete
     from src.domain.models.inventory import KardexMovement, InventoryBalance
 
@@ -788,11 +792,10 @@ async def reclassify_tools(ctx=Depends(get_current_context)):
 
 @router.delete("/reset-products")
 async def reset_products(ctx=Depends(get_current_context)):
-    """
-    Elimina todos los productos del tenant.
-    Requiere que no haya movimientos (ejecutar reset-test-data primero).
-    Solo para desarrollo.
-    """
+    """Elimina todos los productos del tenant. Solo habilitado con ENABLE_RESET_ENDPOINTS=true."""
+    import os
+    if os.getenv("ENABLE_RESET_ENDPOINTS", "false").lower() != "true":
+        raise HTTPException(status_code=403, detail="Endpoint deshabilitado en produccion. Establezca ENABLE_RESET_ENDPOINTS=true para habilitar.")
     from sqlalchemy import delete
     from src.domain.models.inventory import KardexMovement, InventoryBalance, Product
 
@@ -938,23 +941,29 @@ async def report_by_account(ctx=Depends(get_current_context)):
         }
 
 
-def _pcge_account_name(code: str) -> str:
+def _puc_account_name(code: str) -> str:
+    """Retorna el nombre de la cuenta según el PUC colombiano."""
     _MAP = {
-        "201":"Mercaderías manufact.", "202":"Mercaderías no manufact.",
-        "211":"Productos terminados",  "231":"Productos en proceso",
-        "241":"Mat. primas manufact.", "242":"Mat. primas no manufact.",
-        "251":"Materiales auxiliares", "252":"Suministros",
-        "253":"Repuestos",             "261":"Envases", "262":"Embalajes",
-        "333":"Maquinaria y equipo",   "334":"Unidades de transporte",
-        "335":"Muebles y enseres",     "336":"Equipos diversos",
-        "337":"Herramientas y utensilios",
-        "2011":"Mercaderías manufact.","2012":"Mercaderías no manufact.",
-        "2411":"Mat. primas manufact.","2412":"Mat. primas no manufact.",
-        "2522":"Suministros",          "2523":"Repuestos",
-        "3336":"Equipos diversos",     "3337":"Herramientas",
+        "1430":"Mercancias no fabricadas",   "1435":"Materias primas",
+        "1440":"Productos en proceso",        "1445":"Productos terminados",
+        "1455":"Materiales, repuestos y acc.","1460":"Empaques y envases",
+        "1465":"Inventarios en transito",
+        "1520":"Maquinaria y equipo",         "1524":"Equipo de oficina",
+        "1528":"Equipo de computo",           "1540":"Flota y transporte",
+        "1592":"Depreciacion acumulada",
+        "6135":"Costo de ventas - comercio",  "7135":"Costo de ventas - produccion",
+        "4295":"Ingresos no operacionales",   "5295":"Gastos extraordinarios",
+        "519595":"Otros gastos administracion","529595":"Perdidas extraordinarias",
+        "529520":"Perdida deterioro inventario",
+        "143":"Inventarios",                  "152":"Propiedad planta equipo",
+        "613":"Costo de ventas",
     }
     c = str(code or "")
-    return _MAP.get(c, _MAP.get(c[:3], f"Cuenta {c}"))
+    return _MAP.get(c, _MAP.get(c[:4], _MAP.get(c[:3], f"Cuenta PUC {c}")))
+
+
+# Alias para compatibilidad con código existente
+_pcge_account_name = _puc_account_name
 
 
 # =========================================================================
@@ -1341,7 +1350,7 @@ async def validate_purchase_items(
                 "description": f"Ingreso inventario desde compra {payload.source_doc}",
                 "source_module": "INVENTORY",
                 "source_id": journal_source_id,
-                "currency": "PEN",
+                "currency": "COP",
                 "user_id": _safe_user_uuid(ctx.get("user_id")),
                 "trace_id": ctx["trace_id"],
                 "ip_address": request.client.host if request.client else None,

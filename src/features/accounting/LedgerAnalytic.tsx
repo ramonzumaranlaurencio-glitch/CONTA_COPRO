@@ -107,7 +107,7 @@ export const LedgerAnalytic = ({
           <div className="text-right">
             <p className="text-[10px] uppercase font-bold text-slate-400">Saldo Acumulado</p>
             <h3 className={`text-2xl font-mono font-bold ${runningBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              S/ {Math.abs(runningBalance).toLocaleString('es-PE', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+              $ {Math.abs(runningBalance).toLocaleString('es-CO', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
             </h3>
           </div>
         </div>
@@ -156,16 +156,16 @@ export const LedgerAnalytic = ({
                     <td className="p-3">{line.description}</td>
                     <td className="p-3 text-right font-mono">
                       {parseFloat(line.debit) > 0
-                        ? parseFloat(line.debit).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        ? parseFloat(line.debit).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         : '-'}
                     </td>
                     <td className="p-3 text-right font-mono">
                       {parseFloat(line.credit) > 0
-                        ? parseFloat(line.credit).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        ? parseFloat(line.credit).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         : '-'}
                     </td>
                     <td className={`p-3 text-right font-mono font-bold ${saldo >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
-                      {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {saldo.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="p-3 text-[9px] text-slate-400 font-mono">{line.row_hash.slice(0, 10)}</td>
                   </tr>

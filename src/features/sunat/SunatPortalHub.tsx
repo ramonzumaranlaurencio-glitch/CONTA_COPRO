@@ -27,12 +27,12 @@ const speak = (text: string, onEnd?: () => void) => {
     const voice =
       voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name) && /male|hombre|jorge|pablo|diego/i.test(v.name)) ||
       voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name)) ||
-      voices.find(v => v.lang === 'es-PE') ||
+      voices.find(v => v.lang === 'es-CO') ||
       voices.find(v => v.lang.startsWith('es'));
 
     const utter = new SpeechSynthesisUtterance(text);
     if (voice) utter.voice = voice;
-    utter.lang = 'es-PE'; utter.rate = 0.91; utter.pitch = 0.88; utter.volume = 0.85;
+    utter.lang = 'es-CO'; utter.rate = 0.91; utter.pitch = 0.88; utter.volume = 0.85;
     if (onEnd) utter.onend = onEnd;
     currentUtterance = utter;
     window.speechSynthesis.speak(utter);

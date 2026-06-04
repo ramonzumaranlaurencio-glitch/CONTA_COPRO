@@ -121,11 +121,11 @@ ${invoiceData.lineItems
       `(${item.productCode} ${item.description} ${item.unit} ${item.quantity} ${item.unitPrice} ${item.lineSubtotal}) Tj 0 -20 Td`
   )
   .join('\n')}
-(Subtotal: S/ ${invoiceData.subtotal}) Tj
+(Subtotal: $ ${invoiceData.subtotal}) Tj
 0 -20 Td
-(IGV: S/ ${invoiceData.igv}) Tj
+(IVA 19%: $ ${invoiceData.igv}) Tj
 0 -20 Td
-(TOTAL: S/ ${invoiceData.total}) Tj
+(TOTAL COP: $ ${invoiceData.total}) Tj
 ET
 endstream
 endobj

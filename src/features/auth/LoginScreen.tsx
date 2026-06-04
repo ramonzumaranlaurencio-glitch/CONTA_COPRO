@@ -230,7 +230,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
     REG_COMPANY:
       'Paso dos: ingresa los datos de tu empresa. ' +
-      'Necesitamos el R U C de once dígitos, la razón social registrada en SUNAT, y los datos del administrador principal. ' +
+      'Necesitamos el N I T colombiano con dígito de verificación, la razón social registrada en la DIAN, y los datos del administrador principal. ' +
       'El correo y la contraseña que ingreses serán tus credenciales de acceso.',
 
     PLAN_ACCOUNTANT:
@@ -280,11 +280,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       const voices = window.speechSynthesis.getVoices();
       const voice =
         voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name)) ||
-        voices.find(v => v.lang === 'es-PE') ||
+        voices.find(v => v.lang === 'es-CO') ||
         voices.find(v => v.lang.startsWith('es'));
       const u = new SpeechSynthesisUtterance(text);
       if (voice) u.voice = voice;
-      u.lang = 'es-PE'; u.rate = 0.91; u.pitch = 0.88; u.volume = 0.85;
+      u.lang = 'es-CO'; u.rate = 0.91; u.pitch = 0.88; u.volume = 0.85;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     };
@@ -584,7 +584,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
           {[
             { icon: '🤖', label: 'IA Contable', sub: 'Gemini + Claude' },
-            { icon: '📋', label: 'SUNAT Ready', sub: 'PLE · SIRE · CPE' },
+            { icon: '📋', label: 'DIAN Ready', sub: 'F300 · F350 · FE · Exógena' },
             { icon: '🏢', label: 'Multi-empresa', sub: 'Rubros y ERP' },
           ].map((f, i) => (
             <div key={i} style={{ ...card, padding: '12px 10px', textAlign: 'center' }}>
@@ -596,7 +596,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         </div>
 
         <p style={{ textAlign: 'center', color: P.dim, fontSize: 10, marginTop: 16, letterSpacing: '0.05em' }}>
-          CONTA_PRO Enterprise v2.6 · 2026 · Todos los derechos reservados
+          CONTA_COLPRO Enterprise v2.6 · 2026 · Colombia · Todos los derechos reservados
         </p>
       </div>
     </div>
@@ -876,8 +876,8 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                 { k: 'ruc' as const, lbl: 'RUC *', ph: '20XXXXXXXXX', full: false },
                 { k: 'razonSocial' as const, lbl: 'Razón social *', ph: 'Mi Empresa S.A.C.', full: false },
                 { k: 'nombreComercial' as const, lbl: 'Nombre comercial', ph: 'Nombre de negocio', full: false },
-                { k: 'regimen' as const, lbl: 'Régimen tributario *', ph: 'RUS / RER / MYPE / General', full: false },
-                { k: 'telefono' as const, lbl: 'Teléfono *', ph: '+51 01 XXX XXXX', full: false },
+                { k: 'regimen' as const, lbl: 'Régimen tributario *', ph: 'SIMPLE / Ordinario / Gran Contribuyente', full: false },
+                { k: 'telefono' as const, lbl: 'Teléfono *', ph: '+57 300 XXX XXXX', full: false },
                 { k: 'emailEmpresa' as const, lbl: 'Correo de empresa *', ph: 'empresa@email.com', full: false },
                 { k: 'direccion' as const, lbl: 'Dirección fiscal', ph: 'Av. Principal 123, Lima', full: false },
                 { k: 'departamento' as const, lbl: 'Departamento', ph: 'Lima', full: false },

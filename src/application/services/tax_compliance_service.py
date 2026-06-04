@@ -42,12 +42,12 @@ class Ubl21Builder:
         self._text(root, "cbc", "ID", f"{payload['serie']}-{payload['number']}")
         self._text(root, "cbc", "IssueDate", str(payload.get("entry_date") or payload.get("issue_date")))
         self._text(root, "cbc", "InvoiceTypeCode", payload.get("doc_type", "01"))
-        self._text(root, "cbc", "DocumentCurrencyCode", payload.get("currency", "PEN"))
+        self._text(root, "cbc", "DocumentCurrencyCode", payload.get("currency", "COP"))
 
         supplier = ET.SubElement(root, f"{{{UBL_NS['cac']}}}AccountingSupplierParty")
         supplier_party = ET.SubElement(supplier, f"{{{UBL_NS['cac']}}}Party")
         supplier_id = ET.SubElement(ET.SubElement(supplier_party, f"{{{UBL_NS['cac']}}}PartyIdentification"), f"{{{UBL_NS['cbc']}}}ID")
-        supplier_id.text = payload.get("company_ruc") or payload.get("sunat_ruc") or "00000000000"
+        supplier_id.text = payload.get("company_nit") or payload.get("company_ruc") or "000000000"
         supplier_name = ET.SubElement(ET.SubElement(supplier_party, f"{{{UBL_NS['cac']}}}PartyLegalEntity"), f"{{{UBL_NS['cbc']}}}RegistrationName")
         supplier_name.text = payload.get("company_name", "CONTA_PRO COMPANY")
 
@@ -59,19 +59,19 @@ class Ubl21Builder:
         customer_name.text = payload.get("customer_name", "CLIENTE")
 
         tax_total = ET.SubElement(root, f"{{{UBL_NS['cac']}}}TaxTotal")
-        self._amount(tax_total, "cbc", "TaxAmount", payload.get("igv", "0.00"), payload.get("currency", "PEN"))
+        self._amount(tax_total, "cbc", "TaxAmount", payload.get("iva", "0.00"), payload.get("currency", "COP"))
         legal_total = ET.SubElement(root, f"{{{UBL_NS['cac']}}}LegalMonetaryTotal")
-        self._amount(legal_total, "cbc", "LineExtensionAmount", payload.get("subtotal", "0.00"), payload.get("currency", "PEN"))
-        self._amount(legal_total, "cbc", "TaxInclusiveAmount", payload.get("total", "0.00"), payload.get("currency", "PEN"))
-        self._amount(legal_total, "cbc", "PayableAmount", payload.get("total", "0.00"), payload.get("currency", "PEN"))
+        self._amount(legal_total, "cbc", "LineExtensionAmount", payload.get("subtotal", "0.00"), payload.get("currency", "COP"))
+        self._amount(legal_total, "cbc", "TaxInclusiveAmount", payload.get("total", "0.00"), payload.get("currency", "COP"))
+        self._amount(legal_total, "cbc", "PayableAmount", payload.get("total", "0.00"), payload.get("currency", "COP"))
 
         line = ET.SubElement(root, f"{{{UBL_NS['cac']}}}InvoiceLine")
         self._text(line, "cbc", "ID", "1")
-        self._amount(line, "cbc", "LineExtensionAmount", payload.get("subtotal", "0.00"), payload.get("currency", "PEN"))
+        self._amount(line, "cbc", "LineExtensionAmount", payload.get("subtotal", "0.00"), payload.get("currency", "COP"))
         item = ET.SubElement(line, f"{{{UBL_NS['cac']}}}Item")
         self._text(item, "cbc", "Description", payload.get("description", "Operacion gravada"))
         price = ET.SubElement(line, f"{{{UBL_NS['cac']}}}Price")
-        self._amount(price, "cbc", "PriceAmount", payload.get("subtotal", "0.00"), payload.get("currency", "PEN"))
+        self._amount(price, "cbc", "PriceAmount", payload.get("subtotal", "0.00"), payload.get("currency", "COP"))
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     @staticmethod
@@ -169,11 +169,11 @@ class TaxComplianceService:
         Ubl21Builder._text(root, "cbc", "CustomizationID", "2.0")
         Ubl21Builder._text(root, "cbc", "ID", f"{payload['serie']}-{payload['number']}")
         Ubl21Builder._text(root, "cbc", "IssueDate", str(payload.get("entry_date") or payload.get("issue_date")))
-        Ubl21Builder._text(root, "cbc", "DocumentCurrencyCode", payload.get("currency", "PEN"))
+        Ubl21Builder._text(root, "cbc", "DocumentCurrencyCode", payload.get("currency", "COP"))
         reference = ET.SubElement(root, f"{{{UBL_NS['cac']}}}BillingReference")
         invoice_ref = ET.SubElement(reference, f"{{{UBL_NS['cac']}}}InvoiceDocumentReference")
         Ubl21Builder._text(invoice_ref, "cbc", "ID", payload.get("affected_document", "F001-1"))
-        Ubl21Builder._amount(root, "cbc", "PayableAmount", payload.get("total", "0.00"), payload.get("currency", "PEN"))
+        Ubl21Builder._amount(root, "cbc", "PayableAmount", payload.get("total", "0.00"), payload.get("currency", "COP"))
         xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
         validation = self.validator.validate(xml_bytes, "07" if note_type == "credit" else "08")
         return {

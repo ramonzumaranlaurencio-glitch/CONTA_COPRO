@@ -40,9 +40,9 @@ type AccountingLivePanelProps = {
 };
 
 const money = (value: number) =>
-  `S/ ${value.toLocaleString('es-PE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  `$ ${value.toLocaleString('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })}`;
 
 export default function AccountingLivePanel({

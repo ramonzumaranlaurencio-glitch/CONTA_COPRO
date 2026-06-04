@@ -65,10 +65,10 @@ const toN = (v: string | number | undefined | null) => {
   return isFinite(n) ? n : 0;
 };
 const fmt = (n: number) =>
-  `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const fmtDate = (s?: string) => {
   if (!s) return '—';
-  try { return new Date(s).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+  try { return new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
   catch { return s; }
 };
 
@@ -159,7 +159,7 @@ export const FinancialDashboard = () => {
       ]);
       if (arRes.ok) setArData(await arRes.json());
       if (apRes.ok) setApData(await apRes.json());
-      setMessage(`Actualizado: ${new Date().toLocaleTimeString('es-PE')}`);
+      setMessage(`Actualizado: ${new Date().toLocaleTimeString('es-CO')}`);
     } catch {
       setMessage('Backend no disponible — sin datos CXC/CXP.');
     } finally {

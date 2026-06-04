@@ -491,6 +491,7 @@ class AccountingEmbedding(Base):
 
 
 class HrWorker(Base):
+    """Empleado — Colombia (CST / Ley 100/1993 / Decreto 1072/2015)."""
     __tablename__ = "hr_workers"
     __table_args__ = (UniqueConstraint("tenant_id", "dni", name="uq_hr_worker_dni"),)
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -499,11 +500,13 @@ class HrWorker(Base):
     worker_code: Mapped[str] = mapped_column(String(40), nullable=False)
     nombres: Mapped[str] = mapped_column(Text, nullable=False)
     apellidos: Mapped[str] = mapped_column(Text, nullable=False)
-    dni: Mapped[str] = mapped_column(String(8), nullable=False)
+    # dni = Cédula de Ciudadanía Colombia (5-12 dígitos)
+    dni: Mapped[str] = mapped_column(String(12), nullable=False)
     fecha_nacimiento: Mapped[date | None] = mapped_column(Date)
     fecha_inicio_contrato: Mapped[date | None] = mapped_column(Date)
     fecha_fin_contrato: Mapped[date | None] = mapped_column(Date)
     direccion_domicilio: Mapped[str | None] = mapped_column(Text)
+    # direccion_reniec → reutilizado como departamento/ciudad Colombia
     direccion_reniec: Mapped[str | None] = mapped_column(Text)
     telefono: Mapped[str | None] = mapped_column(String(30))
     email: Mapped[str | None] = mapped_column(Text)
@@ -511,13 +514,26 @@ class HrWorker(Base):
     experiencia: Mapped[str | None] = mapped_column(Text)
     estudios_realizados: Mapped[str | None] = mapped_column(Text)
     cargo_postulado: Mapped[str] = mapped_column(Text, nullable=False)
-    sueldo_pactado: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    sueldo_pactado: Mapped[Decimal] = mapped_column(Numeric(18, 0), nullable=False, default=0)  # COP sin centavos
+    # pension_system: AFP_PORVENIR | AFP_PROTECCION | AFP_COLFONDOS | AFP_OLD_MUTUAL | RPM_COLPENSIONES
     pension_system: Mapped[str | None] = mapped_column(Text)
+    # Campos colombianos adicionales — almacenados en cv_metadata JSONB
     habilidades_clave: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     cv_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     compliance_status: Mapped[str] = mapped_column(String(20), nullable=False, default="REVIEW")
     created_by: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Propiedades calculadas para el motor de nómina
+    @property
+    def tipo_salario(self) -> str:
+        meta = self.cv_metadata or {}
+        return str(meta.get("tipo_salario", "ORDINARIO"))
+
+    @property
+    def clase_riesgo_arl(self) -> str:
+        meta = self.cv_metadata or {}
+        return str(meta.get("clase_riesgo_arl", "I"))
 
 
 class HrContract(Base):

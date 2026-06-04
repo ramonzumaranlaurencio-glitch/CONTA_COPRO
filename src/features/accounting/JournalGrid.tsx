@@ -57,7 +57,7 @@ export const JournalGrid = ({ journalEntries = [] as JournalRow[] }) => {
         <div className="flex gap-1">
           <button className="px-2 py-1 border rounded" type="button" onClick={() => notify('Creacion de asiento manual en implementacion.')}>Nuevo asiento</button>
           <button className="px-2 py-1 border rounded" type="button" onClick={() => notify('Posteo manual de asientos en implementacion.')}>Postear</button>
-          <button className="px-2 py-1 border rounded" type="button" onClick={exportRows}>Exportar PLE/SIRE</button>
+          <button className="px-2 py-1 border rounded" type="button" onClick={exportRows}>Exportar Medios Magnéticos DIAN</button>
           <button className="px-2 py-1 border rounded" type="button" onClick={() => notify('Escaneo de integridad lanzado (demo).')}>Escanear integridad</button>
         </div>
         <div className="text-neutral-500">Virtual scroll: {rows.length.toLocaleString()} registros</div>
@@ -66,7 +66,7 @@ export const JournalGrid = ({ journalEntries = [] as JournalRow[] }) => {
       <div className="grid grid-cols-[110px_80px_1fr_100px_100px_90px_160px] bg-neutral-200 border-b px-2 h-8 items-center font-bold">
         <span>Fecha</span><span>Periodo</span><span>Glosa</span>
         <span className="text-right">Debe</span><span className="text-right">Haber</span>
-        <span>SUNAT</span><span>Hash</span>
+        <span>DIAN</span><span>Hash</span>
       </div>
 
       <div className="flex-1 flex overflow-hidden">

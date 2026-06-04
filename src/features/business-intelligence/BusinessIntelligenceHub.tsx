@@ -44,7 +44,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
     const mockKpis: KPI[] = [
       {
         label: 'Flujo de Caja',
-        value: 'S/ 482,900',
+        value: '$ 482.900.000',
         trend: 12.5,
         status: 'excellent',
         description: 'Vs. mes anterior',
@@ -60,7 +60,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
       },
       {
         label: 'CXC (Cartera)',
-        value: 'S/ 1.28M',
+        value: '$ 1.280M',
         trend: -5.2,
         status: 'warning',
         description: '32 días promedio',
@@ -75,7 +75,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
         icon: '⚖️',
       },
       {
-        label: 'Cumplimiento SUNAT',
+        label: 'Cumplimiento DIAN',
         value: '100%',
         trend: 0,
         status: 'excellent',
@@ -84,7 +84,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
       },
       {
         label: 'Stock Activo',
-        value: 'S/ 680K',
+        value: '$ 680M',
         trend: 2.1,
         status: 'normal',
         description: 'Rotación: 8.2x',
@@ -99,8 +99,8 @@ export const BusinessIntelligenceHub: React.FC = () => {
       {
         id: '1',
         severity: 'critical',
-        title: '🚨 Detracciones Pendientes',
-        description: '12 facturas sin CDR - Riesgo de multa SUNAT',
+        title: '🚨 Retenciones Pendientes',
+        description: '12 facturas sin ReteFuente - Riesgo de sanción DIAN',
         timestamp: 'Hace 2h',
         action: 'Resolver',
       },
@@ -116,7 +116,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
         id: '3',
         severity: 'warning',
         title: '⚠️ CXP Vencidas',
-        description: '8 facturas vencidas por S/ 245,000',
+        description: '8 facturas vencidas por $ 980.000.000',
         timestamp: 'Hoy',
         action: 'Pagar',
       },
@@ -135,14 +135,14 @@ export const BusinessIntelligenceHub: React.FC = () => {
     const mockAnomalies: Anomaly[] = [
       {
         type: 'Fraude Potencial',
-        description: 'RUC 20789456123 sin padrón SUNAT - S/ 180,000 en 3 facturas',
+        description: 'NIT 900789456-1 inactivo en DIAN - $ 720.000.000 en 3 facturas',
         impact: 'high',
         confidence: 100,
-        suggestedAction: 'ACCIÓN INMEDIATA: Bloquear proveedor y verificar en SUNAT',
+        suggestedAction: 'ACCIÓN INMEDIATA: Bloquear proveedor y verificar NIT en DIAN',
       },
       {
         type: 'Duplicación',
-        description: 'Facturas F001-8420 y F001-8421 - Montos idénticos S/ 42,500',
+        description: 'Facturas FV001-8420 y FV001-8421 - Montos idénticos $ 170.000.000',
         impact: 'high',
         confidence: 94,
         suggestedAction: 'Contactar proveedor - Posible facturación doble',
@@ -274,7 +274,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
                       <div className="bg-gradient-to-r from-orange-500 to-orange-400 h-2 rounded-full" style={{ width: '45%' }}></div>
                     </div>
                   </div>
-                  <p className="text-xs text-white/60 mt-3">⚠️ Riesgo: Multa SUNAT si no se presenta comprobante de detracciones antes del 25/06</p>
+                  <p className="text-xs text-white/60 mt-3">⚠️ Riesgo: Sanción DIAN si no se presenta ReteFuente antes del vencimiento DIAN</p>
                 </div>
               </div>
 

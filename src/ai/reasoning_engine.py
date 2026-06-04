@@ -17,18 +17,18 @@ class AuditCopilot:
         ]
 
     async def perform_pre_closure_audit(self, tenant_id: str, month: int, year: int):
-        context = await self.vector_store.get_context(tenant_id=tenant_id, query="cierres anomalías IGV duplicidad XML")
+        context = await self.vector_store.get_context(tenant_id=tenant_id, query="cierres anomalias IVA duplicidad CUFE DIAN")
         summary = await self.ledger_reader.get_month_summary(tenant_id, month, year)
         prompt = {
             "system_prompt": self.system_prompt,
-            "role": "Auditor Senior SUNAT/NIIF",
+            "role": "Auditor Senior DIAN/NIIF Colombia",
             "tasks": [
-                "Detectar duplicidad por RUC, serie, numero y monto",
-                "Evaluar IGV contra ventas y compras",
-                "Detectar gastos sin XML/PDF mayores a 500 PEN",
-                "Detectar asientos atipicos en cuentas 63, 65, 67, 40",
+                "Detectar duplicidad por NIT, prefijo, consecutivo y monto",
+                "Evaluar IVA descontable contra ventas y compras (cuenta 2408)",
+                "Detectar gastos sin CUFE/PDF mayores a $1.000.000 COP sin bancarizacion",
+                "Detectar asientos atipicos en cuentas 513, 519, 529, 240",
             ],
-            "rules": ["NIC 1", "SUNAT", "PCGE", "PLE", "SIRE"],
+            "rules": ["NIIF Pymes Colombia", "DIAN", "PUC", "Estatuto Tributario", "Medios Magneticos"],
             "intelligence_units": self.intelligence_units,
             "summary": summary,
             "historical_context": context,
@@ -38,11 +38,11 @@ class AuditCopilot:
     async def diagnose_sunat_failure(self, payload: dict, error: str):
         invoice = payload.get("invoice", {})
         return {
-            "classification": "XML_SCHEMA_OR_SUNAT_SERVICE_FAILURE",
+            "classification": "XML_SCHEMA_OR_DIAN_SERVICE_FAILURE",
             "error": error,
-            "checklist": ["XSD UBL", "firma P12", "RUC", "serie/numero", "tipo documento", "disponibilidad SUNAT"],
+            "checklist": ["XSD UBL 2.1 DIAN", "firma P12 certificado digital", "NIT", "prefijo/consecutivo", "tipo documento", "disponibilidad DIAN"],
             "invoice": {
-                "ruc": invoice.get("customer_ruc"),
+                "nit": invoice.get("customer_nit"),
                 "serie": invoice.get("serie"),
                 "number": invoice.get("number"),
                 "total": str(invoice.get("total")),

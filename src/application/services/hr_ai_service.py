@@ -27,31 +27,92 @@ CV_EXTRACTION_PROMPT = (
 )
 
 
+# ─── BIBLIOTECA LEGAL LABORAL COLOMBIA ───────────────────────────────────────
+# Ministerio del Trabajo · UGPP · DIAN · Supersociedades · Corte Suprema
 LABOR_LEGAL_LIBRARY = [
     {
-        "source_id": "TUO_DL_728",
-        "title": "TUO del D.L. 728 - Ley de Productividad y Competitividad Laboral",
-        "url": "https://www.gob.pe/institucion/congreso-de-la-republica/normas-legales/703476-728",
+        "source_id": "CST_CODIGO_SUSTANTIVO_TRABAJO",
+        "title": "Código Sustantivo del Trabajo — CST (Decreto-Ley 2663/1950)",
+        "url": "https://www.mintrabajo.gov.co/normatividad/leyes-y-decretos-ley/codigo-sustantivo-del-trabajo",
+        "temas": "contratos, jornada, salario, prestaciones, despido, periodo de prueba, fuero sindical",
     },
     {
-        "source_id": "LEY_JORNADA_SOBRETIEMPO",
-        "title": "Ley de Jornada de Trabajo, Horario y Trabajo en Sobretiempo",
-        "url": "https://www.gob.pe/",
+        "source_id": "LEY_100_1993_SEGURIDAD_SOCIAL",
+        "title": "Ley 100 de 1993 — Sistema de Seguridad Social Integral",
+        "url": "https://www.minsalud.gov.co/Normatividad_Nuevo/LEY%200100%20DE%201993.pdf",
+        "temas": "AFP 4%+12%, EPS 4%+8.5%, fondo solidaridad, pensión, salud, riesgos laborales",
     },
     {
-        "source_id": "DS_005_2012_TR_SST",
-        "title": "Reglamento de Seguridad y Salud en el Trabajo - D.S. 005-2012-TR",
-        "url": "https://www.gob.pe/institucion/presidencia/normas-legales/462577-005-2012-tr",
+        "source_id": "DECRETO_1072_2015_DECRETO_UNICO_LABORAL",
+        "title": "Decreto Único Reglamentario del Trabajo — Decreto 1072/2015",
+        "url": "https://www.mintrabajo.gov.co/normatividad/decreto-unico-reglamentario",
+        "temas": "reglamentación CST, jornada, horas extras, SST, contratistas, trabajo en casa",
     },
     {
-        "source_id": "LEY_29733_DATOS_PERSONALES",
-        "title": "Ley 29733 - Ley de Proteccion de Datos Personales",
-        "url": "https://www.gob.pe/institucion/anpd/normas-legales/2018427-29733-2011",
+        "source_id": "LEY_21_1982_PARAFISCALES",
+        "title": "Ley 21 de 1982 — CCF, SENA e ICBF",
+        "url": "https://www.sena.edu.co/normatividad/ley-21-1982",
+        "temas": "CCF 4%, SENA 2%, ICBF 3%, exoneración Ley 1607/2012 si salario < 10 SMMLV",
     },
     {
-        "source_id": "MTPE_MODELOS_CONTRATO",
-        "title": "Modelos de Contratos del MTPE",
-        "url": "https://www.gob.pe/mtpe",
+        "source_id": "LEY_1607_2012_EXONERACION_PARAFISCAL",
+        "title": "Ley 1607 de 2012 — Reforma Tributaria (Art. 65 exoneración parafiscal)",
+        "url": "https://www.dian.gov.co/normatividad/Normas/Ley_1607_2012.pdf",
+        "temas": "exoneración SENA, ICBF y EPS empleador para trabajadores con salario < 10 SMMLV",
+    },
+    {
+        "source_id": "LEY_50_1990_CESANTIAS",
+        "title": "Ley 50 de 1990 — Reforma Laboral (fondos de cesantías)",
+        "url": "https://www.mintrabajo.gov.co/normatividad/leyes/1990/ley-50-de-1990",
+        "temas": "consignación cesantías al fondo antes del 14 de febrero, intereses 12% anual, retroactivo",
+    },
+    {
+        "source_id": "DECRETO_2361_2024_SMMLV_2025",
+        "title": "Decreto 2361 de 2024 — SMMLV 2025: $1.423.500 — Auxilio Transporte $200.000",
+        "url": "https://www.mintrabajo.gov.co/normatividad/decretos/2024/decreto-2361-2024",
+        "temas": "salario mínimo 2025, auxilio de transporte, reajuste anual",
+    },
+    {
+        "source_id": "DECRETO_1607_2002_ARL_CLASES_RIESGO",
+        "title": "Decreto 1607 de 2002 — Tabla de Clasificación de Actividades Económicas ARL",
+        "url": "https://www.mintrabajo.gov.co/normatividad/decreto-1607-2002",
+        "temas": "ARL clases I-V: 0.348%-8.70%, clasificación por actividad económica",
+    },
+    {
+        "source_id": "ET_ART383_RETEFUENTE_LABORAL",
+        "title": "Estatuto Tributario Art. 383 — ReteFuente sobre rentas laborales",
+        "url": "https://www.dian.gov.co/normatividad/Normatividad/Estatuto%20Tributario.pdf",
+        "temas": "tabla marginal ReteFuente, renta exenta 25%, deducción dependientes 10%, UVT 2026 $47.065",
+    },
+    {
+        "source_id": "DECRETO_2649_1993_PUC_COLOMBIA",
+        "title": "Decreto 2649 de 1993 — Reglamento General de Contabilidad — PUC Colombia",
+        "url": "https://www.supersociedades.gov.co/normatividad/decreto-2649-1993",
+        "temas": "PUC cuentas 51 gastos personal, 23-26 pasivos laborales, libro diario, libro mayor",
+    },
+    {
+        "source_id": "MINTRABAJO_MODELOS_CONTRATO",
+        "title": "Ministerio del Trabajo — Modelos de Contratos Laborales Colombia",
+        "url": "https://www.mintrabajo.gov.co/empleo-y-pensiones/empleo/subdireccion-de-formalizacion-y-proteccion-del-empleo/contratos-de-trabajo",
+        "temas": "contrato término indefinido, término fijo, obra o labor, aprendizaje SENA",
+    },
+    {
+        "source_id": "LEY_1562_2012_RIESGOS_LABORALES",
+        "title": "Ley 1562 de 2012 — Sistema General de Riesgos Laborales (ARL)",
+        "url": "https://www.mintrabajo.gov.co/normatividad/leyes/2012/ley-1562-de-2012",
+        "temas": "ARL, accidentes de trabajo, enfermedades laborales, cotización por clase de riesgo",
+    },
+    {
+        "source_id": "LEY_1581_2012_DATOS_PERSONALES",
+        "title": "Ley 1581 de 2012 — Protección de Datos Personales — Colombia",
+        "url": "https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=49981",
+        "temas": "habeas data, tratamiento datos empleados, autorización, responsable del tratamiento",
+    },
+    {
+        "source_id": "UGPP_PILA_PLANILLA_INTEGRADA",
+        "title": "UGPP — Planilla Integrada de Liquidación de Aportes (PILA)",
+        "url": "https://www.ugpp.gov.co/aportes/planilla-integrada-de-liquidacion-de-aportes-pila",
+        "temas": "PILA, liquidación aportes seguridad social, fecha límite día 21, operadores autorizados",
     },
 ]
 
@@ -751,8 +812,10 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
             f"Tipo contrato: {tipo_contrato}\n"
             f"Inicio: {start}\n"
             f"Fin: {end}\n"
-            f"Alerta T-Registro: registrar alta en SUNAT antes de {due}.\n"
-            "Alerta vencimiento: programar revision 15 dias antes del vencimiento si es plazo fijo.\n"
+            f"Alerta PILA: afiliar al trabajador en EPS/AFP/CCF/ARL antes del primer día de trabajo (Ley 100/1993).\n"
+            f"Alerta UGPP: liquidar aportes vía PILA antes del día 21 del mes siguiente.\n"
+            f"Inicio contrato: {due}.\n"
+            "Alerta vencimiento: programar revision 15 dias antes del vencimiento si es termino fijo.\n"
         )
 
 

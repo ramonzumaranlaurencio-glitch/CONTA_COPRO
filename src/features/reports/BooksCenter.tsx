@@ -148,7 +148,7 @@ export const BooksCenter = ({ apiBase, tenantId }: Props) => {
   const submitSunat = async (packageId: string) => {
     try {
       const headers = await commonHeaders();
-      const response = await fetch(`${apiBase}/reports/books/packages/${packageId}/submit-sunat`, {
+      const response = await fetch(`${apiBase}/reports/books/packages/${packageId}/submit-dian`, {
         method: 'POST',
         headers,
       });
@@ -156,10 +156,10 @@ export const BooksCenter = ({ apiBase, tenantId }: Props) => {
         throw new Error('No se pudo enviar paquete');
       }
       const payload = await response.json();
-      setMessage(`Paquete enviado a SUNAT. Submission: ${payload.submission_id}`);
+      setMessage(`Paquete enviado a DIAN / Muisca. Submission: ${payload.submission_id}`);
       await loadHistory();
     } catch {
-      setMessage('Error enviando paquete de libros a SUNAT.');
+      setMessage('Error enviando declaraciones a DIAN / Muisca.');
     }
   };
 
@@ -243,7 +243,7 @@ export const BooksCenter = ({ apiBase, tenantId }: Props) => {
                 <td>{item.filename}</td>
                 <td>
                   <button type="button" onClick={() => submitSunat(item.package_id)}>
-                    Enviar SUNAT
+                    Enviar DIAN
                   </button>
                 </td>
               </tr>

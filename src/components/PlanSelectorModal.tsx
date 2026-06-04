@@ -33,6 +33,23 @@ export interface PlanSelected {
   userType: UserType;
 }
 
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  priceLabel: string;
+  period: string;
+  icon: string;
+  color: string;
+  tag: string | null;
+  tagColor: string;
+  features: string[];
+  noIncluye: string[];
+  nota: string;
+  negocios?: number;
+  ia: string;
+}
+
 interface Props {
   /** Si no se pasa, el usuario elige el tipo desde el modal */
   defaultType?: UserType;
@@ -41,7 +58,7 @@ interface Props {
 }
 
 // ─── Datos de planes ────────────────────────────────────────────────────────
-const PLANES_CONTADOR = [
+const PLANES_CONTADOR: Plan[] = [
   {
     id: 'TRIAL_CONTADOR',
     name: '1 Mes Gratis',
@@ -154,7 +171,7 @@ const PLANES_CONTADOR = [
       'Planillas completas',
       'Centros de costo',
       'IA sin límite',
-      'SUNAT completo',
+      'DIAN completo',
       'Soporte dedicado',
     ],
     noIncluye: [],
@@ -162,7 +179,7 @@ const PLANES_CONTADOR = [
   },
 ];
 
-const PLANES_EMPRESA = [
+const PLANES_EMPRESA: Plan[] = [
   {
     id: 'PLUS_EMPRESA',
     name: 'Plus Empresa',
@@ -208,7 +225,7 @@ const PLANES_EMPRESA = [
       'Centros de costo',
       'Almacenes múltiples',
       'BI avanzado',
-      'SUNAT integrado',
+      'DIAN integrado',
       'Reportes completos',
     ],
     noIncluye: ['Implementación personalizada'],
@@ -231,7 +248,7 @@ const PLANES_EMPRESA = [
       'Todos los módulos activos',
       'Múltiples usuarios',
       'IA configurada por área',
-      'SUNAT completo',
+      'DIAN completo',
       'Integraciones (banco/SAP/Odoo)',
       'Capacitación al equipo',
       'Soporte dedicado',
@@ -244,73 +261,75 @@ const PLANES_EMPRESA = [
 // ─── Audios explicativos por plan ──────────────────────────────────────────
 const PLAN_AUDIO: Record<string, string> = {
   TRIAL_CONTADOR:
-    'Plan gratuito de un mes. ' +
-    'Puedes gestionar hasta tres negocios sin ningún costo. ' +
-    'Incluye contabilidad completa, registro de ventas y compras, libro diario y reportes básicos. ' +
+    'Plan gratuito de un mes para contadores colombianos. ' +
+    'Puedes gestionar hasta tres empresas sin ningún costo. ' +
+    'Incluye contabilidad completa con Plan Único de Cuentas colombiano, ' +
+    'registro de ventas y compras, libro diario y reportes básicos compatibles con la DIAN. ' +
     'Sin tarjeta de crédito. Sin permanencia. ' +
     'Al terminar el mes eliges si continúas con un plan de pago. ' +
-    'Recuerda que cada negocio solo puede usar esta prueba gratuita una vez.',
+    'Recuerda que cada empresa solo puede usar esta prueba gratuita una vez.',
 
   BASICO_CONTADOR:
     'Plan Básico, cincuenta dólares al mes. ' +
-    'Ideal para contadores que acaban de terminar su mes gratuito. ' +
-    'Gestiona hasta cinco negocios activos con contabilidad completa, ' +
-    'ventas, compras, libro diario y reportes estándar. ' +
-    'Sin inteligencia artificial, pero con todas las herramientas esenciales para llevar una contabilidad ordenada.',
+    'Ideal para contadores colombianos que acaban de terminar su mes gratuito. ' +
+    'Gestiona hasta cinco empresas activas con contabilidad completa en PUC, ' +
+    'ventas, compras, libro diario y reportes estándar para la DIAN. ' +
+    'Sin inteligencia artificial, pero con todas las herramientas esenciales para llevar una contabilidad ordenada en Colombia.',
 
   PLUS_CONTADOR:
     'Plan Plus, noventa y nueve dólares al mes. ' +
-    'El más popular entre los contadores. ' +
-    'Gestiona hasta diez negocios activos. ' +
-    'Incluye el lector de facturas con inteligencia artificial de Gemini: ' +
-    'solo subes la foto del comprobante y el sistema extrae todos los datos automáticamente. ' +
+    'El más popular entre los contadores colombianos. ' +
+    'Gestiona hasta diez empresas activas. ' +
+    'Incluye el lector de facturas electrónicas con inteligencia artificial: ' +
+    'solo subes la foto del comprobante y el sistema extrae todos los datos automáticamente, ' +
+    'compatible con la facturación electrónica DIAN y el CUFE. ' +
     'Cincuenta documentos procesados por inteligencia artificial cada mes. ' +
-    'La diferencia con el plan Básico es más negocios y la inteligencia artificial.',
+    'La diferencia con el plan Básico es más empresas y la inteligencia artificial.',
 
   PRO_CONTADOR:
     'Plan Pro, ciento veintinueve dólares al mes. ' +
-    'Para contadores con una cartera amplia de clientes. ' +
-    'Gestiona hasta quince negocios activos. ' +
+    'Para contadores con una cartera amplia de clientes en Colombia. ' +
+    'Gestiona hasta quince empresas activas. ' +
     'Cien documentos procesados con inteligencia artificial por mes. ' +
     'Incluye Business Intelligence avanzado para analizar la situación financiera de todos tus clientes. ' +
-    'La diferencia con el Plus es más negocios y más usos de inteligencia artificial. ' +
+    'La diferencia con el Plus es más empresas y más usos de inteligencia artificial. ' +
     'Los módulos contables son exactamente los mismos en Básico, Plus y Pro.',
 
   MAESTRO_PLUS:
     'Plan Maestro Plus, precio a tratar directamente con nosotros. ' +
-    'Es la solución completa para contadores que necesitan un ERP total. ' +
-    'Negocios ilimitados. Inventario y almacén activados. Planillas completas. ' +
+    'Es la solución completa para contadores que necesitan un ERP total en Colombia. ' +
+    'Empresas ilimitadas. Inventario y almacén activados. Nómina completa con aportes a AFP, EPS, ARL y caja de compensación. ' +
     'Centros de costo. Inteligencia artificial sin límite. ' +
-    'SUNAT integrado y auditoría avanzada. ' +
+    'DIAN integrado con facturación electrónica, medios magnéticos y exógena. ' +
     'Incluye implementación guiada, capacitación y soporte dedicado. ' +
     'Si gestionas empresas complejas con inventario o personal, este es tu plan.',
 
   PLUS_EMPRESA:
     'Plan Plus Empresa, ciento diecinueve dólares al mes. ' +
-    'Diseñado para una empresa que quiere manejar su propia contabilidad. ' +
-    'Contabilidad completa, ventas, compras, inventario base ' +
+    'Diseñado para una empresa colombiana que quiere manejar su propia contabilidad. ' +
+    'Contabilidad completa con PUC, ventas, compras, inventario base ' +
     'y cien documentos procesados con inteligencia artificial cada mes. ' +
-    'Los módulos se activan automáticamente según el rubro que elijas: ' +
-    'comercial, servicios, construcción, fabricación, minería u otro. ' +
-    'El sistema crea el plan contable específico para tu actividad económica.',
+    'Los módulos se activan automáticamente según el régimen tributario que elijas: ' +
+    'SIMPLE, Ordinario, o Gran Contribuyente. ' +
+    'El sistema crea el plan contable específico para tu actividad económica y sector.',
 
   PRO_EMPRESA:
     'Plan Pro Empresa, ciento cuarenta y nueve dólares al mes. ' +
-    'La opción más completa para empresas medianas. ' +
-    'Incluye todo lo del Plus más planillas, centros de costo, ' +
-    'almacenes múltiples para controlar distintos depósitos, ' +
+    'La opción más completa para empresas medianas en Colombia. ' +
+    'Incluye todo lo del Plus más nómina con aportes parafiscales a AFP, EPS, ARL y CCF, ' +
+    'centros de costo, almacenes múltiples para controlar distintos depósitos, ' +
     'doscientos documentos procesados con inteligencia artificial al mes, ' +
-    'Business Intelligence avanzado y SUNAT integrado. ' +
-    'Si tu empresa tiene personal, inventario en varios almacenes y necesita reportes detallados, ' +
+    'Business Intelligence avanzado y DIAN integrado con facturación electrónica. ' +
+    'Si tu empresa tiene personal, inventario en varios almacenes y necesita reportes detallados para la DIAN, ' +
     'el Pro Empresa es tu solución ideal.',
 
   MAESTRO_EMPRESA:
     'Plan Maestro Empresa, precio a tratar según el alcance. ' +
-    'Es una implementación personalizada de ERP completo para tu empresa. ' +
+    'Es una implementación personalizada de ERP completo para tu empresa colombiana. ' +
     'Comenzamos con un diagnóstico detallado de tus procesos actuales. ' +
-    'Configuramos todos los módulos según tu realidad operativa. ' +
+    'Configuramos todos los módulos según tu realidad operativa y régimen ante la DIAN. ' +
     'Parametrizamos la inteligencia artificial por área de tu negocio. ' +
-    'Capacitamos a todo tu equipo. ' +
+    'Capacitamos a todo tu equipo en el uso del sistema y las obligaciones tributarias colombianas. ' +
     'Y brindamos soporte dedicado después de la puesta en marcha. ' +
     'Si tu empresa tiene procesos complejos o múltiples áreas, ' +
     'contáctanos para un diagnóstico sin compromiso.',
@@ -326,12 +345,12 @@ const speakPlan = (planId: string) => {
     const voice =
       voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name) && /male|hombre|jorge|pablo|diego/i.test(v.name)) ||
       voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name)) ||
-      voices.find(v => v.lang === 'es-PE') ||
+      voices.find(v => v.lang === 'es-CO') ||
       voices.find(v => v.lang.startsWith('es'));
 
     const utter = new SpeechSynthesisUtterance(text);
     if (voice) utter.voice = voice;
-    utter.lang   = 'es-PE';
+    utter.lang   = 'es-CO';
     utter.rate   = 0.91;
     utter.pitch  = 0.88;
     utter.volume = 0.85;
@@ -401,10 +420,10 @@ export const PlanSelectorModal: React.FC<Props> = ({ defaultType, onSelect, onCl
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>
-              Elige tu plan CONTA_PRO
+              Elige tu plan CONTA_COLPRO
             </h2>
             <p style={{ margin: '3px 0 0', fontSize: 12, color: C.muted }}>
-              Precios en dólares · Sin permanencia · Cancela cuando quieras
+              Precios en dólares · Sin permanencia · Cancela cuando quieras · Colombia
             </p>
           </div>
 
@@ -510,10 +529,10 @@ export const PlanSelectorModal: React.FC<Props> = ({ defaultType, onSelect, onCl
                   🤖 {pl.ia}
                 </div>
 
-                {/* Negocios (solo contador) */}
-                {tipo === 'CONTADOR' && (pl as any).negocios !== undefined && (
+                {/* Empresas (solo contador) */}
+                {tipo === 'CONTADOR' && pl.negocios !== undefined && (
                   <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
-                    📁 {(pl as any).negocios === 0 ? 'Negocios ilimitados' : `${(pl as any).negocios} negocios`}
+                    📁 {pl.negocios === 0 ? 'Empresas ilimitadas' : `${pl.negocios} empresas`}
                   </div>
                 )}
 
@@ -586,7 +605,7 @@ export const PlanSelectorModal: React.FC<Props> = ({ defaultType, onSelect, onCl
               <span key={i} style={{ fontSize: 11, color: C.dim }}>{f}</span>
             ))}
           </div>
-          <span style={{ fontSize: 11, color: C.dim }}>Pagos: Yape · Plin · Transferencia</span>
+          <span style={{ fontSize: 11, color: C.dim }}>Pagos: Nequi · Daviplata · PSE · Transferencia bancaria</span>
         </div>
       </div>
     </>

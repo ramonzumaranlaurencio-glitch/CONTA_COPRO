@@ -28,7 +28,7 @@ export const DashboardPageLayout = () => {
             { label: 'Caja', value: '—', icon: '💰' },
             { label: 'CXC', value: '—', icon: '📊' },
             { label: 'CXP', value: '—', icon: '💳' },
-            { label: 'IGV', value: '—', icon: '🧾' },
+            { label: 'IVA', value: '—', icon: '🧾' },
           ].map((metric) => (
             <div key={metric.label} className="panel-card">
               <div className="panel-body">
@@ -46,33 +46,33 @@ export const DashboardPageLayout = () => {
         <PanelsGrid columns={2} gap="md">
           {/* Panel 1: Libros Electronicos */}
           <PanelSection
-            title="Libros Electronicos - PLE 5.1/5.2"
+            title="Declaraciones DIAN — IVA · ReteFuente"
             subtitle="Periodo: Mayo 2026"
             icon={<DocumentText24Regular />}
-            action={<button className="btn-fluent-secondary text-xs">Generar PLE</button>}
+            action={<button className="btn-fluent-secondary text-xs">Generar F300</button>}
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                 <div>
-                  <p className="font-semibold text-sm">Libro Diario (5.1)</p>
-                  <p className="text-xs text-slate-500">342 asientos detectados ✓</p>
+                  <p className="font-semibold text-sm">F300 — Declaración IVA DIAN</p>
+                  <p className="text-xs text-slate-500">IVA bimestral abr-may · cuenta 2408 ✓</p>
                 </div>
                 <span className="status-ok">OK</span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                 <div>
-                  <p className="font-semibold text-sm">Libro Simplificado (5.2)</p>
-                  <p className="text-xs text-slate-500">Listo para exportación</p>
+                  <p className="font-semibold text-sm">F350 — Retención en la Fuente</p>
+                  <p className="text-xs text-slate-500">ReteFuente mensual · cuenta 2365</p>
                 </div>
-                <button className="btn-fluent-secondary text-xs">Descargar ZIP</button>
+                <button className="btn-fluent-secondary text-xs">Generar F350</button>
               </div>
             </div>
           </PanelSection>
 
-          {/* Panel 2: SUNAT Monitor */}
+          {/* Panel 2: DIAN Monitor */}
           <PanelSection
-            title="Monitor de Envio SUNAT"
-            subtitle="Estado de las comunicaciones"
+            title="Monitor Facturación Electrónica DIAN"
+            subtitle="Estado CUFE y validaciones"
             icon={<Pulse24Regular />}
             variant="warning"
           >
@@ -109,14 +109,14 @@ export const DashboardPageLayout = () => {
                 <div className="alert-icon">⚠️</div>
                 <div className="alert-text">
                   <h4>Riesgo Fiscal Alto</h4>
-                  <p>3 Proveedores No Habidos detectados - S/ 14,200.50</p>
+                  <p>3 Proveedores con NIT inactivo en DIAN - $ 56.800.000</p>
                 </div>
               </div>
               <div className="alert alert-warning">
                 <div className="alert-icon">⚡</div>
                 <div className="alert-text">
-                  <h4>Detracciones Pendientes</h4>
-                  <p>12 Facturas sin constancia de depósito</p>
+                  <h4>Retenciones Pendientes</h4>
+                  <p>12 Facturas sin ReteFuente aplicada</p>
                 </div>
               </div>
             </div>
@@ -131,12 +131,12 @@ export const DashboardPageLayout = () => {
             <div className="space-y-3">
               <div className="stats-row">
                 <div className="stat-item">
-                  <span className="stat-value">F001-08100</span>
-                  <span className="stat-label">Serie Actual</span>
+                  <span className="stat-value">FV-0001</span>
+                  <span className="stat-label">Prefijo DIAN</span>
                 </div>
                 <div className="stat-item">
                   <span className="stat-value">1.20</span>
-                  <span className="stat-label">Factor IGV</span>
+                  <span className="stat-label">Factor IVA</span>
                 </div>
                 <div className="stat-item">
                   <span className="stat-value">2026-05-01</span>

@@ -40,7 +40,7 @@ export const ContextMenu = <T,>({
         <Document24Regular style={{ fontSize: 14 }} className="text-blue-600" /> Ver Factura XML
       </button>
       <button className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2" onClick={() => onCheckSunat(rowData)} type="button">
-        <Search24Regular style={{ fontSize: 14 }} className="text-orange-600" /> Consultar RUC en SUNAT
+        <Search24Regular style={{ fontSize: 14 }} className="text-orange-600" /> Consultar NIT en DIAN
       </button>
       <button className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2" onClick={() => onTraceOrigin(rowData)} type="button">
         <History24Regular style={{ fontSize: 14 }} className="text-green-600" /> Rastrear Origen (Hash)

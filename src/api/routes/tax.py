@@ -11,7 +11,7 @@ from src.infrastructure.adapters.sunat.ple_generator import PleGenerator
 from src.infrastructure.adapters.sunat.sire_generator import SireGenerator
 from src.infrastructure.unit_of_work import UnitOfWork
 
-router = APIRouter(prefix="/tax", tags=["SUNAT Enterprise"])
+router = APIRouter(prefix="/tax", tags=["DIAN Colombia Enterprise"])
 
 
 class XmlPayload(BaseModel):
@@ -44,7 +44,7 @@ class PleLedgerPayload(BaseModel):
 class SunatSubmissionCreatePayload(BaseModel):
     financial_document_id: str | None = None
     submission_type: str = "INVOICE"
-    endpoint_type: str = "SUNAT"
+    endpoint_type: str = "DIAN"
     ticket: str | None = None
     xml_hash: str | None = None
 

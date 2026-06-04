@@ -20,7 +20,7 @@ interface FixedAsset {
 }
 
 const fmt = (n: number) =>
-  `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const C = {
   bg: '#050d1a', bgCard: '#0b1a30', bgRow: '#0d1f38', bgHover: '#122647',

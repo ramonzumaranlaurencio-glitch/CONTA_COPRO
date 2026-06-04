@@ -37,7 +37,7 @@ type AuditInspectorProps = {
 };
 
 const money = (value: number) =>
-  value.toLocaleString('es-PE', {
+  value.toLocaleString('es-CO', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

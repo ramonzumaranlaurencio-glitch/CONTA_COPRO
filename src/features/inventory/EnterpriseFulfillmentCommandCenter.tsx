@@ -410,8 +410,8 @@ const OPERATIONAL_PROMPTS = [
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmtMoney = (n) => `S/ ${Number(n).toLocaleString("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const fmtDate  = (s) => s ? new Date(s).toLocaleDateString("es-PE") : "—";
+const fmtMoney = (n) => `$ ${Number(n).toLocaleString("es-CO",{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+const fmtDate  = (s) => s ? new Date(s).toLocaleDateString("es-CO") : "—";
 const tokenStatusBadge = (s) => {
   if(s==="OVERDUE")    return <span className="badge badge-danger">VENCIDO</span>;
   if(s==="DUE_SOON")   return <span className="badge badge-warn">POR VENCER</span>;

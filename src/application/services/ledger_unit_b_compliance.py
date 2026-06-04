@@ -93,9 +93,9 @@ class ComplianceAgent:
         self,
         transaction_type: str,
         amount: Decimal,
-        currency: Literal["PEN", "USD"] = "PEN",
+        currency: Literal["COP", "USD"] = "COP",
         payment_method: str | None = None,
-        supplier_ruc: str | None = None,
+        supplier_nit: str | None = None,
         service_code: str | None = None,
         doc_type_code: str | None = None,
     ) -> ComplianceCheckOutput:

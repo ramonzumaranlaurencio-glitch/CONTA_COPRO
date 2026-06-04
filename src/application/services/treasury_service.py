@@ -34,7 +34,7 @@ class TreasuryService:
         *,
         treasury_account_id: str,
         csv_content: str,
-        default_currency: str = "PEN",
+        default_currency: str = "COP",
     ) -> ImportResult:
         imported = 0
         rejected = 0

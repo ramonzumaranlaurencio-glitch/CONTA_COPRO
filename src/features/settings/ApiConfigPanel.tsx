@@ -223,9 +223,9 @@ export const ApiConfigPanel: React.FC = () => {
                 synth.cancel();
                 const voices = synth.getVoices();
                 const voice = voices.find(v => v.lang.startsWith('es') && /google/i.test(v.name)) || voices.find(v => v.lang.startsWith('es'));
-                const u = new SpeechSynthesisUtterance('Hola, esta es tu voz de CONTA PRO. El audio funciona correctamente en tu dispositivo.');
+                const u = new SpeechSynthesisUtterance('Hola, esta es la voz de CONTA_COLPRO para Colombia. El audio funciona correctamente en tu dispositivo.');
                 if (voice) u.voice = voice;
-                u.lang = 'es-PE'; u.rate = 0.91; u.pitch = 0.88;
+                u.lang = 'es-CO'; u.rate = 0.91; u.pitch = 0.88;
                 synth.speak(u);
               }} style={{
                 width: '100%', padding: '9px', background: `${C.green}18`,

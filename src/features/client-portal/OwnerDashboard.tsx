@@ -1,7 +1,7 @@
 /**
  * OwnerDashboard — Panel exclusivo del dueño CONTA_PRO
  * Visible solo con plan CONTA_PRO (superadmin)
- * Secciones: KPIs · Pagos Yape/Plin · Clientes · Códigos únicos · Consumo IA · Alertas
+ * Secciones: KPIs · Pagos Nequi/Daviplata/PSE · Clientes · Códigos únicos · Consumo IA · Alertas
  */
 import React, { useMemo, useState } from 'react';
 
@@ -89,8 +89,8 @@ const DEMO_CODIGOS: AccessCode[] = [];
 const DEMO_ALERTAS: Alert[] = [];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-const fmt = (n: number) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtInt = (n: number) => n.toLocaleString('es-PE');
+const fmt = (n: number) => n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtInt = (n: number) => n.toLocaleString('es-CO');
 
 const planColor = (plan: string): string => {
   if (plan.includes('MAESTRO')) return C.purple;
@@ -274,8 +274,8 @@ export const OwnerDashboard = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               <KpiCard icon="👥" label="Total clientes" value={String(kpis.totalClientes)} sub={`${kpis.activos} activos · ${kpis.trials} en trial`} color={C.accent} />
-              <KpiCard icon="💰" label="Ingresos del mes" value={`S/ ${fmt(kpis.ingresosMes)}`} sub="Pagos aprobados" color={C.green} />
-              <KpiCard icon="⏳" label="Pagos pendientes" value={String(kpis.pendientes)} sub="Yape · Plin · Transferencia" color={C.yellow} alert={kpis.pendientes > 0} />
+              <KpiCard icon="💰" label="Ingresos del mes" value={`$ ${fmt(kpis.ingresosMes)}`} sub="Pagos aprobados" color={C.green} />
+              <KpiCard icon="⏳" label="Pagos pendientes" value={String(kpis.pendientes)} sub="Nequi · Daviplata · PSE · Transferencia" color={C.yellow} alert={kpis.pendientes > 0} />
               <KpiCard icon="🤖" label="Docs IA procesados" value={fmtInt(kpis.totalDocsIA)} sub="Este mes · todos los clientes" color={C.purple} />
               <KpiCard icon="🚨" label="Alertas críticas" value={String(kpis.alertasAlto)} sub={`${kpis.codBloqueados} códigos bloqueados`} color={C.red} alert={kpis.alertasAlto > 0} />
             </div>
@@ -314,7 +314,7 @@ export const OwnerDashboard = () => {
                       <div style={{ fontSize: 10, color: C.dim }}>{p.fecha} · {metodoBadge(p.metodo)}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>S/ {fmt(p.monto)}</div>
+                      <div style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>$ {fmt(p.monto)}</div>
                       <Badge label={p.status} color={statusColor(p.status)} />
                     </div>
                   </div>
@@ -348,7 +348,7 @@ export const OwnerDashboard = () => {
         {tab === 'PAGOS' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.text }}>💰 Validación de Pagos — Yape · Plin · Transferencia</h2>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.text }}>💰 Validación de Pagos Colombia — Nequi · Daviplata · PSE · Transferencia</h2>
               <Badge label={`${pagos.filter(p => p.status === 'PENDIENTE').length} pendientes`} color={C.yellow} />
             </div>
 
@@ -360,7 +360,7 @@ export const OwnerDashboard = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead style={{ background: '#030810' }}>
                   <tr>
-                    {['Fecha', 'Cliente', 'RUC', 'Plan', 'Monto', 'Método', 'Referencia', 'Teléfono', 'Estado', 'Acciones'].map((h, i) => (
+                    {['Fecha', 'Cliente', 'NIT', 'Plan', 'Monto', 'Método', 'Referencia', 'Teléfono', 'Estado', 'Acciones'].map((h, i) => (
                       <th key={i} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -374,7 +374,7 @@ export const OwnerDashboard = () => {
                       </td>
                       <td style={{ ...tdStyle, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{p.ruc}</td>
                       <td style={tdStyle}><Badge label={p.plan} color={planColor(p.plan)} /></td>
-                      <td style={{ ...tdStyle, color: C.green, fontWeight: 700, fontFamily: 'Consolas, monospace' }}>S/ {fmt(p.monto)}</td>
+                      <td style={{ ...tdStyle, color: C.green, fontWeight: 700, fontFamily: 'Consolas, monospace' }}>$ {fmt(p.monto)}</td>
                       <td style={tdStyle}>{metodoBadge(p.metodo)}</td>
                       <td style={{ ...tdStyle, fontFamily: 'Consolas, monospace', fontSize: 11, color: C.accent }}>{p.referencia}</td>
                       <td style={{ ...tdStyle, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{p.telefono}</td>
@@ -401,9 +401,9 @@ export const OwnerDashboard = () => {
             {/* Instrucciones de validación */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[
-                { icon: '💜', title: 'Yape', steps: ['Verificar número de teléfono', 'Confirmar monto exacto', 'Validar código de operación YP-XXXXXXXXX', 'Aprobar y generar código de acceso'] },
-                { icon: '💙', title: 'Plin', steps: ['Verificar número de teléfono', 'Confirmar monto exacto', 'Validar código de operación PL-XXXXXXXXX', 'Aprobar y generar código de acceso'] },
-                { icon: '🏦', title: 'Transferencia', steps: ['Verificar número de operación', 'Confirmar monto en cuenta bancaria', 'Validar fecha de abono', 'Aprobar y generar código de acceso'] },
+                { icon: '💚', title: 'Nequi (Bancolombia)', steps: ['Verificar número celular Nequi del pagador', 'Confirmar monto exacto en COP', 'Validar código de operación Nequi (10 dígitos)', 'Verificar estado en app Nequi o portal Bancolombia', 'Aprobar y generar código de acceso CONTA_COLPRO'] },
+                { icon: '🔴', title: 'Daviplata (Davivienda)', steps: ['Verificar número celular Daviplata del pagador', 'Confirmar monto exacto en COP', 'Validar código de autorización Daviplata', 'Verificar en portal Davivienda o app Daviplata', 'Aprobar y generar código de acceso CONTA_COLPRO'] },
+                { icon: '🔵', title: 'PSE / Transferencia ACH', steps: ['Verificar comprobante PSE con NIT del banco', 'Confirmar número de operación ACH Colombia', 'Validar fecha y hora del abono en cuenta', 'Confirmar en extracto bancario el crédito', 'Aprobar y generar código de acceso CONTA_COLPRO'] },
               ].map((m, i) => (
                 <div key={i} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
                   <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: C.text }}>{m.icon} {m.title}</p>
@@ -425,7 +425,7 @@ export const OwnerDashboard = () => {
               <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.text }}>👥 Gestión de Clientes</h2>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={clienteFilter} onChange={e => setClienteFilter(e.target.value)}
-                  placeholder="Buscar por nombre o RUC..."
+                  placeholder="Buscar por nombre o NIT..."
                   style={{ padding: '7px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 12, outline: 'none', width: 220, fontFamily: "'Segoe UI', Arial, sans-serif" }} />
                 <select value={planFilter} onChange={e => setPlanFilter(e.target.value)}
                   style={{ padding: '7px 12px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 12, outline: 'none', fontFamily: "'Segoe UI', Arial, sans-serif" }}>
@@ -441,7 +441,7 @@ export const OwnerDashboard = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead style={{ background: '#030810' }}>
                   <tr>
-                    {['Tipo', 'Cliente / RUC', 'Plan', 'Estado', 'Registrado', 'Último acceso', 'Vencimiento', 'IA Consumida', 'Código', 'Acciones'].map((h, i) => (
+                    {['Tipo', 'Cliente / NIT', 'Plan', 'Estado', 'Registrado', 'Último acceso', 'Vencimiento', 'IA Consumida', 'Código', 'Acciones'].map((h, i) => (
                       <th key={i} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -505,7 +505,7 @@ export const OwnerDashboard = () => {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
-                    ['RUC', selectedClient.ruc], ['Email', selectedClient.email],
+                    ['NIT', selectedClient.ruc], ['Email', selectedClient.email],
                     ['Tipo', selectedClient.tipo], ['Plan', selectedClient.plan],
                     ['Estado', selectedClient.status], ['Código', selectedClient.codigoAcceso],
                     ['IPs registradas', selectedClient.ips.join(', ') || '—'],
@@ -727,7 +727,7 @@ export const OwnerDashboard = () => {
                   },
                   {
                     id: 'MAESTRO+', name: 'Maestro+', price: 'A tratar', period: '', icon: '👑', color: C.purple,
-                    negocios: 0, ia: 'Ilimitada', modulos: ['Contabilidad completa', 'Ventas', 'Compras', 'Inventario', 'Almacén', 'Planillas', 'Centros de costo', 'OCR IA ilimitado', 'ERP completo', 'SUNAT', 'Auditoría'],
+                    negocios: 0, ia: 'Ilimitada', modulos: ['Contabilidad completa PUC', 'Ventas', 'Compras', 'Inventario', 'Almacén', 'Nómina AFP/EPS/ARL', 'Centros de costo', 'OCR IA ilimitado', 'ERP completo', 'DIAN completo', 'Auditoría'],
                     restricciones: ['Implementación guiada', 'A tratar con el dueño'],
                     clientes: clientes.filter(c => c.plan === 'MAESTRO_PLUS').length,
                   },
@@ -787,13 +787,13 @@ export const OwnerDashboard = () => {
                   },
                   {
                     id: 'PRO_EMPRESA',  name: 'Pro Empresa', price: '$149', period: '/mes', icon: '🚀', color: C.blue,
-                    ia: '200 docs/mes', modulos: ['Contabilidad', 'Ventas', 'Compras', 'Inventario completo', 'Planillas', 'OCR IA 200 docs', 'Centros de costo', 'Almacenes múltiples', 'BI avanzado', 'SUNAT'],
+                    ia: '200 docs/mes', modulos: ['Contabilidad PUC', 'Ventas', 'Compras', 'Inventario completo', 'Nómina Colombia', 'OCR IA 200 docs', 'Centros de costo', 'Almacenes múltiples', 'BI avanzado', 'DIAN integrado'],
                     noIncluye: ['Implementación personalizada'],
                     clientes: clientes.filter(c => c.plan === 'PRO_EMPRESA').length,
                   },
                   {
                     id: 'MAESTRO',     name: 'Maestro Empresa', price: 'A tratar', period: '', icon: '👑', color: C.purple,
-                    ia: 'Ilimitada + por proceso', modulos: ['ERP completo personalizado', 'Diagnóstico de procesos', 'Todos los módulos', 'Múltiples usuarios', 'IA configurada por área', 'SUNAT completo', 'Auditoría', 'Integración bancos/SAP/Odoo', 'Capacitación', 'Soporte dedicado'],
+                    ia: 'Ilimitada + por proceso', modulos: ['ERP completo personalizado', 'Diagnóstico de procesos', 'Todos los módulos', 'Múltiples usuarios', 'IA configurada por área', 'DIAN completo Colombia', 'Auditoría forense', 'Integración bancos colombianos/SAP/Odoo', 'Capacitación', 'Soporte dedicado'],
                     noIncluye: [],
                     clientes: clientes.filter(c => c.plan === 'MAESTRO_EMPRESA').length,
                   },
@@ -871,7 +871,7 @@ export const OwnerDashboard = () => {
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.text }}>⚙️ Configuración del Sistema</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {[
-                { title: '💰 Precios de planes', items: ['Plus Empresa: S/ 149/mes', 'Pro Empresa: S/ 249/mes', 'Maestro Empresa: A tratar', 'Plus Contador: S/ 69/mes', 'Pro Contador: S/ 99/mes', 'Maestro+: A tratar'] },
+                { title: '💰 Precios de planes', items: ['Plus Empresa: USD 119/mes', 'Pro Empresa: USD 149/mes', 'Maestro Empresa: A tratar', 'Plus Contador: USD 50/mes', 'Pro Contador: USD 99/mes', 'Maestro+: A tratar'] },
                 { title: '📱 Medios de pago activos', items: ['✅ Yape (validación manual)', '✅ Plin (validación manual)', '✅ Transferencia BCP/Interbank', '⬜ Culqi (tarjeta — próximamente)', '⬜ Izipay (POS virtual — próximamente)'] },
                 { title: '🤖 Límites de IA por plan', items: ['Trial: 0 docs/mes', 'Plus Empresa: 100 docs/mes', 'Pro Empresa: 200 docs/mes', 'Plus Contador: 50 docs/mes', 'Pro Contador: 100 docs/mes', 'Maestro: Ilimitado'] },
                 { title: '🔑 Reglas de códigos únicos', items: ['1 código por cliente al activar plan', 'Código no puede ser reutilizado', 'Máximo 2 IPs distintas por código', 'Bloqueo automático a la 3ra IP distinta', 'Alerta al dueño por intento duplicado'] },

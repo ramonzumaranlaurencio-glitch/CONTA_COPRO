@@ -21,6 +21,8 @@ from src.application.services.hr_ai_service import (
 )
 from src.application.services.ledger_posting_service import LedgerPostingService
 from src.application.services.legal_rag_service import HashEmbeddingClient, LegalDocumentInput, LegalRagService
+from src.application.services.payroll_service import ColombianDocumentService, NOMINA_ACCOUNTS_PUC
+from src.domain.services.payroll_calculator import ColombianPayrollCalculator
 from src.ai.vector_store import PgVectorAccountingStore
 from src.config import settings
 from src.domain.models.accounting import AccountingPeriod, HrContract, HrWorker, JournalEntry
@@ -36,7 +38,7 @@ class WorkerCreatePayload(BaseModel):
     company_id: str | None = None
     nombres: str
     apellidos: str
-    dni: str = Field(min_length=8, max_length=8)
+    dni: str = Field(min_length=5, max_length=12)  # Cédula de Ciudadanía Colombia (5-12 dígitos)
     fecha_nacimiento: date | None = None
     fecha_inicio_contrato: date | None = None
     fecha_fin_contrato: date | None = None
@@ -78,11 +80,11 @@ class PayrollJournalPostPayload(BaseModel):
     month: int
     entry_date: date | None = None
     company_id: str | None = None
-    cost_center: str = "LIM-ADM"
+    cost_center: str = "COL-ADM"
 
 
 class IdentityValidationPayload(BaseModel):
-    dni: str = Field(min_length=8, max_length=8)
+    dni: str = Field(min_length=5, max_length=12)  # Cédula de Ciudadanía Colombia
     nombres: str = ""
     apellidos: str = ""
 
@@ -132,8 +134,9 @@ async def seed_legal_library(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "C
             title=item["title"],
             content=(
                 f"{item['title']}. Fuente oficial/referencial: {item['url']}. "
-                "Usar como contexto legal laboral para seleccion, tratamiento de CV, jornada, SST, "
-                "modalidades contractuales, subordinacion, periodo de prueba y proteccion de datos personales."
+                "Usar como contexto legal laboral colombiano para seleccion, contratacion, nomina, "
+                "jornada (CST), SST (Ley 1562/2012), seguridad social (Ley 100/1993), parafiscales (Ley 21/1982), "
+                "PILA (UGPP), ReteFuente (ET Art. 383), proteccion datos (Ley 1581/2012)."
             ),
             metadata={"url": item["url"], "domain": "laboral_peru"},
         )
@@ -511,77 +514,91 @@ async def post_payroll_journal(
             )
             await period_uow.commit()
 
-    gross = _money(sum((Decimal(str(worker.sueldo_pactado or 0)) for worker in workers), Decimal("0.00")))
-    pension = _money(sum(
-        (
-            Decimal(str(worker.sueldo_pactado or 0)) *
-            (Decimal("0.13") if str(worker.pension_system or "AFP").upper() == "ONP" else Decimal("0.1334"))
-        )
-        for worker in workers
-    ))
-    essalud = _money(gross * Decimal("0.09"))
-    net_payable = _money(gross - pension)
-    total_debit = _money(gross + essalud)
+    # ── Cálculo nómina Colombia — CST / Ley 100/1993 / Decreto 1072/2015 ─────────
+    calc = ColombianPayrollCalculator()
+    totales: dict = {
+        "sueldos": Decimal("0"), "aux_transporte": Decimal("0"),
+        "afp_emp": Decimal("0"), "eps_emp": Decimal("0"), "fondo_sol": Decimal("0"), "retefuente": Decimal("0"),
+        "afp_empr": Decimal("0"), "eps_empr": Decimal("0"), "arl": Decimal("0"),
+        "ccf": Decimal("0"), "sena": Decimal("0"), "icbf": Decimal("0"),
+        "cesantias": Decimal("0"), "int_ces": Decimal("0"), "prima": Decimal("0"), "vacaciones": Decimal("0"),
+    }
+    for worker in workers:
+        liq = calc.liquidar(worker)
+        c = liq["comprobante"]
+        a = liq["aportes_empleador"]
+        p = liq["provisiones"]
+        totales["sueldos"]       += c["salario_proporcional"]
+        totales["aux_transporte"] += c["auxilio_transporte"]
+        totales["afp_emp"]        += c["afp_empleado"]
+        totales["eps_emp"]        += c["eps_empleado"]
+        totales["fondo_sol"]      += c["fondo_solidaridad"]
+        totales["retefuente"]     += c["retefuente"]
+        totales["afp_empr"]       += a["afp_empleador"]
+        totales["eps_empr"]       += a["eps_empleador"]
+        totales["arl"]            += a["arl"]
+        totales["ccf"]            += a["ccf"]
+        totales["sena"]           += a["sena"]
+        totales["icbf"]           += a["icbf"]
+        totales["cesantias"]      += p["cesantias"]
+        totales["int_ces"]        += p["int_cesantias"]
+        totales["prima"]          += p["prima"]
+        totales["vacaciones"]     += p["vacaciones"]
+
+    def _m(k): return _money(totales[k])
+
+    neto_pagar = _m("sueldos") + _m("aux_transporte") - _m("afp_emp") - _m("eps_emp") - _m("fondo_sol") - _m("retefuente")
+    total_afp = _m("afp_emp") + _m("afp_empr")
+    total_eps = _m("eps_emp") + _m("eps_empr")
+    total_debit = (
+        _m("sueldos") + _m("aux_transporte") +
+        _m("cesantias") + _m("int_ces") + _m("prima") + _m("vacaciones") +
+        _m("afp_empr") + _m("eps_empr") + _m("arl") + _m("ccf") + _m("sena") + _m("icbf")
+    )
 
     if total_debit <= 0:
-        raise HTTPException(status_code=422, detail="La planilla no tiene importe contable")
+        raise HTTPException(status_code=422, detail="La nómina no tiene importe contable")
 
-    lines = [
-        {
-            "account_code": "6211",
-            "account_name": "Sueldos y salarios",
-            "debit": gross,
-            "credit": Decimal("0.00"),
-            "cost_center": payload.cost_center,
-        },
-        {
-            "account_code": "6271",
-            "account_name": "Seguridad y previsión social - EsSalud empleador",
-            "debit": essalud,
-            "credit": Decimal("0.00"),
-            "cost_center": payload.cost_center,
-        },
-        {
-            "account_code": "4111",
-            "account_name": "Remuneraciones por pagar",
-            "debit": Decimal("0.00"),
-            "credit": net_payable,
-        },
-        {
-            "account_code": "4032",
-            "account_name": "AFP / ONP por pagar",
-            "debit": Decimal("0.00"),
-            "credit": pension,
-        },
-        {
-            "account_code": "4031",
-            "account_name": "EsSalud por pagar",
-            "debit": Decimal("0.00"),
-            "credit": essalud,
-        },
-    ]
+    # ── Asientos PUC Colombia ──────────────────────────────────────────────────
+    def _line(code, name, debit=Decimal("0"), credit=Decimal("0"), cc=None):
+        entry = {"account_code": code, "account_name": name, "debit": debit, "credit": credit}
+        if cc:
+            entry["cost_center"] = cc
+        return entry
 
-    # Cuentas PCGE que genera planilla — upsert al plan contable antes de postear
-    # Igual al patrón de post_purchase_invoice: garantiza que el libro diario
-    # muestre las partidas aunque el usuario no haya cargado el plan contable manualmente.
-    _PAYROLL_ACCOUNTS = [
-        {"code": "6211", "name": "Sueldos y salarios",                          "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
-        {"code": "6271", "name": "Seguridad y previsión social - EsSalud",      "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
-        {"code": "4111", "name": "Remuneraciones por pagar",                    "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4031", "name": "EsSalud por pagar",                           "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4032", "name": "AFP / ONP por pagar",                         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4034", "name": "SCTR por pagar",                              "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4035", "name": "Renta de quinta categoría por pagar",         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4114", "name": "Gratificaciones por pagar",                   "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4115", "name": "Vacaciones por pagar",                        "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "4116", "name": "CTS por pagar",                               "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cost_center": False},
-        {"code": "6214", "name": "Gratificaciones",                             "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
-        {"code": "6215", "name": "Vacaciones",                                  "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
-        {"code": "6216", "name": "CTS",                                         "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cost_center": True},
-    ]
+    lines = []
+    # Débitos — gastos de personal (Clase 51)
+    if _m("sueldos"):       lines.append(_line("510506", "Sueldos y salarios",                   debit=_m("sueldos"),       cc=payload.cost_center))
+    if _m("aux_transporte"): lines.append(_line("510530", "Auxilio de transporte",              debit=_m("aux_transporte"), cc=payload.cost_center))
+    if _m("cesantias"):     lines.append(_line("510518", "Gasto cesantías 8.33%",               debit=_m("cesantias"),      cc=payload.cost_center))
+    if _m("int_ces"):       lines.append(_line("510519", "Gasto intereses cesantías",           debit=_m("int_ces"),        cc=payload.cost_center))
+    if _m("prima"):         lines.append(_line("510521", "Gasto prima de servicios 8.33%",      debit=_m("prima"),          cc=payload.cost_center))
+    if _m("vacaciones"):    lines.append(_line("510527", "Gasto vacaciones 4.17%",              debit=_m("vacaciones"),     cc=payload.cost_center))
+    if _m("afp_empr"):      lines.append(_line("510524", "Gasto AFP empleador 12%",             debit=_m("afp_empr"),       cc=payload.cost_center))
+    if _m("eps_empr"):      lines.append(_line("510522", "Gasto EPS empleador 8.5%",            debit=_m("eps_empr"),       cc=payload.cost_center))
+    if _m("arl"):           lines.append(_line("510523", "Gasto ARL",                           debit=_m("arl"),            cc=payload.cost_center))
+    if _m("ccf"):           lines.append(_line("510525", "Gasto CCF 4%",                        debit=_m("ccf"),            cc=payload.cost_center))
+    if _m("sena"):          lines.append(_line("510510", "Gasto SENA 2%",                       debit=_m("sena"),           cc=payload.cost_center))
+    if _m("icbf"):          lines.append(_line("510515", "Gasto ICBF 3%",                       debit=_m("icbf"),           cc=payload.cost_center))
+    # Créditos — pasivos (Clases 23-26)
+    if total_afp:           lines.append(_line("2405",   "AFP pensiones por pagar (PILA)",       credit=total_afp))
+    if total_eps:           lines.append(_line("2406",   "EPS salud por pagar (PILA)",           credit=total_eps))
+    if _m("arl"):           lines.append(_line("2407",   "ARL por pagar",                        credit=_m("arl")))
+    if _m("fondo_sol"):     lines.append(_line("2408",   "Fondo solidaridad pensional",          credit=_m("fondo_sol")))
+    if _m("ccf"):           lines.append(_line("2413",   "CCF por pagar",                        credit=_m("ccf")))
+    if _m("sena"):          lines.append(_line("2414",   "SENA por pagar",                       credit=_m("sena")))
+    if _m("icbf"):          lines.append(_line("2415",   "ICBF por pagar",                       credit=_m("icbf")))
+    if _m("retefuente"):    lines.append(_line("2365",   "ReteFuente rentas laborales (DIAN)",   credit=_m("retefuente")))
+    if _m("cesantias"):     lines.append(_line("2610",   "Cesantías consolidadas",               credit=_m("cesantias")))
+    if _m("int_ces"):       lines.append(_line("2615",   "Intereses cesantías por pagar",        credit=_m("int_ces")))
+    if _m("prima"):         lines.append(_line("2620",   "Prima de servicios por pagar",         credit=_m("prima")))
+    if _m("vacaciones"):    lines.append(_line("2625",   "Vacaciones consolidadas",              credit=_m("vacaciones")))
+    lines.append(_line("2370", "Nóminas por pagar (neto empleados)",                            credit=neto_pagar))
+
+    # Upsert PUC Colombia al plan contable — garantiza visibilidad en libro diario
     async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow_acct:
         repo_acct = LedgerRepository(uow_acct.session)
-        for acct in _PAYROLL_ACCOUNTS:
+        for acct in NOMINA_ACCOUNTS_PUC:
             await repo_acct.upsert_chart_account(
                 payload.tenant_id,
                 company_id=payload.company_id,
@@ -590,7 +607,7 @@ async def post_payroll_journal(
                 account_class=acct["class"],
                 statement=acct["statement"],
                 nature=acct["nature"],
-                accepts_cost_center=acct["cost_center"],
+                accepts_cost_center=acct["cc"],
                 accepts_partner=False,
             )
         await uow_acct.commit()
@@ -601,10 +618,10 @@ async def post_payroll_journal(
         "year": payload.year,
         "month": payload.month,
         "entry_date": payload.entry_date or date(payload.year, payload.month, 1),
-        "description": f"Planilla mensual {period_code}",
+        "description": f"Nómina Colombia {period_code} — CST/Ley100/Decreto1072",
         "source_module": "PAYROLL",
         "source_id": source_id,
-        "currency": "PEN",
+        "currency": "COP",
         "user_id": ctx.get("user_id"),
         "trace_id": ctx["trace_id"],
         "ip_address": request.client.host if request.client else None,
@@ -625,30 +642,13 @@ async def post_payroll_journal(
 
 @router.post("/payroll/sync-chart-accounts")
 async def sync_payroll_chart_accounts(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
-    """
-    Registra/actualiza en el plan contable TODAS las cuentas PCGE que usa planilla.
-    Ejecutar una vez si los asientos de planilla no aparecen en el libro diario.
-    """
-    _PAYROLL_ACCOUNTS = [
-        {"code": "6211", "name": "Sueldos y salarios",                          "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
-        {"code": "6271", "name": "Seguridad y previsión social - EsSalud",      "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
-        {"code": "6214", "name": "Gratificaciones",                             "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
-        {"code": "6215", "name": "Vacaciones",                                  "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
-        {"code": "6216", "name": "CTS",                                         "class": "62", "statement": "PROFIT_LOSS",   "nature": "DEBIT",  "cc": True},
-        {"code": "4111", "name": "Remuneraciones por pagar",                    "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4114", "name": "Gratificaciones por pagar",                   "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4115", "name": "Vacaciones por pagar",                        "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4116", "name": "CTS por pagar",                               "class": "41", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4031", "name": "EsSalud por pagar",                           "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4032", "name": "AFP / ONP por pagar",                         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4034", "name": "SCTR por pagar",                              "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-        {"code": "4035", "name": "Renta de quinta categoría por pagar",         "class": "40", "statement": "BALANCE_SHEET", "nature": "CREDIT", "cc": False},
-    ]
+    """Registra/actualiza en el PUC Colombia TODAS las cuentas de nómina.
+    Ejecutar una vez si los asientos no aparecen en el libro diario."""
     tenant_id = ctx["tenant_id"]
     async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
         repo = LedgerRepository(uow.session)
         synced = []
-        for acct in _PAYROLL_ACCOUNTS:
+        for acct in NOMINA_ACCOUNTS_PUC:
             await repo.upsert_chart_account(
                 tenant_id,
                 company_id=None,
@@ -662,7 +662,355 @@ async def sync_payroll_chart_accounts(ctx=Depends(require_roles("ADMIN", "ACCOUN
             )
             synced.append(acct["code"])
         await uow.commit()
-    return {"ok": True, "synced_accounts": synced, "count": len(synced)}
+    return {"ok": True, "norma": "PUC_COLOMBIA", "synced_accounts": synced, "count": len(synced)}
+
+
+# ─── COMPROBANTE DE NÓMINA ────────────────────────────────────────────────────
+class ComprobantePayload(BaseModel):
+    tenant_id: str
+    worker_id: str
+    periodo: str | None = None
+    empresa: str = "EMPRESA S.A.S."
+    nit: str = ""
+    representante_legal: str = ""
+
+
+@router.post("/payroll/comprobante")
+async def generar_comprobante_nomina(payload: ComprobantePayload, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Genera Comprobante de Nómina individual (Art. 62 CST). Conexión en tiempo real con libro diario."""
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+    from datetime import datetime as _dt
+
+    periodo = payload.periodo or _dt.now().strftime("%B %Y")
+    calc = ColombianPayrollCalculator()
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        result = await uow.session.execute(
+            select(HrWorker).where(HrWorker.tenant_id == payload.tenant_id, HrWorker.id == payload.worker_id)
+        )
+        worker = result.scalar_one_or_none()
+        if not worker:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+        liq = calc.liquidar(worker)
+        doc_data = {
+            **liq,
+            "nombres": worker.nombres,
+            "apellidos": worker.apellidos,
+            "cedula": worker.dni,
+            "cargo": worker.cargo_postulado,
+            "periodo": periodo,
+            "empresa": payload.empresa,
+            "nit": payload.nit,
+            "cc_empresa": payload.representante_legal,
+        }
+        pdf_bytes = ColombianDocumentService.generar_comprobante_nomina_pdf(doc_data)
+        b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "worker_id": payload.worker_id,
+        "cedula": worker.dni,
+        "nombres": f"{worker.nombres} {worker.apellidos}",
+        "periodo": periodo,
+        "liquidacion": liq,
+        "filename": f"comprobante_{worker.dni}_{periodo.replace(' ', '_')}.pdf",
+        "mime_type": "application/pdf",
+        "pdf_base64": b64,
+    }
+
+
+@router.post("/payroll/comprobante-masivo")
+async def generar_comprobantes_masivos(
+    tenant_id: str,
+    periodo: str | None = None,
+    empresa: str = "EMPRESA S.A.S.",
+    nit: str = "",
+    ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER")),
+):
+    """Genera comprobantes de nómina para todos los trabajadores activos del período."""
+    if tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+    from datetime import datetime as _dt
+
+    periodo = periodo or _dt.now().strftime("%B %Y")
+    calc = ColombianPayrollCalculator()
+
+    async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
+        result = await uow.session.execute(select(HrWorker).where(HrWorker.tenant_id == tenant_id))
+        workers = list(result.scalars().all())
+
+    comprobantes = []
+    for w in workers:
+        liq = calc.liquidar(w)
+        doc_data = {**liq, "nombres": w.nombres, "apellidos": w.apellidos, "cedula": w.dni,
+                    "cargo": w.cargo_postulado, "periodo": periodo, "empresa": empresa, "nit": nit}
+        pdf_bytes = ColombianDocumentService.generar_comprobante_nomina_pdf(doc_data)
+        comprobantes.append({
+            "cedula": w.dni,
+            "nombre": f"{w.nombres} {w.apellidos}",
+            "neto_pagar": str(liq["comprobante"]["neto_pagar"]),
+            "filename": f"comprobante_{w.dni}_{periodo.replace(' ','_')}.pdf",
+            "pdf_base64": _b64.b64encode(pdf_bytes).decode("utf-8"),
+        })
+
+    return {"periodo": periodo, "total_trabajadores": len(comprobantes), "comprobantes": comprobantes}
+
+
+# ─── PILA ─────────────────────────────────────────────────────────────────────
+@router.post("/payroll/pila")
+async def generar_pila(
+    tenant_id: str,
+    periodo: str,
+    nit_empresa: str = "",
+    nombre_empresa: str = "",
+    ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER")),
+):
+    """Genera archivo PILA (Planilla Integrada de Liquidación de Aportes) — UGPP."""
+    if tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    calc = ColombianPayrollCalculator()
+
+    async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
+        result = await uow.session.execute(select(HrWorker).where(HrWorker.tenant_id == tenant_id))
+        workers = list(result.scalars().all())
+
+    workers_data = []
+    for w in workers:
+        liq = calc.liquidar(w)
+        workers_data.append({**liq, "cedula": w.dni, "nombres": w.nombres, "apellidos": w.apellidos})
+
+    contenido = ColombianDocumentService.generar_pila_txt(workers_data, periodo, nit_empresa, nombre_empresa)
+    import base64 as _b64
+    return {
+        "periodo": periodo,
+        "trabajadores": len(workers_data),
+        "filename": f"PILA_{periodo}.txt",
+        "contenido_base64": _b64.b64encode(contenido.encode("utf-8")).decode("utf-8"),
+        "preview": contenido[:500],
+        "nota": "Liquidar vía operador PILA autorizado (SOI, Mi Planilla, Aportes En Línea) antes del día 21 del mes siguiente — UGPP.",
+    }
+
+
+# ─── CERTIFICADO LABORAL ──────────────────────────────────────────────────────
+class CertificadoLaboralPayload(BaseModel):
+    tenant_id: str
+    worker_id: str
+    empresa: str = "EMPRESA S.A.S."
+    nit: str = ""
+    representante_legal: str = ""
+    cargo_representante: str = "Representante Legal"
+    tipo_contrato: str = "TÉRMINO INDEFINIDO"
+    incluir_fecha_retiro: bool = False
+    causa_terminacion: str | None = None
+
+
+@router.post("/workers/certificado-laboral")
+async def generar_certificado_laboral(payload: CertificadoLaboralPayload, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Genera Certificado Laboral (Art. 57 num. 7 CST)."""
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+    from datetime import datetime as _dt
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        result = await uow.session.execute(
+            select(HrWorker).where(HrWorker.tenant_id == payload.tenant_id, HrWorker.id == payload.worker_id)
+        )
+        worker = result.scalar_one_or_none()
+        if not worker:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    doc_data = {
+        "empresa": payload.empresa, "nit": payload.nit,
+        "nombres": worker.nombres, "apellidos": worker.apellidos, "cedula": worker.dni,
+        "cargo": worker.cargo_postulado, "salario": str(worker.sueldo_pactado),
+        "fecha_ingreso": worker.fecha_inicio_contrato.isoformat() if worker.fecha_inicio_contrato else "",
+        "fecha_retiro": worker.fecha_fin_contrato.isoformat() if (payload.incluir_fecha_retiro and worker.fecha_fin_contrato) else "",
+        "tipo_contrato": payload.tipo_contrato,
+        "representante_legal": payload.representante_legal,
+        "cargo_representante": payload.cargo_representante,
+        "fecha_expedicion": _dt.now().strftime("%d de %B de %Y"),
+    }
+    pdf_bytes = ColombianDocumentService.generar_certificado_laboral_pdf(doc_data)
+    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "worker_id": payload.worker_id, "cedula": worker.dni,
+        "filename": f"certificado_laboral_{worker.dni}.pdf",
+        "mime_type": "application/pdf", "pdf_base64": b64,
+    }
+
+
+# ─── PAZ Y SALVO ──────────────────────────────────────────────────────────────
+class PazYSalvoPayload(BaseModel):
+    tenant_id: str
+    worker_id: str
+    empresa: str = "EMPRESA S.A.S."
+    nit: str = ""
+    representante_legal: str = ""
+    conceptos_liquidados: list[str] = []
+    observaciones: str = ""
+
+
+@router.post("/workers/paz-y-salvo")
+async def generar_paz_y_salvo(payload: PazYSalvoPayload, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Genera Paz y Salvo laboral."""
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        result = await uow.session.execute(
+            select(HrWorker).where(HrWorker.tenant_id == payload.tenant_id, HrWorker.id == payload.worker_id)
+        )
+        worker = result.scalar_one_or_none()
+        if not worker:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    doc_data = {
+        "empresa": payload.empresa, "nit": payload.nit,
+        "nombres": worker.nombres, "apellidos": worker.apellidos, "cedula": worker.dni,
+        "cargo": worker.cargo_postulado, "representante_legal": payload.representante_legal,
+        "conceptos_liquidados": payload.conceptos_liquidados or None,
+        "observaciones": payload.observaciones,
+    }
+    pdf_bytes = ColombianDocumentService.generar_paz_y_salvo_pdf(doc_data)
+    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "worker_id": payload.worker_id, "cedula": worker.dni,
+        "filename": f"paz_y_salvo_{worker.dni}.pdf",
+        "mime_type": "application/pdf", "pdf_base64": b64,
+    }
+
+
+# ─── ACTA DE LIQUIDACIÓN ──────────────────────────────────────────────────────
+class ActaLiquidacionPayload(BaseModel):
+    tenant_id: str
+    worker_id: str
+    empresa: str = "EMPRESA S.A.S."
+    nit: str = ""
+    representante_legal: str = ""
+    causa_terminacion: str = "Terminación sin justa causa (Art. 64 CST)"
+    fecha_retiro: date | None = None
+    liquidacion: dict = {}
+
+
+@router.post("/workers/acta-liquidacion")
+async def generar_acta_liquidacion(payload: ActaLiquidacionPayload, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Genera Acta de Liquidación de Prestaciones Sociales (Art. 64-66 CST)."""
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+    from datetime import datetime as _dt
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        result = await uow.session.execute(
+            select(HrWorker).where(HrWorker.tenant_id == payload.tenant_id, HrWorker.id == payload.worker_id)
+        )
+        worker = result.scalar_one_or_none()
+        if not worker:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    calc = ColombianPayrollCalculator()
+    liq = calc.liquidar(worker)
+
+    doc_data = {
+        "empresa": payload.empresa, "nit": payload.nit,
+        "nombres": worker.nombres, "apellidos": worker.apellidos, "cedula": worker.dni,
+        "cargo": worker.cargo_postulado, "ultimo_salario": str(worker.sueldo_pactado),
+        "fecha_ingreso": worker.fecha_inicio_contrato.isoformat() if worker.fecha_inicio_contrato else "",
+        "fecha_retiro": (payload.fecha_retiro or date.today()).isoformat(),
+        "causa_terminacion": payload.causa_terminacion,
+        "representante_legal": payload.representante_legal,
+        "liquidacion": payload.liquidacion or {
+            "cesantias": str(liq["provisiones"]["cesantias"]),
+            "int_cesantias": str(liq["provisiones"]["int_cesantias"]),
+            "prima": str(liq["provisiones"]["prima"]),
+            "vacaciones": str(liq["provisiones"]["vacaciones"]),
+        },
+    }
+    pdf_bytes = ColombianDocumentService.generar_acta_liquidacion_pdf(doc_data)
+    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "worker_id": payload.worker_id, "cedula": worker.dni,
+        "filename": f"acta_liquidacion_{worker.dni}.pdf",
+        "mime_type": "application/pdf", "pdf_base64": b64,
+        "liquidacion_calculada": liq["provisiones"],
+    }
+
+
+# ─── AUTORIZACIÓN DESCUENTOS ──────────────────────────────────────────────────
+class AutorizacionDescuentosPayload(BaseModel):
+    tenant_id: str
+    worker_id: str
+    empresa: str = "EMPRESA S.A.S."
+    nit: str = ""
+    descuentos_autorizados: list[str] = []
+
+
+@router.post("/workers/autorizacion-descuentos")
+async def generar_autorizacion_descuentos(payload: AutorizacionDescuentosPayload, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Genera Autorización de Descuentos de Nómina (Art. 149 CST) — debe firmar el trabajador."""
+    if payload.tenant_id != ctx["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    import base64 as _b64
+
+    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+        result = await uow.session.execute(
+            select(HrWorker).where(HrWorker.tenant_id == payload.tenant_id, HrWorker.id == payload.worker_id)
+        )
+        worker = result.scalar_one_or_none()
+        if not worker:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    doc_data = {
+        "empresa": payload.empresa, "nit": payload.nit,
+        "nombres": worker.nombres, "apellidos": worker.apellidos, "cedula": worker.dni,
+        "cargo": worker.cargo_postulado,
+        "descuentos_autorizados": payload.descuentos_autorizados or None,
+    }
+    pdf_bytes = ColombianDocumentService.generar_autorizacion_descuentos_pdf(doc_data)
+    b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    return {
+        "worker_id": payload.worker_id, "cedula": worker.dni,
+        "filename": f"autorizacion_descuentos_{worker.dni}.pdf",
+        "mime_type": "application/pdf", "pdf_base64": b64,
+        "nota": "Documento que DEBE firmar el trabajador (Art. 149 CST). Archivar en hoja de vida.",
+    }
+
+
+# ─── RESUMEN DOCUMENTOS POR TRABAJADOR ───────────────────────────────────────
+@router.get("/workers/{worker_id}/documentos")
+async def listar_documentos_trabajador(worker_id: str, ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
+    """Lista todos los documentos laborales disponibles para generar para un trabajador."""
+    return {
+        "worker_id": worker_id,
+        "documentos_empleador_firma_trabajador": [
+            {"nombre": "Contrato de Trabajo",              "endpoint": "POST /api/v1/hr/contracts/generate",                "norma": "Art. 22-45 CST"},
+            {"nombre": "Autorización Descuentos de Nómina","endpoint": "POST /api/v1/hr/workers/autorizacion-descuentos",   "norma": "Art. 149 CST"},
+            {"nombre": "Acta de Liquidación Prestaciones",  "endpoint": "POST /api/v1/hr/workers/acta-liquidacion",          "norma": "Art. 64-66 CST"},
+        ],
+        "documentos_empresa_genera": [
+            {"nombre": "Comprobante de Nómina",             "endpoint": "POST /api/v1/hr/payroll/comprobante",               "norma": "Art. 62 CST"},
+            {"nombre": "Comprobantes Masivos",              "endpoint": "POST /api/v1/hr/payroll/comprobante-masivo",         "norma": "Art. 62 CST"},
+            {"nombre": "Certificado Laboral",               "endpoint": "POST /api/v1/hr/workers/certificado-laboral",       "norma": "Art. 57 num.7 CST"},
+            {"nombre": "Paz y Salvo Laboral",               "endpoint": "POST /api/v1/hr/workers/paz-y-salvo",               "norma": "Práctica laboral"},
+            {"nombre": "PILA — Planilla Integrada Aportes", "endpoint": "POST /api/v1/hr/payroll/pila",                      "norma": "UGPP / Ley 100/1993"},
+            {"nombre": "Asiento Nómina → Libro Diario",     "endpoint": "POST /api/v1/hr/payroll/journal",                   "norma": "PUC Colombia / Dec. 2649/1993"},
+        ],
+        "documentos_afiliacion": [
+            {"nombre": "Formulario afiliación AFP",         "entidad": "AFP (Porvenir/Protección/Colfondos/Old Mutual/Colpensiones)", "norma": "Art. 20 Ley 100/1993"},
+            {"nombre": "Formulario afiliación EPS",         "entidad": "EPS (Sura/Sanitas/Nueva EPS/Compensar/etc.)",         "norma": "Art. 204 Ley 100/1993"},
+            {"nombre": "Formulario afiliación CCF",         "entidad": "CCF (Compensar/Cafam/Colsubsidio/etc.)",              "norma": "Ley 21/1982"},
+            {"nombre": "Formulario afiliación ARL",         "entidad": "ARL (Sura/Positiva/Bolívar/etc.)",                   "norma": "Decreto 1607/2002"},
+        ],
+    }
 
 
 @router.post("/contracts/generate")
@@ -700,8 +1048,9 @@ async def generate_contract(payload: ContractGeneratePayload, ctx=Depends(requir
             embedding_client=HashEmbeddingClient(settings.rag_embedding_dimensions),
         )
         rag_query = (
-            f"Contrato laboral peru {payload.tipo_contrato} para cargo {worker.cargo_postulado} "
-            f"con DNI {worker.dni}. Clausulas de jornada, SST, datos personales y vigencia."
+            f"Contrato laboral Colombia {payload.tipo_contrato} para cargo {worker.cargo_postulado} "
+            f"CC {worker.dni}. Clausulas CST: jornada, SST Ley 1562, datos personales Ley 1581, "
+            f"seguridad social Ley 100/1993, parafiscales Ley 21/1982."
         )
         rag_context = await rag_service.query(payload.tenant_id, rag_query, limit=6)
         legal_hits = rag_context.get("results", [])
@@ -787,7 +1136,7 @@ async def generate_contract(payload: ContractGeneratePayload, ctx=Depends(requir
             "package_zip_base64": package_zip_base64 if payload.include_annex_package else None,
             "legal_basis": contract.legal_basis,
             "signature_webhook": f"/api/v1/hr/contracts/{contract.id}/signature-webhook",
-            "t_registro_due": t_registro_due_date,
+            "pila_afiliacion_plazo": "Afiliar a EPS/AFP/ARL/CCF ANTES del primer día de trabajo (Ley 100/1993)",
             "compliance_alerts": compliance_alerts,
             "preview": contract.contract_text[:1200],
         }
@@ -815,9 +1164,9 @@ async def signature_webhook(contract_id: str, payload: SignatureWebhookPayload, 
         return {
             "contract_id": str(contract.id),
             "status": contract.status,
-            "message": "Contrato firmado. Ejecutar alta en T-Registro dentro de 24 horas.",
-            "t_registro_required": True,
-            "t_registro_deadline_hours": 24,
+            "message": "Contrato firmado. Afiliar al trabajador en EPS/AFP/ARL/CCF antes del primer día de trabajo.",
+            "pila_afiliacion_urgente": True,
+            "accion_requerida": "Afiliación PILA — EPS (Art. 204 Ley 100) + AFP (Art. 20 Ley 100) + ARL (Ley 1562) + CCF (Ley 21/1982)",
         }
 
 

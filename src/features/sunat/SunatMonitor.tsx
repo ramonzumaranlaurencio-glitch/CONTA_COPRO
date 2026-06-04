@@ -1,7 +1,7 @@
 /**
- * Módulo de Integraciones SUNAT — Plan General Contable PCGE
+ * Módulo de Integraciones DIAN — Plan Único de Cuentas Colombia (PUC)
  * Conexión: tax/submissions · tax/ops/queue-status · tax/ops/dlq
- * Cuentas PCGE vinculadas · Libros PLE · Gráficas de estado
+ * Cuentas PUC vinculadas · Declaraciones DIAN · Gráficas de estado
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -56,40 +56,40 @@ interface DlqEvent {
   created_at: string;
 }
 
-/* ─── PCGE — cuentas vinculadas a SUNAT ─── */
+/* ─── PUC Colombia — cuentas vinculadas a DIAN ─── */
 const PCGE_SUNAT = [
-  { codigo: '4011', nombre: 'IGV — Cuenta propia',             tipo: 'Pasivo',   sunat: 'Declaración IGV mensual',       libro: 'RV / RC' },
-  { codigo: '4012', nombre: 'IGV — Por aplicar',               tipo: 'Pasivo',   sunat: 'Crédito fiscal compras',        libro: 'RC 8.1' },
-  { codigo: '1211', nombre: 'Facturas por cobrar — terceros',  tipo: 'Activo',   sunat: 'Registro de Ventas',            libro: 'RV 14.1' },
-  { codigo: '1212', nombre: 'Letras por cobrar — terceros',    tipo: 'Activo',   sunat: 'Registro de Ventas',            libro: 'RV 14.1' },
-  { codigo: '4211', nombre: 'Facturas por pagar — terceros',   tipo: 'Pasivo',   sunat: 'Registro de Compras',           libro: 'RC 8.1' },
-  { codigo: '4212', nombre: 'Letras por pagar — terceros',     tipo: 'Pasivo',   sunat: 'Registro de Compras',           libro: 'RC 8.1' },
-  { codigo: '7011', nombre: 'Mercaderías — Venta',             tipo: 'Ingreso',  sunat: 'Factura electrónica — Ventas',  libro: 'RV 14.1' },
-  { codigo: '6011', nombre: 'Mercaderías — Compra',            tipo: 'Gasto',    sunat: 'Factura electrónica — Compras', libro: 'RC 8.1' },
-  { codigo: '4031', nombre: 'Renta de 3ra categoría',          tipo: 'Pasivo',   sunat: 'Declaración anual IR',          libro: 'Mayor 6.1' },
-  { codigo: '4032', nombre: 'Renta de 4ta categoría',          tipo: 'Pasivo',   sunat: 'Retención 4ta cat.',            libro: 'Mayor 6.1' },
-  { codigo: '1011', nombre: 'Caja — MN',                       tipo: 'Activo',   sunat: 'Libro de Caja y Bancos',        libro: 'Mayor 6.1' },
-  { codigo: '1041', nombre: 'Cuentas corrientes — MN',         tipo: 'Activo',   sunat: 'Libro de Caja y Bancos',        libro: 'Mayor 6.1' },
+  { codigo: '2408', nombre: 'IVA por pagar',                   tipo: 'Pasivo',   sunat: 'F300 — Declaración IVA bimestral/cuatrimestral', libro: 'F300' },
+  { codigo: '2365', nombre: 'ReteFuente por pagar',            tipo: 'Pasivo',   sunat: 'F350 — Retención en la Fuente mensual',          libro: 'F350' },
+  { codigo: '2367', nombre: 'ReteIVA por pagar',               tipo: 'Pasivo',   sunat: 'F300 — Retención de IVA',                        libro: 'F300' },
+  { codigo: '2368', nombre: 'ReteICA por pagar',               tipo: 'Pasivo',   sunat: 'ICA — Declaración municipal',                    libro: 'ICA' },
+  { codigo: '1305', nombre: 'Clientes',                        tipo: 'Activo',   sunat: 'Factura Electrónica — Ventas DIAN',              libro: 'FE' },
+  { codigo: '2205', nombre: 'Proveedores',                     tipo: 'Pasivo',   sunat: 'Factura Electrónica — Compras DIAN',             libro: 'FE' },
+  { codigo: '4135', nombre: 'Ingresos — Ventas comerciales',   tipo: 'Ingreso',  sunat: 'Base gravable IVA ventas',                       libro: 'F300' },
+  { codigo: '6135', nombre: 'Costo de ventas',                 tipo: 'Costo',    sunat: 'Base deducible renta',                           libro: 'F110' },
+  { codigo: '2610', nombre: 'Cesantías consolidadas',          tipo: 'Pasivo',   sunat: 'Nómina — Aportes parafiscales',                  libro: 'PILA' },
+  { codigo: '2615', nombre: 'Intereses s/ cesantías',          tipo: 'Pasivo',   sunat: 'Aportes SENA/ICBF/CCF',                         libro: 'PILA' },
+  { codigo: '1105', nombre: 'Caja',                            tipo: 'Activo',   sunat: 'Libro de Caja y Bancos',                        libro: 'Diario' },
+  { codigo: '1110', nombre: 'Bancos (Bancolombia/Davivienda)', tipo: 'Activo',   sunat: 'Libro de Caja y Bancos',                        libro: 'Diario' },
 ];
 
-/* ─── Libros PLE ─── */
+/* ─── Declaraciones DIAN Colombia ─── */
 const PLE_BOOKS = [
-  { codigo: '5.1',  nombre: 'Libro Diario',             submit_type: 'LEDGER',   min_ops: 0  },
-  { codigo: '6.1',  nombre: 'Libro Mayor',              submit_type: 'LEDGER',   min_ops: 0  },
-  { codigo: '8.1',  nombre: 'Registro de Compras',      submit_type: 'PURCHASE', min_ops: 1  },
-  { codigo: '14.1', nombre: 'Registro de Ventas',       submit_type: 'INVOICE',  min_ops: 1  },
-  { codigo: '1.1',  nombre: 'Libro de Caja y Bancos',   submit_type: 'TREASURY', min_ops: 0  },
-  { codigo: '3.1',  nombre: 'Libro de Inventario',      submit_type: 'INVENTORY',min_ops: 0  },
+  { codigo: 'F300',  nombre: 'Declaración IVA',                submit_type: 'IVA',       min_ops: 0 },
+  { codigo: 'F350',  nombre: 'Retención en la Fuente',         submit_type: 'RETEFUENTE', min_ops: 0 },
+  { codigo: 'F110',  nombre: 'Renta Personas Jurídicas',       submit_type: 'RENTA',      min_ops: 0 },
+  { codigo: 'DIARIO',nombre: 'Libro Diario PUC',               submit_type: 'LEDGER',     min_ops: 0 },
+  { codigo: 'MAYOR', nombre: 'Libro Mayor',                    submit_type: 'LEDGER',     min_ops: 0 },
+  { codigo: 'EXO',   nombre: 'Medios Magnéticos / Exógena',    submit_type: 'EXOGENA',    min_ops: 0 },
 ];
 
 /* ─── Helpers ─── */
 const fmtDate = (iso: string) => {
-  try { return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+  try { return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
   catch { return iso; }
 };
 
 const fmtTime = (iso: string) => {
-  try { return new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); }
   catch { return ''; }
 };
 
@@ -277,9 +277,9 @@ export const SunatMonitor = () => {
       if (subRes.ok)  setSubmissions(await subRes.json());
       if (qRes.ok)    setQueueInfo(await qRes.json());
       if (dlqRes.ok)  setDlq(await dlqRes.json());
-      setMessage(`Actualizado: ${new Date().toLocaleTimeString('es-PE')}`);
+      setMessage(`Actualizado: ${new Date().toLocaleTimeString('es-CO')}`);
     } catch {
-      setMessage('Backend no disponible — sin datos SUNAT.');
+      setMessage('Backend no disponible — sin datos DIAN.');
     } finally {
       setLoading(false);
     }
@@ -396,10 +396,10 @@ export const SunatMonitor = () => {
           }}>🔗</div>
           <div>
             <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.text }}>
-              Integraciones — SUNAT · PCGE · PLE
+              Integraciones — DIAN · PUC Colombia · Declaraciones
             </h2>
             <p style={{ margin: 0, fontSize: 10, color: C.textDim }}>
-              Monitor de envíos electrónicos · Plan General Contable vinculado · Libros PLE
+              Monitor de envíos DIAN · Plan Único de Cuentas vinculado · Declaraciones tributarias
               {message && <> · <span style={{ color: C.accent }}>{message}</span></>}
             </p>
           </div>
@@ -463,17 +463,17 @@ export const SunatMonitor = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
 
           {/* Distribución de estados */}
-          <Card title="Estado de Envíos SUNAT" subtitle="Distribución por estado" icon="🍩" accent={C.accent}>
+          <Card title="Estado de Envíos DIAN" subtitle="Distribución por estado" icon="🍩" accent={C.accent}>
             <DonutChart data={donutData} total={stats.total} />
           </Card>
 
           {/* Tipos de comprobante */}
-          <Card title="Tipos de Comprobante" subtitle="Facturas, crédito, débito, PLE" icon="📊" accent={C.purple}>
+          <Card title="Tipos de Comprobante" subtitle="Facturas DIAN, notas crédito/débito, CUFE" icon="📊" accent={C.purple}>
             <HorizBar items={typeData} maxVal={maxTypeVal} />
           </Card>
 
           {/* Cola de eventos */}
-          <Card title="Cola de Eventos SUNAT" subtitle="Outbox · Submissions · DLQ" icon="⚡" accent={C.yellow}>
+          <Card title="Cola de Eventos DIAN" subtitle="Outbox · Submissions · DLQ" icon="⚡" accent={C.yellow}>
             {queueInfo ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* Outbox */}
@@ -525,9 +525,9 @@ export const SunatMonitor = () => {
           border: `1px solid ${C.border}`, overflow: 'hidden',
         }}>
           {([
-            { id: 'submissions', label: '📤 Envíos SUNAT',   count: submissions.length },
+            { id: 'submissions', label: '📤 Envíos DIAN',   count: submissions.length },
             { id: 'pcge',        label: '📋 Plan Contable',  count: PCGE_SUNAT.length  },
-            { id: 'ple',         label: '📚 Libros PLE',     count: PLE_BOOKS.length   },
+            { id: 'ple',         label: '📚 Declaraciones DIAN',     count: PLE_BOOKS.length   },
             { id: 'dlq',         label: '🚨 Dead Letter',    count: dlqTotal            },
           ] as const).map(t => (
             <button
@@ -590,7 +590,7 @@ export const SunatMonitor = () => {
                   {submissions.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ padding: '28px 16px', textAlign: 'center', color: C.textDim, fontSize: 12 }}>
-                        Sin envíos SUNAT registrados.
+                        Sin envíos DIAN registrados.
                         {!loading && <><br /><span style={{ fontSize: 10 }}>Registre facturas electrónicas para ver el historial aquí.</span></>}
                       </td>
                     </tr>
@@ -669,7 +669,7 @@ export const SunatMonitor = () => {
             }}>
               <div>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-                  Plan General Contable (PCGE) — Cuentas vinculadas a SUNAT
+                  Plan Único de Cuentas (PUC) — Cuentas vinculadas a DIAN Colombia
                 </span>
                 <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textDim }}>
                   Conexión directa entre cuentas contables y obligaciones tributarias
@@ -690,7 +690,7 @@ export const SunatMonitor = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: C.header }}>
-                    {['CÓDIGO', 'NOMBRE DE LA CUENTA', 'TIPO', 'VINCULACIÓN SUNAT', 'LIBRO PLE'].map((h, i) => (
+                    {['CÓDIGO', 'NOMBRE DE LA CUENTA', 'TIPO', 'VINCULACIÓN DIAN', 'DECLARACIÓN'].map((h, i) => (
                       <th key={i} style={{
                         padding: '8px 12px', textAlign: 'left',
                         fontSize: 10, fontWeight: 700, color: C.textMut,
@@ -741,7 +741,7 @@ export const SunatMonitor = () => {
           </div>
         )}
 
-        {/* ── TAB: LIBROS PLE ── */}
+        {/* ── TAB: DECLARACIONES DIAN ── */}
         {activeTab === 'ple' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {pleWithStatus.map((b, i) => (
@@ -779,7 +779,7 @@ export const SunatMonitor = () => {
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 10, color: C.textMut }}>Tipo SUNAT</span>
+                    <span style={{ fontSize: 10, color: C.textMut }}>Tipo DIAN</span>
                     <span style={{ fontSize: 10, color: C.textMut, fontFamily: 'Consolas, monospace' }}>{b.submit_type}</span>
                   </div>
                 </div>
@@ -792,9 +792,9 @@ export const SunatMonitor = () => {
                       background: `${C.accent}18`, color: C.accent,
                       border: `1px solid ${C.accent}33`, borderRadius: 6,
                     }}
-                    onClick={() => setMessage(`Generando PLE Libro ${b.codigo} — ${b.nombre}...`)}
+                    onClick={() => setMessage(`Generando ${b.nombre} (${b.codigo}) para DIAN...`)}
                   >
-                    ⬇ Generar PLE
+                    ⬇ Generar DIAN
                   </button>
                   <button
                     type="button"
@@ -803,9 +803,9 @@ export const SunatMonitor = () => {
                       background: `${C.green}18`, color: C.green,
                       border: `1px solid ${C.green}33`, borderRadius: 6,
                     }}
-                    onClick={() => setMessage(`Enviando ${b.nombre} a SUNAT...`)}
+                    onClick={() => setMessage(`Enviando ${b.nombre} a DIAN / Muisca...`)}
                   >
-                    📤 Enviar SUNAT
+                    📤 Enviar a DIAN
                   </button>
                 </div>
               </div>

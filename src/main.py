@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="1.1.0",
-        description="CONTA_PRO Enterprise Foundation API: ledger inmutable, SUNAT, reportes, IA, integraciones y workers.",
+        description="CONTA_COLPRO Enterprise Foundation API: ledger inmutable, DIAN Colombia, PUC, reportes, IA, integraciones y workers.",
         lifespan=lifespan,
     )
     app.add_middleware(
