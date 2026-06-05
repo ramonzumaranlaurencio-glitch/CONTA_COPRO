@@ -662,6 +662,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
                 : 'EXPENSE_OR_ASSET';
 
       const requiresSupport = Boolean(raw.requires_support ?? fallback.requiresReview);
+      const isCatchAllAccount = accountCode === '659101' || accountCode === '519099';
       const requiresReview = shouldBypassReview({
         description,
         code: String(raw.code || ''),
@@ -670,7 +671,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         lineType: detectedLineType as AccountingLineType,
       })
         ? false
-        : Boolean(requiresSupport || aiConfidence < 0.8 || (accountCode === '659101' && detectedLineType !== 'ROUNDING'));
+        : Boolean(isCatchAllAccount && detectedLineType === 'EXPENSE_OR_ASSET');
 
       return {
         id: newId(),
@@ -846,8 +847,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         continue;
       }
 
-      if (item.requiresReview && !modifyDetail.trim()) {
-        return `Item ${item.description}: requiere revisión contable. Usa Modificar y registra sustento.`;
+      if (item.requiresReview && !normalizeAccount(item.accountCode)) {
+        return `Item ${item.description}: sin cuenta contable asignada. Usa Modificar para asignarla.`;
       }
     }
     return '';
