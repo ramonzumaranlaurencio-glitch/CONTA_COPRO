@@ -167,8 +167,10 @@ class LedgerPostingService:
     def _statement_for_account(self, code: str) -> str:
         first = self._normalize_code(code, "0")[:1]
         if first in {"1", "2", "3", "4", "5"}:
+        if first in {"1", "2", "3"}:
             return "BALANCE"
         if first in {"6", "7", "8", "9"}:
+        if first in {"4", "5", "6", "7"}:
             return "PROFIT_LOSS"
         return "UNCLASSIFIED"
 
@@ -178,6 +180,8 @@ class LedgerPostingService:
 
     def _requires_cost_center(self, code: str) -> bool:
         return self._normalize_code(code, "0")[:1] in {"6", "9"}
+        # En Colombia (PUC), los Gastos (5) y Costos (6) requieren Centro de Costo
+        return self._normalize_code(code, "0")[:1] in {"5", "6"}
 
     async def post_journal(self, payload: dict) -> JournalEntry:
         tenant_id = payload.get("tenant_id")
@@ -485,6 +489,8 @@ class LedgerPostingService:
                 {
                     "account_code": "2208",
                     "account_name": "Obligaciones comerciales",
+                    "account_code": "220505",
+                    "account_name": "Proveedores nacionales",
                     "debit": Decimal("0.00"),
                     "credit": payable_balance,
                     "partner_ruc": supplier_ruc,
@@ -675,10 +681,14 @@ class LedgerPostingService:
             company_id = invoice_data.get("company_id")
             revenue_account = self._normalize_code(invoice_data.get("revenue_account"), "7011")
             revenue_account_name = "Prestacion de servicios" if revenue_account.startswith("704") else "Ventas"
+            revenue_account = self._normalize_code(invoice_data.get("revenue_account"), "4135")
+            revenue_account_name = "Ingresos operacionales"
 
             lines = [
                 JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="1212", account_name="Cuentas por cobrar comerciales", debit=total + percepcion - retencion - detraccion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
                 JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="2408", account_name="IVA por pagar", debit=Decimal("0.00"), credit=igv, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
+                JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="130505", account_name="Clientes nacionales", debit=total - retencion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
+                JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="240805", account_name="IVA generado", debit=Decimal("0.00"), credit=igv, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
                 JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code=revenue_account, account_name=revenue_account_name, debit=Decimal("0.00"), credit=subtotal, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
             ]
             if detraccion:
