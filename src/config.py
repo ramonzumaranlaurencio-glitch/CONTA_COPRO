@@ -27,15 +27,29 @@ class Settings(BaseSettings):
     dian_nit_lookup_url: str | None = None
     dian_muisca_endpoint: str | None = None
     dian_cufe_validation_url: str | None = None
-    sunat_cpe_lookup_url: str | None = None
+    dian_nit: str | None = None
+    dian_user: str | None = None
+    dian_password: str | None = None
+    dian_xsd_dir: str | None = None
+    dian_realtime_guard_enabled: bool = True
+    dian_guard_block_on_unavailable: bool = False
+    dian_realtime_timeout_seconds: float = 3.0
+    # Defaults para configuracion orientada a Colombia
+    country_code: str = "CO"
+    default_expense_account: str = "513540"
+    auto_rounding_tolerance: float = 100.0
+    # ── Aliases backward-compat SUNAT→DIAN (mantener para no romper código existente) ──
+    sunat_endpoint: str | None = None
+    sunat_ruc: str | None = None          # alias de dian_nit
+    sunat_sol_user: str | None = None     # alias de dian_user
+    sunat_sol_password: str | None = None # alias de dian_password
+    sunat_xsd_dir: str | None = None      # alias de dian_xsd_dir
+    sunat_ruc_lookup_url: str | None = None      # alias de dian_nit_lookup_url
+    sunat_cpe_lookup_url: str | None = None      # alias de dian_cufe_validation_url
     sunat_lookup_token: str | None = None
-    sunat_realtime_guard_enabled: bool = True
+    sunat_realtime_guard_enabled: bool = True    # alias de dian_realtime_guard_enabled
     sunat_guard_block_on_unavailable: bool = False
-    sunat_realtime_timeout_seconds: float = 3.0
-    sunat_ruc: str | None = None
-    sunat_sol_user: str | None = None
-    sunat_sol_password: str | None = None
-    sunat_xsd_dir: str | None = None
+    sunat_realtime_timeout_seconds: float = 3.0  # alias de dian_realtime_timeout_seconds
     p12_cert_path: str | None = None
     p12_cert_password: str | None = None
     bank_api_base_url: str | None = None

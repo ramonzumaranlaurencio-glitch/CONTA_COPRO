@@ -61,7 +61,7 @@ async def get_alerts(year: int = Query(2026), month: int = Query(5)) -> Dict[str
                     "id": "2",
                     "severity": "warning",
                     "title": "CXP Vencidas",
-                    "description": "8 facturas vencidas por S/ 245,000 requieren pago",
+                    "description": "8 facturas vencidas por $ 245,000 requieren pago",
                     "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
                     "action": "Procesar pagos pendientes",
                 },
@@ -76,7 +76,7 @@ async def get_alerts(year: int = Query(2026), month: int = Query(5)) -> Dict[str
                 {
                     "id": "4",
                     "severity": "info",
-                    "title": "Actualización de Tasas SUNAT",
+                    "title": "Actualización de Tasas DIAN",
                     "description": "Nuevas tasas de cambio disponibles para actualizar",
                     "timestamp": (datetime.now() - timedelta(hours=12)).isoformat(),
                     "action": "Ver tasas actualizadas",
@@ -100,14 +100,14 @@ async def get_anomalies(year: int = Query(2026), month: int = Query(5)) -> Dict[
             "data": [
                 {
                     "type": "Gasto Atípico",
-                    "description": "Compra de 'Software Licencias' por S/ 85,000 (3x promedio histórico)",
+                    "description": "Compra de 'Software Licencias' por $ 85,000 (3x promedio histórico)",
                     "impact": "high",
                     "confidence": 87,
                     "suggestedAction": "Verificar factura y presupuesto de IT. Posible gasto no planificado.",
                 },
                 {
                     "type": "Patrón de Duplicación",
-                    "description": "Dos facturas idénticas del proveedor 'ABC Distribuidores' por S/ 12,540",
+                    "description": "Dos facturas idénticas del proveedor 'ABC Distribuidores' por $ 12,540",
                     "impact": "high",
                     "confidence": 94,
                     "suggestedAction": "Revisar asientos 3,245 y 3,246. Posible error de doble registro.",

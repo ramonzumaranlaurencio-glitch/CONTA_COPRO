@@ -36,13 +36,8 @@ export const AssetTablePremium = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const tr = await fetch(`${API_BASE}/auth/dev-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: TENANT_ID, user_id: 'erp.operator', role: 'ADMIN' }),
-      });
-      if (!tr.ok) throw new Error('token');
-      const { access_token } = await tr.json();
+      let access_token = localStorage.getItem('access_token') || '';
+      if (!access_token) { const _u = localStorage.getItem('login_username'); const _p = localStorage.getItem('login_password'); if (_u && _p) { const _r = await fetch(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: _u, password: _p }) }); if (_r.ok) { const _d = await _r.json() as { access_token?: string }; access_token = _d.access_token || ''; if (access_token) localStorage.setItem('access_token', access_token); } } }
       const hdrs = { Authorization: `Bearer ${access_token}`, 'X-Tenant-Id': TENANT_ID };
 
       const res = await fetch(`${API_BASE}/assets/list?limit=100`, { headers: hdrs });

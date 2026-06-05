@@ -8,13 +8,13 @@ from datetime import date
 
 
 @dataclass
-class PleLine51:
+class LibroDiarioLinea:
     account: str
     debit: Decimal
     credit: Decimal
     cost_center: str | None = None
     centro_costo_id: str | None = None
-    currency: str = "PEN"
+    currency: str = "COP"
     doc_type: str | None = None
     doc_number: str | None = None
     doc_serie: str | None = None
@@ -22,26 +22,35 @@ class PleLine51:
 
 
 @dataclass
-class PleEntry51:
+class LibroDiarioAsiento:
     id: str
     cuo: str
     correlative: str
     date: date
     description: str
-    lines: list[PleLine51]
+    lines: list[LibroDiarioLinea]
 
 
-class PleGenerator:
+# Aliases backward-compat
+PleLine51 = LibroDiarioLinea
+PleEntry51 = LibroDiarioAsiento
+
+
+class LibroDiarioGenerator:
+    """Genera el Libro Diario en formato PUC Colombia (Decreto 2649/1993).
+    Reemplaza al generador PLE de Perú — ahora bajo normativa DIAN/SUPERSOCIEDADES.
+    """
+
     @staticmethod
-    def generate_diario_5_1(company_ruc: str, period: str, entries: list[PleEntry51]) -> tuple[str, str]:
-        """Genera el libro Diario 5.1 con formato de campos SUNAT."""
-        filename = f"LE{company_ruc}{period}00050100001111.txt"
+    def generate_diario(company_nit: str, period: str, entries: list[LibroDiarioAsiento]) -> tuple[str, str]:
+        """Genera el Libro Diario PUC Colombia. Formato pipe-delimitado."""
+        filename = f"LibroDiario_{company_nit}_{period}.txt"
         output = io.StringIO()
 
         for entry in entries:
             for line in entry.lines:
                 row = [
-                    f"{period}00",
+                    period,
                     entry.cuo,
                     f"M{entry.correlative}",
                     line.account,
@@ -63,7 +72,7 @@ class PleGenerator:
 
         return filename, output.getvalue()
 
-    def generate_daily_book(self, company_ruc: str, period: str, entries: list[dict]) -> bytes:
+    def generate_daily_book(self, company_nit: str, period: str, entries: list[dict]) -> bytes:
         rows = io.StringIO()
         for entry in entries:
             for index, line in enumerate(entry.get("lines", []), start=1):
@@ -73,7 +82,7 @@ class PleGenerator:
                     str(entry.get("entry_date", "")),
                     line["account_code"],
                     line.get("cost_center", ""),
-                    line.get("currency", entry.get("currency", "PEN")),
+                    line.get("currency", entry.get("currency", "COP")),
                     line.get("document_type", ""),
                     line.get("document_series", ""),
                     line.get("document_number", ""),
@@ -83,10 +92,10 @@ class PleGenerator:
                     "1",
                 ]
                 rows.write("|".join(fields) + "|\r\n")
-        filename = f"LE{company_ruc}{period}00050100001111.txt"
+        filename = f"LibroDiario_{company_nit}_{period}.txt"
         return self._zip(filename, rows.getvalue())
 
-    def generate_general_ledger(self, company_ruc: str, period: str, lines: list[dict]) -> bytes:
+    def generate_general_ledger(self, company_nit: str, period: str, lines: list[dict]) -> bytes:
         rows = io.StringIO()
         for line in lines:
             fields = [
@@ -102,7 +111,7 @@ class PleGenerator:
                 "1",
             ]
             rows.write("|".join(fields) + "|\r\n")
-        filename = f"LE{company_ruc}{period}00060100001111.txt"
+        filename = f"MayorGeneral_{company_nit}_{period}.txt"
         return self._zip(filename, rows.getvalue())
 
     @staticmethod
@@ -115,3 +124,7 @@ class PleGenerator:
         with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(filename, content)
         return zbuf.getvalue()
+
+
+# Alias backward-compat
+PleGenerator = LibroDiarioGenerator

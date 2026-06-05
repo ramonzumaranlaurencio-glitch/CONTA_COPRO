@@ -255,7 +255,7 @@ export const InvoiceItemsTable: React.FC<InvoiceItemsTableProps> = ({
           ➕ Agregar producto
         </Button>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#0f548c', paddingRight: 10 }}>
-          Subtotal Items: <span style={{ color: '#0078d4' }}>S/ {itemsSubtotal.toFixed(2)}</span>
+          Subtotal Items: <span style={{ color: '#0078d4' }}>$ {itemsSubtotal.toFixed(2)}</span>
         </div>
       </div>
     </div>

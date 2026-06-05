@@ -37,9 +37,13 @@ async def get_current_context(
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    tenant_id = x_tenant_id or payload.get("tenant_id")
-    if not tenant_id or tenant_id != payload.get("tenant_id"):
-        raise HTTPException(status_code=403, detail="Tenant mismatch")
+    # El tenant_id del JWT es siempre autoritativo.
+    # El header X-Tenant-Id se acepta solo si coincide con el del JWT,
+    # o se ignora si viene de un tenant store del frontend con UUID distinto.
+    jwt_tenant = payload.get("tenant_id") or ""
+    tenant_id = jwt_tenant  # usar siempre el del JWT
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Token sin tenant_id")
 
     set_request_context(tenant_id, payload.get("sub"), trace_id)
 
@@ -59,12 +63,14 @@ async def get_db(session: AsyncSession = Depends(get_session)) -> AsyncSession:
 def require_roles(*allowed_roles: str):
     """
     Dependencia para verificar roles.
-    Uso: ctx = Depends(require_roles("ADMIN", "CONTROLLER"))
+    SUPER_ADMIN tiene acceso a todos los endpoints sin restricción.
     """
     async def checker(ctx: dict = Depends(get_current_context)) -> dict:
-        role = ctx.get("role")
+        role = ctx.get("role", "")
+        if role == "SUPER_ADMIN":
+            return ctx  # acceso total sin restricción
         if allowed_roles and role not in allowed_roles:
-            raise HTTPException(status_code=403, detail="Insufficient role")
+            raise HTTPException(status_code=403, detail=f"Rol '{role}' no tiene acceso. Requerido: {list(allowed_roles)}")
         return ctx
     return checker
 

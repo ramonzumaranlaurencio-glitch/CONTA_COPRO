@@ -423,7 +423,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
       CONTA_PRO:
         'Bienvenido Edwin. Estás en modo administrador total de CONTA PRO. ' +
-        'Desde aquí controlas todos los clientes, validas los pagos por Yape y Plin, ' +
+        'Desde aquí controlas todos los clientes, validas los pagos por Nequi y Daviplata, ' +
         'gestionas los códigos de acceso únicos y monitoras el consumo de inteligencia artificial. ' +
         'El sistema está operando correctamente.',
 
@@ -482,7 +482,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     subtotal: '',
     igv: '',
     revenueAccount: '704101',
-    costCenter: 'LIM-COM',
+    costCenter: 'BOG-COM',
   });
 
   const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>({
@@ -491,8 +491,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     supplierRuc: '',
     subtotal: '',
     igv: '',
-    expenseAccount: '601101',
-    costCenter: 'LIM-ADM',
+    expenseAccount: '659101',
+    costCenter: 'BOG-ADM',
   });
 
 
@@ -717,38 +717,43 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     'Content-Type': 'application/json',
   });
 
-  const requestDevToken = async () => {
-    const response = await fetch(`${API_BASE}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: getTenantId(), user_id: USER_ID, role: userRole, plan: userPlan }),
-    });
-    if (!response.ok) {
-      throw new Error('No se pudo generar token dev');
-    }
-    const data = await response.json();
-    const accessToken = data.access_token as string;
-    localStorage.setItem('access_token', accessToken);
-    return accessToken;
+  const isTokenValid = (t: string | null | undefined, tenantId: string): boolean => {
+    if (!t) return false;
+    try {
+      const parts = t.split('.');
+      if (parts.length !== 3) return false;
+      const p = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (p.tenant_id && p.tenant_id !== tenantId) return false;
+      return (p.exp || 0) * 1000 > Date.now() + 60_000;
+    } catch { return false; }
   };
 
-  /** Verifica tenant Y expiración; renueva si el token está vencido o por vencer */
-  const getValidToken = async (candidate?: string | null) => {
+  /** Devuelve token válido. NO llama setToken — evita loop useEffect([token]). */
+  const getValidToken = async (candidate?: string | null): Promise<string> => {
     const tenantId = getTenantId();
-    if (candidate && tokenTenantId(candidate) === tenantId) {
-      // Verificar expiración: si vence en menos de 60 s, renovar
+    if (isTokenValid(candidate, tenantId)) return candidate as string;
+    const stored = localStorage.getItem('access_token');
+    if (isTokenValid(stored, tenantId)) return stored!;
+    // Token expirado — renovar vía /auth/login
+    const storedUser = localStorage.getItem('login_username');
+    const storedPass = localStorage.getItem('login_password');
+    if (storedUser && storedPass) {
       try {
-        const parts = candidate.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-          const expMs = (payload.exp || 0) * 1000;
-          if (expMs > Date.now() + 60_000) return candidate; // aún válido
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: storedUser, password: storedPass, tenant_id: tenantId }),
+        });
+        if (res.ok) {
+          const data = await res.json() as { access_token?: string };
+          if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            return data.access_token;
+          }
         }
-      } catch { /* token malformado → renovar */ }
+      } catch { /* sin conexión */ }
     }
-    const generated = await requestDevToken();
-    setToken(generated);
-    return generated;
+    return stored || candidate || '';
   };
 
   const loadChartAccounts = async (bearerToken: string) => {
@@ -862,7 +867,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     let cancelled = false;
     const bootstrap = async () => {
       try {
-        const generatedToken = await requestDevToken();
+        const generatedToken = await getValidToken(token);
         if (cancelled) {
           return;
         }
@@ -921,7 +926,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       try {
         // Si no hay token (bootstrap falló por backend apagado), re-inicializar completo
         if (!token) {
-          const newToken = await requestDevToken();
+          const newToken = await getValidToken(null);
           setToken(newToken);
           setLoading(true);
           await Promise.all([
@@ -980,9 +985,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         subtotal,
         igv,
         total,
-        currency: 'PEN',
+        currency: 'COP',
         revenue_account: formSource.revenueAccount || salePayload.accountLines[0]?.accountCode || '704101',
-        cost_center: formSource.costCenter || salePayload.accountLines[0]?.costCenter || 'LIM-COM',
+        cost_center: formSource.costCenter || salePayload.accountLines[0]?.costCenter || 'BOG-COM',
         line_items: salePayload.items.map((item) => ({
           product_code: item.code,
           description: item.description,
@@ -1054,8 +1059,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       const subtotal = toNumber(purchasePayload?.subtotal ?? formSource.subtotal);
       const igv = toNumber(purchasePayload?.igv ?? formSource.igv);
       const total = toNumber(purchasePayload?.total ?? subtotal + igv);
-      // Fecha de registro = HOY en hora Perú (UTC-5), no UTC
-      const entryDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+      // Fecha de registro = HOY en hora Colombia (UTC-5), no UTC
+      const entryDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       // Fecha de emisión del comprobante = la que leyó la IA o ingresó el usuario
       const issueDate = purchasePayload?.issueDate || entryDate;
       const postingPeriod = periodFromIsoDate(entryDate);
@@ -1088,9 +1093,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         subtotal,
         igv,
         total,
-        currency: 'PEN',
+        currency: formSource.currency || 'COP',
         expense_account: formSource.expenseAccount || accountLines[0]?.accountCode || '659101',
-        cost_center: formSource.costCenter || accountLines[0]?.costCenter || 'LIM-ADM',
+        cost_center: formSource.costCenter || accountLines[0]?.costCenter || 'BOG-ADM',
 
         items: items.map((item) => ({
           code: item.code,
@@ -1155,25 +1160,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       console.log('CONTA_PRO purchasePayload:', purchasePayload);
       console.log('CONTA_PRO purchase-invoice payload:', payload);
 
-      const tokenResponse = await fetch(`${API_BASE}/auth/dev-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          user_id: USER_ID,
-          role: userRole,
-          plan: userPlan,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error(await tokenResponse.text());
-      }
-
-      const tokenPayload = await tokenResponse.json();
-      const purchaseToken = tokenPayload.access_token;
+      const purchaseToken = await getValidToken(token);
 
       if (!purchaseToken) {
         throw new Error('No hay token de seguridad para registrar compra.');
@@ -2028,7 +2015,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>RUC</label>
-                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="20XXXXXXXXX" maxLength={11} style={inp2} />
+                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="20XXXXXXXXX" maxLength={12} style={inp2} />
                   </div>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>Razón social</label>
@@ -2082,7 +2069,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         {activePanel === 'CHECKLIST' && (
           <div className="sheet-form">
             <Checkbox label="Conciliacion bancaria completada" checked={checklist.conciliacionBancos} onChange={(_, data) => setChecklist((prev) => ({ ...prev, conciliacionBancos: !!data.checked }))} />
-            <Checkbox label="Validacion IGV y detracciones" checked={checklist.validarIgv} onChange={(_, data) => setChecklist((prev) => ({ ...prev, validarIgv: !!data.checked }))} />
+            <Checkbox label="Validacion IVA y retenciones" checked={checklist.validarIgv} onChange={(_, data) => setChecklist((prev) => ({ ...prev, validarIgv: !!data.checked }))} />
             <Checkbox label="Provision CxC 90+ dias" checked={checklist.provisionCxC} onChange={(_, data) => setChecklist((prev) => ({ ...prev, provisionCxC: !!data.checked }))} />
             <Checkbox label="CDR pendientes revisados" checked={checklist.cdrPendientes} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cdrPendientes: !!data.checked }))} />
             <Checkbox label="Pre-cierre anual documentado" checked={checklist.cierreAnual} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cierreAnual: !!data.checked }))} />

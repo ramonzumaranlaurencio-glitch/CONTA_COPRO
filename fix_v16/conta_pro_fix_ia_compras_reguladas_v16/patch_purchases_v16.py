@@ -98,11 +98,16 @@ def _is_public_regulated_receipt(data: dict[str, Any], items: list[dict[str, Any
         [_norm_upper(data.get("supplier_name")), _norm_upper(data.get("document_type"))]
         + [_desc_upper(item) for item in items]
     )
+    # Reconocer tanto proveedores peruanos como colombianos; priorizar lógica colombiana
     return any(token in text for token in [
+        # Peruanos (compatibilidad hacia atrás)
         "HIDRANDINA", "ELECTRONORTE", "ENEL", "LUZ DEL SUR", "ELECTRICIDAD", "ENERGIA", "ENERGÍA",
-        "SEDAPAL", "EPS", "SUNASS", "SANEAMIENTO", "AGUA POTABLE",
-        "OSINERGMIN", "MUNICIPALIDAD", "SAT", "GOBIERNO", "MINISTERIO", "ESSALUD", "SUNAT",
-        "FOSE", "FISE", "APORTE LEY", "ALUMBRADO PUBLICO", "ALUMBRADO PÚBLICO", "MRSE",
+        "SEDAPAL", "EPS", "SUNASS", "SANEAMIENTO", "AGUA POTABLE", "OSINERGMIN", "SUNAT",
+        # Colombianos (añadidos)
+        "EPM", "CODENSA", "VANTI", "TRIPLE A", "AAA", "CELSIA", "SURTIGAS", "ACUEDUCTO", "AGUAS",
+        "CLARO", "MOVISTAR", "TIGO", "ETB", "CARGO FIJO", "ALUMBRADO", "APORTE LEY",
+        # Generales/administrativos
+        "MUNICIPALIDAD", "GOBIERNO", "MINISTERIO", "FOSE", "FISE",
     ])
 
 
@@ -157,7 +162,8 @@ def _clean_public_receipt_items_and_amounts(
         data["subtotal"] = _money_str(subtotal)
 
     if subtotal > 0:
-        expected_igv = (subtotal * Decimal("0.18")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Colombia: IVA 19% (parametrizable si se integra settings posteriormente)
+        expected_igv = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if igv == 0 or abs(igv - expected_igv) <= Decimal("1.10"):
             if igv != expected_igv:
                 ocr_warnings.append(f"IGV corregido de {igv} a {expected_igv} usando SUB TOTAL visible {subtotal}.")
@@ -167,7 +173,8 @@ def _clean_public_receipt_items_and_amounts(
     for item in items:
         if _is_aporte_ley(item):
             item["line_type"] = "REGULATED_CHARGE"
-            item["account_code"] = item.get("account_code") or "636105"
+            # Mapear a subcuenta PUC Colombiano para aportes/leyes
+            item["account_code"] = item.get("account_code") or "513542"
             item["account_name"] = item.get("account_name") or "Energia electrica - Aporte Ley 28749"
             item["taxable"] = False
             item["igv_amount"] = "0.00"
@@ -181,7 +188,8 @@ def _clean_public_receipt_items_and_amounts(
     if diff_items:
         current_diff = sum((_item_amount_value(item) for item in diff_items), Decimal("0.00")).quantize(Decimal("0.01"))
         expected_diff = (total_read - subtotal - igv - saldo - aporte).quantize(Decimal("0.01"))
-        if abs(current_diff - expected_diff) <= Decimal("2.00"):
+        # Ajuste de tolerancia para pesos colombianos: permitir diferencias razonables por redondeo (ej. hasta 100 COP)
+        if abs(current_diff - expected_diff) <= Decimal("100.00"):
             if current_diff != expected_diff:
                 ocr_warnings.append(f"Diferencia de redondeo corregida de {current_diff} a {expected_diff} usando TOTAL impreso.")
             _set_item_amount_value(diff_items[0], expected_diff)

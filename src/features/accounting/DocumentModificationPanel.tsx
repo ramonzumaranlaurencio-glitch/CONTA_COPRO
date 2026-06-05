@@ -131,13 +131,13 @@ export const DocumentModificationPanel = ({
 
       <Field label="Motivo de modificacion">
         <select value={motivo} onChange={(event) => setMotivo(event.target.value)} style={{ minHeight: 32, border: '1px solid #cbd5e1', borderRadius: 4, padding: '0 8px' }}>
-          <option value="ERROR_RUC">Error en el RUC: requiere anulacion y nueva emision</option>
+          <option value="ERROR_RUC">Error en el NIT: requiere anulacion y nueva emision</option>
           <option value="ERROR_DESCRIPCION_MONTOS">Error en la descripcion o montos</option>
           <option value="DEVOLUCION_TOTAL_PARCIAL">Devolucion total o parcial</option>
         </select>
       </Field>
 
-      <Field label={direction === 'AR' ? 'Nuevo RUC cliente' : 'Nuevo RUC proveedor'}>
+      <Field label={direction === 'AR' ? 'Nuevo NIT cliente' : 'Nuevo NIT proveedor'}>
         <Input value={proposedRuc} onChange={(_, data) => setProposedRuc(data.value)} />
       </Field>
 
@@ -145,7 +145,7 @@ export const DocumentModificationPanel = ({
         <Field label="Subtotal propuesto">
           <Input value={proposedSubtotal} onChange={(_, data) => setProposedSubtotal(data.value)} />
         </Field>
-        <Field label="IGV propuesto">
+        <Field label="IVA propuesto">
           <Input value={proposedIgv} onChange={(_, data) => setProposedIgv(data.value)} />
         </Field>
       </div>

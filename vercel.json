@@ -6,7 +6,7 @@
   "framework": null,
 
   "env": {
-    "VITE_GOOGLE_CLIENT_ID": "956223061656-n8ufvfnvm5g16lcqdi9mid6o06bvncgi.apps.googleusercontent.com"
+    "VITE_GOOGLE_CLIENT_ID": "956223061656-1bhou8snvs35ru2485kpbl7596ccrti4.apps.googleusercontent.com"
   },
 
   "rewrites": [
@@ -30,7 +30,7 @@
       "headers": [
         { "key": "Access-Control-Allow-Origin",  "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization,X-Tenant-Id" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization,X-Tenant-Id,X-Gemini-Key,X-Trace-Id" }
       ]
     },
     {

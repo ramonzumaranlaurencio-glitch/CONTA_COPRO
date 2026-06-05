@@ -6,11 +6,13 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 
 from src.api.dependencies import get_current_context
 from src.config import settings
 from src.infrastructure.adapters.ai.vision_provider import get_vision_client, is_vision_available, active_provider_name
+from src.infrastructure.adapters.ai.gemini import GeminiClient, GeminiQuotaError
+from src.infrastructure.adapters.ai.claude_client import ClaudeClient
 
 router = APIRouter(prefix="/purchases", tags=["Purchases IA"])
 
@@ -20,7 +22,8 @@ ROUNDING_INCOME_ACCOUNT  = "429595"   # Ingresos diversos PUC Colombia
 PRIOR_BALANCE_ACCOUNT    = "220505"   # Proveedores PUC Colombia
 PAYABLE_ACCOUNT          = "2205"     # Proveedores nacionales PUC
 IVA_DESCONTABLE_ACCOUNT  = "2408"     # IVA por pagar (descontable) PUC
-AUTO_ROUNDING_TOLERANCE  = Decimal("0.50")
+AUTO_ROUNDING_TOLERANCE  = Decimal(str(settings.auto_rounding_tolerance)) if hasattr(settings, 'auto_rounding_tolerance') else Decimal("0.50")
+DEFAULT_SERVICE_EXPENSE = settings.default_expense_account if hasattr(settings, 'default_expense_account') else "513540"
 
 COST_CENTER_LIBRARY = {
     "BOG-ADM": {
@@ -307,7 +310,7 @@ ELECTRIC_REGULATED_RULES = [
             "ENERGIA ACTIVA", "ENERGÍA ACTIVA", "CONSUMO ACTIVO",
             "ENERGIA REACTIVA", "ENERGÍA REACTIVA", "POTENCIA",
         ),
-        "account_code": "636101",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Energia electrica - Consumo activo",
         "taxable": True,
         "tax_treatment": "Consumo de energia electrica activa afecto al IVA.",
@@ -318,7 +321,7 @@ ELECTRIC_REGULATED_RULES = [
 WATER_REGULATED_RULES = [
     {
         "keywords": ("CARGO FIJO AGUA", "CARGO FIJO DE AGUA", "CARGO BASICO AGUA"),
-        "account_code": "636201",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Agua potable - Cargo fijo",
         "taxable": True,
         "tax_treatment": "Cargo fijo regulado del servicio de agua potable afecto al IVA.",
@@ -328,7 +331,7 @@ WATER_REGULATED_RULES = [
             "CONSUMO DE AGUA", "AGUA POTABLE", "VOLUMEN CONSUMIDO",
             "M3", "METROS CUBICOS", "METROS CÚBICOS",
         ),
-        "account_code": "636202",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Agua potable - Consumo",
         "taxable": True,
         "tax_treatment": "Consumo de agua potable afecto al IVA.",
@@ -338,14 +341,14 @@ WATER_REGULATED_RULES = [
             "ALCANTARILLADO", "DESAGUE", "DESAGÜE", "SERVICIO DE ALCANTARILLADO",
             "TRATAMIENTO", "AGUAS RESIDUALES",
         ),
-        "account_code": "636203",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Agua potable - Alcantarillado y saneamiento",
         "taxable": True,
         "tax_treatment": "Cargo de alcantarillado y saneamiento afecto al IVA.",
     },
     {
         "keywords": ("SUNASS", "APORTE SUNASS", "REGULACION SUNASS"),
-        "account_code": "636204",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Agua potable - Aporte SUNASS",
         "taxable": False,
         "tax_treatment": "Cargo regulado SUNASS no afecto al IVA.",
@@ -356,7 +359,7 @@ WATER_REGULATED_RULES = [
 GAS_REGULATED_RULES = [
     {
         "keywords": ("CARGO FIJO GAS", "CARGO FIJO DE GAS", "CARGO BASICO GAS"),
-        "account_code": "636301",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Gas natural - Cargo fijo",
         "taxable": True,
         "tax_treatment": "Cargo fijo regulado del servicio de gas natural afecto al IVA.",
@@ -366,28 +369,28 @@ GAS_REGULATED_RULES = [
             "CONSUMO DE GAS", "GAS NATURAL", "VOLUMEN GAS",
             "M3 GAS", "THERMS", "ENERGIA GAS",
         ),
-        "account_code": "636302",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Gas natural - Consumo",
         "taxable": True,
         "tax_treatment": "Consumo de gas natural afecto al IVA.",
     },
     {
         "keywords": ("TRANSPORTE GAS", "CARGO TRANSPORTE", "DISTRIBUCION GAS"),
-        "account_code": "636303",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Gas natural - Transporte y distribucion",
         "taxable": True,
         "tax_treatment": "Cargo de transporte y distribucion de gas afecto al IVA.",
     },
 ]
 
-# ─── OSIPTEL: Telecomunicaciones ─────────────────────────────────────────────
+# ─── CRC: Telecomunicaciones Colombia ────────────────────────────────────────
 TELECOM_REGULATED_RULES = [
     {
         "keywords": (
             "RENTA BASICA", "CARGO FIJO TELEFONO", "CARGO FIJO INTERNET",
             "CARGO BASICO", "PLAN BASICO",
         ),
-        "account_code": "636401",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Telecomunicaciones - Cargo fijo / renta basica",
         "taxable": True,
         "tax_treatment": "Cargo fijo de telecomunicaciones afecto al IVA.",
@@ -397,7 +400,7 @@ TELECOM_REGULATED_RULES = [
             "INTERNET", "BANDA ANCHA", "FIBRA OPTICA", "FIBRA ÓPTICA",
             "SERVICIO INTERNET", "ACCESO INTERNET",
         ),
-        "account_code": "636402",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Telecomunicaciones - Internet",
         "taxable": True,
         "tax_treatment": "Servicio de internet afecto al IVA.",
@@ -407,7 +410,7 @@ TELECOM_REGULATED_RULES = [
             "TELEFONIA", "TELEFONÍA", "LLAMADAS", "MINUTOS",
             "TELEFONO FIJO", "TELÉFONO FIJO", "LINEA TELEFONICA",
         ),
-        "account_code": "636403",
+        "account_code": DEFAULT_SERVICE_EXPENSE,
         "account_name": "Telecomunicaciones - Telefonia",
         "taxable": True,
         "tax_treatment": "Servicio de telefonia afecto al IVA.",
@@ -423,11 +426,11 @@ TELECOM_REGULATED_RULES = [
         "tax_treatment": "Servicio de television por cable afecto al IVA.",
     },
     {
-        "keywords": ("OSIPTEL", "APORTE OSIPTEL", "FITEL"),
-        "account_code": "636405",
-        "account_name": "Telecomunicaciones - Aporte OSIPTEL/FITEL",
+        "keywords": ("FONTIC", "CONTRIBUCION FONTIC", "CARGO CRC", "APORTE CRC", "CONTRIBUCION CRC"),
+        "account_code": "513529",
+        "account_name": "Telecomunicaciones - Contribucion FONTIC/CRC",
         "taxable": False,
-        "tax_treatment": "Aporte regulado OSIPTEL/FITEL no afecto al IVA.",
+        "tax_treatment": "Contribucion FONTIC/CRC regulada por MinTIC. No genera IVA (cargo regulado).",
     },
 ]
 
@@ -448,7 +451,7 @@ LEGAL_TAX_REVIEW_LIBRARY = [
 def _money(value: Any, default: str = "0.00") -> Decimal:
     try:
         raw = str(default if value is None or value == "" else value)
-        raw = raw.replace("S/", "").replace("s/", "").strip()
+        raw = raw.replace("S/", "").replace("s/", "").replace("COP", "").replace("$", "").strip()
         raw = re.sub(r"\s", "", raw)
         # Detectar formato: si hay tanto punto como coma, el último es el separador decimal.
         # Formato peruano/europeo "1.590,20" → 1590.20
@@ -531,7 +534,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "account_code": ROUNDING_EXPENSE_ACCOUNT,
             "account_name": "Ajuste por redondeo",
             "cost_center": fallback_cost_center,
-            "tax_treatment": "Redondeo monetario del comprobante. No integra base imponible del IGV, no genera credito fiscal y se usa para reconciliar el total impreso.",
+            "tax_treatment": "Redondeo monetario del comprobante. No integra base imponible del IVA, no genera IVA descontable y se usa para reconciliar el total impreso.",
             "deductibility": "DEDUCIBLE",
             "iva_credit": "NO",
             "requires_support": False,
@@ -546,7 +549,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "account_code": PRIOR_BALANCE_ACCOUNT,
             "account_name": "Cuentas por pagar - deuda anterior",
             "cost_center": "-",
-            "tax_treatment": "Saldo/deuda de periodo anterior. No representa gasto nuevo ni genera nuevo IGV credito fiscal; validar que la obligacion original fue registrada.",
+            "tax_treatment": "Saldo/deuda de periodo anterior. No representa gasto nuevo ni genera nuevo IVA descontable; validar que la obligacion original fue registrada.",
             "deductibility": "REVISION",
             "iva_credit": "NO",
             "requires_support": False,
@@ -561,7 +564,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "account_code": PAYABLE_ACCOUNT,
             "account_name": "Compensacion / pago a cuenta",
             "cost_center": "-",
-            "tax_treatment": "Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IGV; se aplica como compensacion de cuenta por pagar.",
+            "tax_treatment": "Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IVA; se aplica como compensacion de cuenta por pagar.",
             "deductibility": "NO_DEDUCIBLE",
             "iva_credit": "NO",
             "requires_support": False,
@@ -576,7 +579,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
             "account_code": "659101",
             "account_name": "Moras, recargos e intereses por servicios",
             "cost_center": fallback_cost_center,
-            "tax_treatment": "Mora, penalidad o recargo. No mezclar con el servicio principal. Deducibilidad e IGV sujetos a revision y sustento.",
+            "tax_treatment": "Mora, penalidad o recargo. No mezclar con el servicio principal. Deducibilidad e IVA sujetos a revision y sustento.",
             "deductibility": "REVISION",
             "iva_credit": "NO",
             "requires_support": True,
@@ -876,16 +879,6 @@ def _is_fake_ocr_adjustment(item: dict[str, Any]) -> bool:
     ])
 
 
-def _is_fose_fise(item: dict[str, Any]) -> bool:
-    desc = _desc_upper(item)
-    return "FOSE" in desc or "FISE" in desc or "LEY 27510" in desc
-
-
-def _is_aporte_ley(item: dict[str, Any]) -> bool:
-    desc = _desc_upper(item)
-    return "APORTE LEY" in desc or "LEY 28749" in desc or "LEY NRO" in desc
-
-
 def _is_saldo_redondeo(item: dict[str, Any]) -> bool:
     return "SALDO POR REDONDEO" in _desc_upper(item)
 
@@ -905,27 +898,24 @@ def _is_public_regulated_receipt(data: dict[str, Any], items: list[dict[str, Any
         + [_desc_upper(item) for item in items]
     )
     return any(token in text for token in [
-        # OSINERGMIN - Electricidad
-        "HIDRANDINA", "ELECTRONORTE", "ELECTRONOROESTE", "ELECTROCENTRO", "ELECTROSUR",
-        "ENEL", "LUZ DEL SUR", "SEAL", "ENOSA", "ENSA", "ENELPERU",
-        "ELECTRICIDAD", "ENERGIA ELECTRICA", "ENERGÍA ELÉCTRICA",
+        # CREG - Electricidad Colombia
+        "EPM", "CODENSA", "CELSIA", "ELECTROHUILA", "ESSA", "ENERCA", "EMCALI",
+        "ENERGUAVIARE", "ELECTRICIDAD", "ENERGIA ELECTRICA", "ENERGÍA ELÉCTRICA",
         "ENERGIA ACTIVA", "ENERGÍA ACTIVA", "ALUMBRADO PUBLICO", "ALUMBRADO PÚBLICO",
-        "CARGO FIJO", "FOSE", "FISE", "APORTE LEY", "LEY 28749", "MRSE",
-        "OSINERGMIN",
-        # OSINERGMIN - Gas natural
-        "CALIDDA", "QUAVII", "GAS NATURAL", "GAS DE LIMA", "CONTUGAS",
-        "GASES DEL PACIFICO",
-        # SUNASS - Agua y saneamiento
-        "SEDAPAL", "SEDALIB", "EPS GRAU", "EPS ILO", "EPS TACNA", "SEDACAJ",
-        "SEDACHIMBOTE", "EMAPICA", "EMAPISCO", "EMAPAT", "EMAPAVIGS",
-        "EPS SELVA CENTRAL", "SUNASS", "AGUA POTABLE", "ALCANTARILLADO",
-        "SANEAMIENTO", "SERVICIO DE AGUA",
-        # OSIPTEL - Telecomunicaciones
-        "MOVISTAR", "TELEFONICA", "TELEFONÍA", "CLARO", "ENTEL", "BITEL",
-        "VIRGIN MOBILE", "WOM", "OSIPTEL", "FITEL",
-        "INTERNET", "FIBRA OPTICA", "FIBRA ÓPTICA", "BANDA ANCHA",
-        # Genérico gobierno/regulado
-        "MUNICIPALIDAD", "SAT", "GOBIERNO", "MINISTERIO", "ESSALUD",
+        "CARGO FIJO", "CARGO ENERGIA", "CONTRIBUCION SOLIDARIDAD",
+        # CREG - Gas natural Colombia
+        "GAS NATURAL FENOSA", "GASES DE OCCIDENTE", "SURTIGAS", "ALCANOS", "VANTI",
+        "METROGAS", "GAS NATURAL", "CONSUMO GAS",
+        # CRA - Agua y saneamiento Colombia
+        "EPM AGUAS", "TRIPLE A", "ACUEDUCTO DE BOGOTA", "AGUAS DE MANIZALES",
+        "AGUA POTABLE", "ALCANTARILLADO", "SANEAMIENTO", "SERVICIO DE AGUA",
+        "ACUEDUCTO", "ASEO", "RESIDUOS",
+        # CRC - Telecomunicaciones Colombia
+        "MOVISTAR", "TELEFONICA", "TELEFONÍA", "CLARO", "TIGO", "ETB", "UNE",
+        "DIRECTV", "WOM", "FONTIC", "INTERNET", "FIBRA OPTICA", "FIBRA ÓPTICA",
+        "BANDA ANCHA",
+        # Genérico gobierno/regulado Colombia
+        "ALCALDIA", "GOBERNACION", "GOBIERNO", "MINISTERIO", "DIAN", "UGPP",
     ])
 
 
@@ -950,7 +940,7 @@ def _clean_public_receipt_items_and_amounts(
 
     for item in items:
         if _is_igv_item(item):
-            reconciliation_notes.append(f"IGV eliminado del detalle y tratado solo como impuesto: {item.get('description')}.")
+            reconciliation_notes.append(f"IVA eliminado del detalle y tratado solo como impuesto: {item.get('description')}.")
             continue
         if explicit_rounding and _is_fake_ocr_adjustment(item):
             reconciliation_notes.append(f"Ajuste OCR eliminado porque ya existe redondeo explicito: {item.get('description')}.")
@@ -960,14 +950,14 @@ def _clean_public_receipt_items_and_amounts(
 
     # Tokens gravados que forman la base imponible del servicio regulado
     base_tokens = (
-        # Electricidad (OSINERGMIN)
+        # Electricidad (CREG)
         "CARGO FIJO", "REPOSICION", "REPOSICIÓN", "MANTENIMIENTO",
         "ENERGIA ACTIVA", "ENERGÍA ACTIVA", "ALUMBRADO PUBLICO", "ALUMBRADO PÚBLICO",
-        # Agua (SUNASS)
+        # Agua (CRA)
         "CONSUMO DE AGUA", "AGUA POTABLE", "ALCANTARILLADO",
-        # Gas (OSINERGMIN)
+        # Gas (CREG)
         "GAS NATURAL", "CONSUMO DE GAS",
-        # Telecomunicaciones (OSIPTEL)
+        # Telecomunicaciones (CRC)
         "RENTA BASICA", "INTERNET", "TELEFONIA", "TELEFONÍA", "CABLE",
     )
     base_sum = sum(
@@ -982,19 +972,19 @@ def _clean_public_receipt_items_and_amounts(
         data["subtotal"] = _money_str(subtotal)
 
     if subtotal > 0:
-        expected_igv = (subtotal * Decimal("0.18")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        expected_igv = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if igv == 0 or abs(igv - expected_igv) <= Decimal("1.10"):
             if igv != expected_igv:
-                ocr_warnings.append(f"IGV corregido de {igv} a {expected_igv} usando SUB TOTAL visible {subtotal}.")
+                ocr_warnings.append(f"IVA corregido de {igv} a {expected_igv} usando SUB TOTAL visible {subtotal}.")
             igv = expected_igv
             data["igv"] = _money_str(igv)
 
     # Aplicar reglas de todos los organismos reguladores
     all_regulated_rules = (
-        ELECTRIC_REGULATED_RULES      # OSINERGMIN - Electricidad
-        + WATER_REGULATED_RULES       # SUNASS - Agua y saneamiento
-        + GAS_REGULATED_RULES         # OSINERGMIN - Gas natural
-        + TELECOM_REGULATED_RULES     # OSIPTEL - Telecomunicaciones
+        ELECTRIC_REGULATED_RULES      # CREG - Electricidad
+        + WATER_REGULATED_RULES       # CRA - Agua y saneamiento
+        + GAS_REGULATED_RULES         # CREG - Gas natural
+        + TELECOM_REGULATED_RULES     # CRC - Telecomunicaciones
     )
 
     for item in items:
@@ -1022,7 +1012,7 @@ def _clean_public_receipt_items_and_amounts(
         item["ai_confidence"] = 0.98
 
     saldo = sum((_item_amount_value(item) for item in items if _is_saldo_redondeo(item)), Decimal("0.00")).quantize(Decimal("0.01"))
-    aporte = sum((_item_amount_value(item) for item in items if _is_aporte_ley(item)), Decimal("0.00")).quantize(Decimal("0.01"))
+    aporte = Decimal("0.00")
     diff_items = [item for item in items if _is_diferencia_redondeo(item)]
 
     if diff_items:
@@ -1034,23 +1024,12 @@ def _clean_public_receipt_items_and_amounts(
             _set_item_amount_value(diff_items[0], expected_diff)
 
     diff = sum((_item_amount_value(item) for item in diff_items), Decimal("0.00")).quantize(Decimal("0.01"))
-    fose_items = [item for item in items if _is_fose_fise(item)]
-    total_without_fose = (subtotal + igv + saldo + aporte + diff).quantize(Decimal("0.01"))
-
-    if fose_items and abs(total_without_fose - total_read) <= Decimal("0.02"):
-        for item in fose_items:
-            item["line_type"] = "INFO_ONLY"
-            item["taxable"] = False
-            item["igv_amount"] = "0.00"
-            item["requires_support"] = False
-            item["tax_treatment"] = "FOSE/FISE informativo posterior al total; no se contabiliza doble si el total cuadra."
-        reconciliation_notes.append("FOSE/FISE tratado como INFO_ONLY porque el total cuadra sin sumarlo.")
 
     def _keep_warning(value: Any) -> bool:
         s = str(value).upper()
         return not any(token in s for token in [
-            "IGV DECLARADO",
-            "NO CORRESPONDE AL 18",
+            "IVA DECLARADO",
+            "NO CORRESPONDE AL 19",
             "NO ES EL 18",
             "BASE IMPONIBLE",
             "AUDITOR",
@@ -1079,12 +1058,12 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     supplier_name = _norm_text(data.get("supplier_name"))
     supplier_ruc = _only_digits(data.get("supplier_ruc"))
     if supplier_ruc and not _is_valid_nit(supplier_ruc):
-        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}.")
+        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
         supplier_ruc = ""
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
     if not supplier_ruc:
-        warnings.append("No se pudo leer RUC del proveedor con seguridad; no se debe inventar.")
+        warnings.append("No se pudo leer NIT del proveedor con seguridad; no se debe inventar.")
 
     fallback_cc = _norm_upper(data.get("cost_center")) or CENTRO_COSTO_DEFAULT
 
@@ -1153,6 +1132,10 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "requires_support": bool(raw.get("requires_support", local.get("requires_support", False))),
             "ai_reason": _norm_text(raw.get("ai_reason")) or local["ai_reason"],
             "ai_confidence": float(raw.get("ai_confidence") or local["ai_confidence"]),
+            # Campos extra COMPRA_ALMACEN
+            "lot_number": _norm_text(raw.get("lot_number")),
+            "expiry_date": _norm_text(raw.get("expiry_date")),
+            "brand": _norm_text(raw.get("brand")),
         }
         items.append(item)
 
@@ -1347,19 +1330,19 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "debit": "0.00",
             "credit": _money_str(amount),
             "line_type": kind,
-            "tax_treatment": "Abono, pago a cuenta o saldo a favor. No genera IGV ni gasto nuevo.",
+            "tax_treatment": "Abono, pago a cuenta o saldo a favor. No genera IVA ni gasto nuevo.",
             "audit_note": "",
         })
 
     if igv != 0:
         account_lines.append({
             "account_code": IVA_DESCONTABLE_ACCOUNT,
-            "account_name": "IGV credito fiscal",
+            "account_name": "IVA descontable",
             "cost_center": "-",
             "debit": _money_str(igv),
             "credit": "0.00",
             "line_type": "TAX",
-            "tax_treatment": "IGV credito fiscal sujeto a validacion formal, causalidad y anotacion oportuna.",
+            "tax_treatment": "IVA descontable Art. 485 ET. Sujeto a validacion CUFE, NIT activo DIAN, causalidad y anotacion oportuna en registro de compras.",
             "audit_note": "",
         })
 
@@ -1379,7 +1362,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
                 "debit": _money_str(difference),
                 "credit": "0.00",
                 "line_type": "ROUNDING",
-                "tax_treatment": "Ajuste para reconciliar contra total impreso; no integra base IGV. Revisar si excede tolerancia.",
+                "tax_treatment": "Ajuste para reconciliar contra total impreso; no integra base IVA. Revisar si excede tolerancia.",
                 "audit_note": "El total del documento manda; se agrego ajuste al debe.",
             })
         else:
@@ -1390,7 +1373,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
                 "debit": "0.00",
                 "credit": _money_str(abs(difference)),
                 "line_type": "ROUNDING",
-                "tax_treatment": "Ajuste favorable para reconciliar contra total impreso; no integra base IGV. Revisar si excede tolerancia.",
+                "tax_treatment": "Ajuste favorable para reconciliar contra total impreso; no integra base IVA. Revisar si excede tolerancia.",
                 "audit_note": "El total del documento manda; se agrego ajuste al haber.",
             })
         reconciliation_notes.append(f"Ajuste automatico contra total impreso: {difference}.")
@@ -1464,6 +1447,10 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         "reconciliation_difference": _money_str(reconciliation_difference),
         "cost_center": fallback_cc,
         "expense_account": account_lines[0]["account_code"] if account_lines else "659101",
+        # Campos COMPRA_ALMACEN
+        "purchase_order": _norm_text(data.get("purchase_order")),
+        "delivery_note": _norm_text(data.get("delivery_note")),
+        "warehouse": _norm_text(data.get("warehouse")),
         "items": items,
         "account_lines": account_lines,
         "accounts_to_upsert": accounts_to_upsert,
@@ -1484,100 +1471,793 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+# ─── CONTEXTO CONTABLE COMPLETO COLOMBIA ─────────────────────────────────────
+# Inyectado en todos los prompts para máxima precisión normativa
+
+def _accounting_context_colombia() -> str:
+    return """
+═══════════════════════════════════════════════════════════════════════════════
+MARCO NORMATIVO CONTABLE Y TRIBUTARIO COLOMBIA — CONTA_COLPRO
+═══════════════════════════════════════════════════════════════════════════════
+
+▌ PUC COLOMBIA — PLAN ÚNICO DE CUENTAS (Decreto 2649/1993 + Circular 115/2000)
+
+CLASE 1 — ACTIVOS:
+  11 Disponible: 111005 Caja, 111010 Caja menor, 111305 Bancos moneda nacional, 111310 Bancos moneda extranjera
+  12 Inversiones: 120505 Acciones, 120510 Cuotas partes, 120515 CDTs
+  13 Deudores: 130505 Clientes, 130810 Anticipos, 133505 Anticipo impuestos, 133515 Retefuente a favor, 133520 ReteIVA a favor, 133525 ReteICA a favor
+  14 Inventarios: 143505 Mercancias en almacen, 143510 Materias primas, 143515 Productos proceso, 143520 Productos terminados, 143525 Materiales repuestos, 143815 Mercancias en transito (importaciones)
+  15 PPE (Propiedad Planta Equipo): 150405 Terrenos, 150810 Construcciones y edificaciones, 152005 Maquinaria y equipo, 152405 Equipo de oficina, 152805 Equipo computo, 153005 Flota y transporte, 153505 Muebles y enseres, 154005 Herramientas
+     Depreciacion acumulada: 159205 Edificios, 159210 Maquinaria, 159215 Equipo computo, 159220 Flota, 159225 Muebles
+  16 Intangibles: 160505 Software, 160510 Licencias, 160905 Amortizacion acumulada
+  17 Diferidos: 170505 Gastos pagados por anticipado, 170510 Seguros anticipados
+
+CLASE 2 — PASIVOS:
+  21 Obligaciones financieras: 210505 Bancos, 210510 Corporaciones financieras, 210805 Leasing
+  22 Proveedores: 220505 Proveedores nacionales, 220510 Proveedores del exterior, 220515 Proveedores vinculados
+  23 Cuentas por pagar: 231005 Costos y gastos por pagar, 231010 Honorarios por pagar, 231015 Servicios por pagar, 231020 Arrendamientos por pagar, 232005 Instalamentos, 233005 Retenciones en la fuente
+  24 Impuestos: 240805 IVA por pagar, 240810 IVA descontable (2408), 241005 Renta y complementarios, 241010 Sobretasa, 241505 ICA, 241510 Predial, 241515 Vehiculos, 241605 GMF (4x1000)
+  25 Obligaciones laborales: 250505 Salarios por pagar, 250510 Cesantias, 250515 Intereses cesantias, 250520 Prima servicios, 250525 Vacaciones, 250530 Pensiones por pagar
+  26 Pasivos estimados: 261005 Cesantias, 261010 Intereses cesantias, 261015 Prima, 261020 Vacaciones, 261025 Indemnizaciones
+  27 Diferidos: 270505 Ingresos recibidos por anticipado
+  28 Otros pasivos: 280505 Anticipos, 280510 Descuentos, 281005 Depositos recibidos
+
+RETENCIONES POR PAGAR (Codigo 23):
+  2365 Retencion en la fuente — Art. 383/384/385 ET
+  2368 ReteIVA — Art. 437-2 ET (15% del IVA)
+  2370 ReteICA — segun municipio y actividad
+  2375 Autorretencion renta — Decreto 2201/2016
+
+SEGURIDAD SOCIAL POR PAGAR:
+  2405 AFP (pension) por pagar — Art. 20 Ley 100/1993
+  2406 EPS (salud) por pagar — Art. 204 Ley 100/1993
+  2407 ARL (riesgos laborales) — Decreto 1607/2002
+  2408 CCF (caja compensacion) — Ley 21/1982
+  2409 SENA por pagar — Ley 21/1982
+  2410 ICBF por pagar — Ley 21/1982
+
+CLASE 3 — PATRIMONIO:
+  310505 Capital suscrito pagado, 320505 Prima colocacion acciones
+  330505 Reserva legal (10% utilidad — Art. 452 CCo), 330510 Reservas estatutarias
+  360505 Utilidad ejercicio, 360510 Perdida ejercicio
+  370505 Superavit por valoracion, 380505 Revalorizacion patrimonio
+
+CLASE 4 — INGRESOS OPERACIONALES:
+  410505 Comercio al por mayor, 410510 Comercio al por menor
+  413505 Servicios de consultoria, 413510 Servicios tecnicos, 413515 Honorarios
+  419505 Devoluciones en ventas (credito — naturaleza debito), 419510 Descuentos en ventas
+
+CLASE 5 — GASTOS OPERACIONALES ADMINISTRACION:
+  510506 Sueldos y salarios, 510509 Comisiones, 510512 Bonificaciones, 510515 Aux transporte
+  510518 Horas extras, 510521 Incapacidades, 510524 Dotacion, 510527 Vacaciones
+  511005 Aporte patronal pension AFP, 511010 Aporte patronal salud EPS, 511015 ARL, 511020 CCF
+  511505 Cesantias, 511510 Intereses cesantias, 511515 Prima servicios, 511520 Vacaciones acumuladas
+  513505 Aseo y vigilancia, 513510 Acueducto y alcantarillado, 513515 Energia electrica
+  513520 Gas domiciliario, 513525 Telecomunicaciones, 513530 Transporte y fletes
+  513535 Seguros, 513540 Mantenimiento y reparaciones, 513545 Arrendamientos
+  513550 Honorarios, 513555 Papeleria, 513560 Combustibles, 513565 Publicidad
+  517005 Depreciacion, 519005 Gastos de viaje, 519010 Gastos representacion
+  519015 Elementos aseo cafeteria, 519020 GMF deducible (Art. 115 ET — 50% GMF pagado)
+
+CLASE 6 — COSTOS DE PRODUCCION:
+  610505 Materias primas, 610510 Materiales, 612005 Mano de obra directa
+  614005 Costos indirectos fabricacion, 615005 Depreciacion planta
+
+CLASE 7 — COSTOS DE VENTAS:
+  710505 Mercancias vendidas, 710510 Devolucion compras
+
+▌ ESTATUTO TRIBUTARIO COLOMBIA — ARTICULOS CLAVE
+
+IVA (Impuesto sobre las Ventas):
+  Art. 468 ET: Tarifa general 19%
+  Art. 468-1 ET: Tarifa 5% (bienes sensibles: papas, alimentos procesados, dispositivos medicos)
+  Art. 424 ET: Bienes EXCLUIDOS (0% sin derecho a descontar IVA pagado):
+    - Animales vivos, plantas, semillas, hortalizas, frutas frescas
+    - Medicamentos, insumos medicos (INVIMA)
+    - Gas natural domiciliario residencial
+    - Agua (uso residencial)
+    - Libros, cuadernos escolares, periodicos
+    - Equipos medicos listados por Ministerio Salud
+  Art. 481 ET: Bienes EXENTOS (0% con derecho a descontar IVA pagado):
+    - Exportaciones de bienes corporales
+    - Servicios hoteleros a turistas extranjeros
+    - Servicios de educacion (Art. 476 No 6)
+  Art. 485 ET: IVA DESCONTABLE (solo si bien/servicio se destina a operaciones gravadas)
+  Art. 476 ET: Servicios EXCLUIDOS: educacion formal, transporte publico, arriendos residenciales
+  Art. 437-2 ET: RETIVA — agentes retenedores (Grandes contribuyentes, responsables Art. 437-5)
+    Tarifa: 15% del valor del IVA (no del valor de la operacion)
+
+RETENCIONES EN LA FUENTE (ET):
+  Art. 383 ET: Rentas laborales — tabla UVT mensual (UVT 2026 = $47.065)
+  Art. 384 ET: Pago minimo cuando base > 95 UVT/mes = $4.471.175
+  Art. 385 ET: Pagos mensuales no laborales → % segun concepto:
+    - Honorarios persona natural que no solicita costos: 10% (o 11% si > 3.300 UVT)
+    - Servicios persona natural/juridica: 4%
+    - Compras bienes muebles: 2.5%
+    - Arrendamientos persona juridica: 3.5%, persona natural: 3.5%
+    - Compras con tarjeta debito/credito: 1.5%
+    - Contratos de obra: 2%
+  Art. 391 ET: Compras con tarjeta → ReteFuente 1.5%
+  Art. 395 ET: Rentas de capital (intereses, dividendos) → 7%-35%
+  Art. 401-1 ET: Transacciones plataformas digitales → 3.5%
+
+GMF — GRAVAMEN MOVIMIENTOS FINANCIEROS (4x1000):
+  Cuenta debito: 241605 (cuando lo cobra el banco)
+  Cuenta PUC gasto: 519020 (50% deducible de renta — Art. 115 ET)
+  Aplica: retiros bancarios, cheques, transferencias (con excepciones Art. 879 ET)
+
+ICA — IMPUESTO INDUSTRIA Y COMERCIO:
+  Cuenta: 241505 ICA por pagar, 519025 Gasto ICA
+  Base: ingresos brutos actividad comercial/industrial/servicios segun municipio
+  Tarifa: segun municipio (Bogota: 4.14 a 13.8 por mil — Acuerdo 648/2016)
+  ReteICA: 2370 (agentes retenedores autorizados por municipio)
+
+IMPUESTO DE RENTA (Art. 240 ET):
+  Tarifa 2026: 35% personas juridicas
+  Deducibles: gastos necesarios para producir renta (Art. 107 ET)
+  No deducibles: multas, sanciones, retiros socios
+  Depreciacion fiscal: Art. 137 ET (linea recta, tasas maximas ET)
+  Perdidas fiscales: compensables en 12 anos — Art. 147 ET
+
+NIIF PYMES (Decreto 3022/2013) — SECCIONES APLICABLES:
+  Seccion 2: Conceptos y principios fundamentales (devengo, empresa en marcha)
+  Seccion 4: Estado de situacion financiera (balance general)
+  Seccion 5: Estado de resultado integral
+  Seccion 7: Estado de flujos de efectivo (metodo directo o indirecto)
+  Seccion 13: Inventarios — costo promedio ponderado o PEPS (FIFO)
+    Valoracion: menor entre costo y valor neto realizable
+  Seccion 17: PPE — reconocimiento, depreciacion, deterioro, baja en cuentas
+  Seccion 20: Arrendamientos — operativo vs financiero
+  Seccion 22: Pasivos y patrimonio
+  Seccion 28: Beneficios a empleados — CST + NIC 19
+
+DOCUMENTOS SOPORTE DIAN (Art. 615, 617, 771-2 ET):
+  Factura electronica: CUFE obligatorio (Art. 616-1 ET), numeracion DIAN
+  Documento soporte contratista no obligado facturar: Resolucion 000042/2020
+  Equivalente factura: tiquete maquina registradora, mandato, contrato
+  Sin soporte = NO deducible fiscalmente (Art. 771-2 ET)
+  Medios de pago: >$1.000.000 deben ser bancarizados para deducibilidad (Art. 771-5 ET)
+
+▌ LIBROS CONTABLES OBLIGATORIOS (Art. 19 CCo + Decreto 2649):
+  1. Libro Diario — asientos cronologicos con debitos/creditos por transaccion
+  2. Libro Mayor y Balances — saldo por cuenta PUC
+  3. Libro de Inventarios y Balances — activos/pasivos valorados
+  4. Libro de Actas — decisiones organos sociales
+  Libros auxiliares: Kardex (inventarios), CXC, CXP, Bancos, Activos Fijos, Nomina
+
+▌ ASIENTO CONTABLE — ESTRUCTURA OBLIGATORIA:
+  Cada factura genera: debito cuenta gasto/activo/inventario + credito proveedor 220505
+  IVA descontable: debito 2408 (se resta del IVA por pagar)
+  ReteFuente: credito 2365 (reduce el pago al proveedor)
+  ReteIVA: credito 2368
+  ReteICA: credito 2370
+  Neto a pagar = valor factura - retenciones aplicadas
+  Ejemplo: Factura $1.000.000 + IVA 19% = $1.190.000
+    DB 513xxx $1.000.000 (gasto)
+    DB 2408   $190.000  (IVA descontable)
+    CR 220505 $1.190.000 (proveedor)
+    (Si hay ReteFuente 4%: CR 2365 $40.000, CR 220505 = $1.150.000)
+
+▌ KARDEX E INVENTARIOS (Decreto 2650/1993):
+  Metodos valuacion: Costo promedio ponderado (mas comun) o PEPS
+  Movimientos: Entradas (compras), Salidas (ventas/consumo), Ajustes
+  Cuenta de control: 143505 Mercancias en almacen
+  Costo de ventas al salida: debito 710505, credito 143505
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+# ─── 7 PROMPTS ESPECIALIZADOS COLOMBIA ────────────────────────────────────────
+
+def _prompt_factura_comercial() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en FACTURAS COMERCIALES COLOMBIA (Prompt 1/7).
+Normativa: DIAN, PUC Decreto 2649/1993, Estatuto Tributario Arts. 615, 771-2, 468, 485.
+Lee el comprobante PIXEL POR PIXEL. El TOTAL impreso manda siempre.
+
+MONEDA: Pesos Colombianos COP. Punto = miles, coma = decimal.
+
+VALIDACIONES DIAN OBLIGATORIAS:
+- CUFE (Codigo Unico de Facturacion Electronica): extraer si existe
+- NIT proveedor (sin digito verificacion para busqueda DIAN)
+- Resolucion DIAN de facturacion del proveedor si aparece
+- Fecha emision (debe ser <= fecha actual)
+
+IVA COLOMBIA:
+- Tarifa general: 19% (Art. 468 ET) → cuenta 2408
+- Tarifa 5%: bienes sensibles (Art. 468-1 ET)
+- Excluidos: medicamentos, libros, cuadernos (Art. 424 ET) → campo igv=0
+- Exentos: exportaciones, servicios hoteleros (Art. 481 ET) → campo igv=0
+
+RETENCIONES (solo si aplica segun cuantia y tipo):
+- ReteFuente: cuenta 2365 (servicios 4%, compras 2.5%, honorarios 10-11% — Art. 383/384/385 ET)
+- ReteIVA: cuenta 2368 (15% del IVA si retenedor autorizado — Art. 437-2 ET)
+- ReteICA: cuenta 2370 (segun municipio y actividad economica)
+
+CUENTAS PUC COLOMBIA — GASTOS Y COSTOS:
+- Mercancias/productos para reventa: 143505 (inventario) + 220505 (proveedor)
+- Materias primas: 143510 + 220505
+- Servicios administrativos: 513xxx + 220505
+- Honorarios: 513550 (ReteFuente obligatoria si > 1 UVT)
+- Seguros: 513535
+- Publicidad: 513565
+- Mantenimiento: 513540
+- IVA descontable: 2408
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_servicios_publicos() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en SERVICIOS PUBLICOS DOMICILIARIOS COLOMBIA (Prompt 2/7).
+Normativa: Ley 142/1994, CREG, CRA, CRC, PUC Colombia, ET Art. 424 (excluidos de IVA).
+Lee el comprobante PIXEL POR PIXEL. El TOTAL impreso manda siempre.
+
+MONEDA: Pesos Colombianos COP.
+
+CREG — ENERGIA ELECTRICA (EPM, Codensa, Celsia, Electrohuila, ESSA, Emcali, Afinia, Air-e):
+  * Energia activa / Consumo kWh → 513515
+  * Cargo fijo → 513516
+  * Alumbrado publico → 513517 (NO IVA — cargo municipal Ley 1819/2016)
+  * Contribucion solidaridad → 513518 (NO IVA — Ley 142/1994 Art. 89)
+  * Comercializacion → 513519
+  * Energia reactiva → 513515 (mismo concepto)
+
+CRA — ACUEDUCTO, ALCANTARILLADO Y ASEO (EPM Aguas, Triple A, AAA, Aguas de Bogota, EMCALI):
+  * Cargo fijo acueducto → 513510
+  * Consumo agua potable (m3) → 513511 (IVA 0% uso residencial — Art. 424 ET)
+  * Alcantarillado → 513512 (IVA 0%)
+  * Aseo y residuos solidos → 513513 (IVA 0%)
+  * Subsidio/contribucion → 513514 (NO IVA)
+
+CREG — GAS NATURAL (Vanti, Gas Natural Fenosa, Gases Occidente, Surtigas, Alcanos, Metrogas):
+  * Cargo fijo → 513520 (IVA 0% residencial — Art. 424 ET)
+  * Consumo gas natural (m3) → 513521 (IVA 0% residencial)
+  * Transporte/distribucion → 513522
+  * Otros cargos regulados → 513523 (NO IVA)
+
+CRC — TELECOMUNICACIONES (Claro, Movistar, Tigo, ETB, UNE, DirecTV, WOM, Avantel):
+  * Plan basico / cargo fijo → 513525 (IVA 19%)
+  * Internet banda ancha → 513526 (IVA 19%)
+  * Telefonia movil/fija → 513527 (IVA 19%)
+  * Television por suscripcion → 513528 (IVA 19%)
+  * Contribucion FONTIC → 513529 (NO IVA — Ley 1341/2009)
+
+SALDO ANTERIOR: cuenta 280505, line_type PRIOR_BALANCE, NO genera IVA nuevo.
+
+REGLAS:
+- Cargos regulados (solidaridad, alumbrado, FONTIC) NUNCA generan IVA.
+- Cada concepto del recibo = 1 item en el JSON. PROHIBIDO agrupar.
+- Si el recibo es residencial: IVA agua/gas = 0. Si es comercial/industrial: verificar tarifa.
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_importaciones() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en IMPORTACIONES Y COMERCIO EXTERIOR COLOMBIA (Prompt 3/7).
+Normativa: DIAN Aduanas, Decreto 390/2016, PUC Colombia, ET Arts. 420, 459, 485.
+Lee el comprobante PIXEL POR PIXEL. El TOTAL impreso manda siempre.
+
+MONEDA: COP. Si el documento es en USD/EUR, extraer tasa de cambio TRM si aparece.
+
+DOCUMENTOS DE IMPORTACION:
+- Factura comercial proveedor extranjero: NIT exterior, INCOTERM, valor FOB
+- Declaracion de importacion (DI): numero, modalidad (1001=definitiva, 1007=reimportacion)
+- Poliza de importacion: entidad aduanera, liquidacion tributos
+- Liquidacion oficial: Arancel + IVA importacion + Otros tributos DIAN
+
+CUENTAS PUC COLOMBIA IMPORTACIONES:
+- Mercancias importadas en transito: 143815
+- Mercancias importadas (recibidas): 143505 o segun tipo
+- Costo mercancia FOB: debito 143505
+- Flete internacional: 143505 o 513530 (si es gasto del periodo)
+- Seguro internacional: 513535 o 143505
+- Arancel (gravamen arancelario): 143505 (mayor valor del activo) o 524545
+- IVA importacion: 2408 (descontable si bien para reventa — Art. 485 ET)
+- Gastos de agencia de aduana: 513505 (honorarios)
+- Bodegaje: 513530
+- Proveedor exterior: 220510
+
+RETENCIONES EN IMPORTACIONES:
+- No aplica ReteFuente en importaciones directas (Art. 391 ET — exencion importador)
+- ReteIVA: no aplica en importaciones
+- Anticipo renta: verificar si aplica segun regimen
+
+TIPOS DE IMPORTACION:
+- Definitiva (1001): mercancia queda en Colombia, genera todos los tributos
+- Temporal (1040): no genera tributos hasta nacionalizacion
+- Reimportacion (1007): puede haber exencion de arancel
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_nomina_planilla() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en NOMINA Y PRESTACIONES SOCIALES COLOMBIA (Prompt 4/7).
+Normativa: CST Arts. 127, 132, 186, 249, 306; Ley 100/1993; Ley 21/1982; Decreto 1072/2015.
+Lee el comprobante PIXEL POR PIXEL.
+
+MONEDA: COP. SMMLV 2026 = $1.520.000.
+
+COMPONENTES DEL COMPROBANTE DE NOMINA:
+DEVENGADO:
+  * Salario basico (Art. 127 CST) → 510506 Sueldos
+  * Horas extras diurnas 25% (Art. 168 CST) → 510518
+  * Horas extras nocturnas 75% → 510518
+  * Dominicales/festivos 75% → 510518
+  * Auxilio de transporte ($200.000 SMMLV 2026 — Ley 15/1959) → 510527
+  * Comisiones → 510509
+  * Bonificaciones constitutivas de salario → 510512
+  * Bonificaciones no constitutivas → 510521 (no base para prestaciones)
+  * Vacaciones disfrutadas (Art. 186 CST) → 510530
+
+DEDUCCIONES:
+  * Aporte AFP empleado 4% (Art. 20 Ley 100/1993) → 2405 AFP por pagar
+  * Aporte EPS empleado 4% (Art. 204 Ley 100/1993) → 2406 EPS por pagar
+  * Fondo solidaridad pensional 1% (si > 4 SMMLV — Art. 27 Ley 100) → 2405
+  * Retencion en la fuente rentas laborales (Art. 383 ET, UVT 2026=$47.065) → 2365
+  * Libranzas/descuentos autorizados (Art. 149 CST) → 280510
+
+APORTES EMPLEADOR (no van en boleta pero si en asiento):
+  * ARL segun clase riesgo I-V (0.348%-6.96% — Dec. 1607/2002) → 2407
+  * EPS empleador 8.5% → 2406
+  * AFP empleador 12% (o prima de vejez) → 2405
+  * CCF 4% (Ley 21/1982) → 2408 CCF
+  * SENA 2% (exento si <10 SMMLV — Ley 1607/2012 Art. 65) → exento
+  * ICBF 3% (exento si <10 SMMLV — Ley 1607/2012 Art. 65) → exento
+
+PROVISIONES MENSUALES (Art. 249, 306 CST; Ley 50/1990):
+  * Cesantias 8.33% → 261005 Cesantias por pagar
+  * Intereses cesantias 1%/mes → 261010
+  * Prima de servicios 8.33% → 261015
+  * Vacaciones 4.17% → 261020
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_activos_fijos() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en ACTIVOS FIJOS Y PROPIEDAD PLANTA EQUIPO COLOMBIA (Prompt 5/7).
+Normativa: PUC cuenta 15, NIC 16 (NIIF), Decreto 2649/1993, ET Arts. 131, 137, 141 (depreciacion).
+Lee el comprobante PIXEL POR PIXEL.
+
+MONEDA: COP.
+
+CLASIFICACION DE ACTIVOS FIJOS PUC COLOMBIA:
+  * Terrenos → 150405 (no se deprecia)
+  * Construcciones/edificios → 150810 (vida util 20 anos — Art. 137 ET)
+  * Maquinaria y equipo → 152005 (vida util 10 anos)
+  * Equipo de oficina → 152405 (vida util 10 anos)
+  * Equipo de computo y comunicacion → 152805 (vida util 5 anos)
+  * Flota y equipo de transporte → 153005 (vida util 5 anos)
+  * Muebles y enseres → 153505 (vida util 10 anos)
+  * Herramientas → 154005 (vida util 5 anos)
+  * Activos intangibles (software) → 160505 (amortizacion 3-5 anos)
+
+CONTABILIZACION ADQUISICION:
+  * Debito: cuenta 15xxxx (mayor valor del activo)
+  * IVA descontable en activos productivos: 2408 (Art. 485 ET)
+  * IVA no descontable (si activo no genera renta gravada): mayor valor del activo
+  * Credito: 220505 proveedores o 111005 bancos
+
+DEPRECIACION PUC COLOMBIA (ET Art. 137 — metodo linea recta):
+  * Depreciacion acumulada: 159205 (edificios), 159210 (maquinaria), 159215 (equipo computo)
+  * Gasto depreciacion: 517005 (operacional) o 527005 (no operacional)
+
+MEJORAS VS REPARACIONES (NIC 16):
+  * Mejora que aumenta vida util o capacidad → mayor valor del activo (capitalizar)
+  * Reparacion ordinaria que mantiene condicion → gasto periodo (513540)
+
+IDENTIFICAR EN EL DOCUMENTO:
+  * Descripcion exacta del bien
+  * Numero de serie/modelo si aparece
+  * Garantia (meses/anos) si aparece
+  * Si incluye instalacion/montaje (capitalizable)
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_notas_credito_debito() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en NOTAS CREDITO Y DEBITO COLOMBIA (Prompt 6/7).
+Normativa: DIAN Resolucion 000042/2020, Decreto 1165/2019, ET Art. 862, PUC Colombia.
+Lee el comprobante PIXEL POR PIXEL.
+
+MONEDA: COP.
+
+NOTA CREDITO (disminuye valor de la compra original):
+Causales validas (DIAN):
+  1. Devolucion parcial de bienes
+  2. Anulacion del documento soporte
+  3. Rebaja o descuento posterior a la venta
+  4. Ajuste de precio (diferencia entre precio pactado y real)
+  5. Otras condiciones comerciales pactadas
+
+CONTABILIZACION NOTA CREDITO:
+  * Reversion parcial de la compra → debito 220505 (proveedor)
+  * Reversion IVA → debito 2408 (reduccion del IVA descontable)
+  * Ajuste inventario si aplica → credito 143505
+  * Gasto o ajuste → credito 513xxx segun concepto original
+
+NOTA DEBITO (aumenta valor de la factura original):
+Causales validas (DIAN):
+  1. Intereses de mora (Art. 1617 CC)
+  2. Gastos de cobro
+  3. Ajuste de precio posterior
+  4. Incremento en los costos acordado
+
+CONTABILIZACION NOTA DEBITO:
+  * Mayor valor del gasto → debito 513xxx o 143505
+  * Mayor IVA → debito 2408
+  * Mayor obligacion con proveedor → credito 220505
+
+CAMPOS CRITICOS A EXTRAER:
+  * Numero de la nota credito/debito
+  * Numero de la factura original que afecta
+  * CUFE de la nota (documentos electronicos DIAN)
+  * NIT proveedor
+  * Concepto/causal
+  * Valor afectado (sin IVA + IVA por separado)
+
+{_json_schema_instruction()}
+"""
+
+def _prompt_compra_almacen() -> str:
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO — Especialista en COMPRAS DE INVENTARIO Y ALMACEN COLOMBIA (Prompt 7/7).
+Normativa: PUC Decreto 2649/1993 cuentas 14xx/15xx, NIC 2 Inventarios, ET Art. 62, 64, 65.
+Lee el comprobante PIXEL POR PIXEL. El TOTAL impreso manda SIEMPRE. PROHIBIDO inventar cantidades o precios.
+
+MONEDA: Pesos Colombianos COP. Punto = miles, coma = decimal.
+Ejemplos: "1.590.200" = 1590200, "45,50" = 45.50, "$ 890.000" = 890000.
+
+═══════════════════════════════════════════════════════════
+EXTRACCION OBLIGATORIA DE CADA ITEM (fila por fila):
+═══════════════════════════════════════════════════════════
+Para CADA linea/producto visible en el documento extraer:
+  • code          : codigo/referencia/SKU/PLU impreso en el comprobante (si no hay, dejar "")
+  • description   : descripcion EXACTA como aparece en el documento
+  • unit          : unidad de medida (UND, KG, LT, MT, MTS, TON, CJA, BLS, PKG, ROLLO, etc.)
+  • quantity      : cantidad numerica exacta (ej: "12", "2.5", "100")
+  • unit_price    : precio unitario SIN IVA exacto
+  • line_subtotal : subtotal = quantity × unit_price SIN IVA
+  • igv_amount    : IVA de la linea (0 si excluido o exento)
+  • total_line    : total con IVA de la linea
+  • lot_number    : numero de lote/batch si aparece (o "")
+  • expiry_date   : fecha de vencimiento si aparece en YYYY-MM-DD (o "")
+  • brand         : marca del producto si es visible (o "")
+  • is_inventory  : true SIEMPRE para compras de almacen
+  • taxable       : true si tiene IVA, false si excluido/exento
+
+CUENTAS PUC COLOMBIA — INVENTARIOS (cuenta 14):
+┌──────────┬─────────────────────────────────────┬─────────────────────────────────────────┐
+│ Cuenta   │ Nombre PUC                          │ Cuando usar                             │
+├──────────┼─────────────────────────────────────┼─────────────────────────────────────────┤
+│ 143505   │ Mercancias no fabricadas            │ Productos para reventa (comercio)       │
+│ 143510   │ Materias primas                     │ Insumos para fabricacion               │
+│ 143515   │ Productos en proceso                │ Semifabricados (NO para compras)        │
+│ 143520   │ Productos terminados                │ Manufactura propia (NO para compras)    │
+│ 143525   │ Materiales y repuestos              │ Repuestos, consumibles mantenimiento    │
+│ 143530   │ Envases y empaques                  │ Empaques y contenedores propios         │
+│ 143535   │ Inventarios en transito             │ Mercancias en camino/en transporte      │
+│ 143815   │ Mercancias en transito              │ Importaciones no nacionalizadas         │
+│ 152805   │ Equipo de computo (activo fijo)     │ Solo si valor > 50 UVT y vida util >1a  │
+│ 152005   │ Maquinaria y equipo (activo fijo)   │ Solo si capitalizable segun NIC 16      │
+└──────────┴─────────────────────────────────────┴─────────────────────────────────────────┘
+
+REGLAS DE CLASIFICACION POR TIPO DE PRODUCTO:
+- Productos terminados para venta directa → 143505 (mercancias)
+- Materias primas, quimicos, insumos industriales → 143510
+- Repuestos, lubricantes, herramientas consumibles → 143525
+- Empaques, bolsas, etiquetas, cintas → 143530
+- Alimentos, bebidas, consumibles oficina → 143505 o 143525 segun destino
+- Medicamentos, insumos medicos → 143505 (si venta) o 143525 (si uso interno)
+
+IVA COLOMBIA EN INVENTARIOS:
+- Tasa general 19% (Art. 468 ET): aplica a la mayoria de bienes
+- Tasa 5% (Art. 468-1 ET): algunos alimentos procesados, chicles, cafe procesado
+- Excluidos (Art. 424 ET, IVA=0): carnes frescas, pescado, frutas/verduras frescas, huevos,
+  leche, medicamentos, abonos, semillas, maquinaria agricola, cuadernos, libros
+- Si el documento muestra tarifa diferente a 19% → usar la tarifa del documento
+
+RETENCIONES EN COMPRAS DE INVENTARIO:
+- ReteFuente compras bienes (Art. 384 ET): 2.5% si >= $1.174.000 COP (25 UVT)
+  → solo si el proveedor es persona juridica declarante
+- ReteIVA: 15% del IVA si retenedor autorizado DIAN (grandes contribuyentes)
+- ReteICA: segun municipio y actividad (verificar tarifa aplicable)
+
+VALIDACIONES OBLIGATORIAS:
+1. Total de la factura = suma de todos los totales de linea + IVA global (si aplica)
+2. Si hay diferencia de redondeo (<= $500 COP) crear linea ROUNDING
+3. Verificar NIT/CUFE del proveedor si es factura electronica DIAN
+4. Extraer numero de orden de compra si aparece (campo "serie" o "number")
+5. Extraer numero de remision/guia de despacho si aparece
+
+CAMPOS ADICIONALES PARA ALMACEN:
+- purchase_order   : numero de orden de compra si aparece
+- delivery_note    : numero de remision/entrada de almacen si aparece
+- warehouse        : bodega de destino si se menciona
+
+{_json_schema_instruction()}
+"""
+
+
+# ─── ORQUESTADOR IA — detecta tipo y aplica prompt especializado ───────────────
+
+_TIPO_CHOICES = "FACTURA_COMERCIAL | SERVICIOS_PUBLICOS | IMPORTACION | NOMINA | ACTIVO_FIJO | NOTA_CREDITO_DEBITO | COMPRA_ALMACEN"
+
+_PROMPT_CLASIFICADOR = f"""
+Eres el orquestador contable de CONTA_COLPRO Colombia. Analiza el comprobante PIXEL POR PIXEL y detecta su tipo.
+
+Responde SOLO con un JSON valido sin markdown:
+{{"tipo": "<tipo>", "confianza": <0.0-1.0>, "razon": "<por que>"}}
+
+Tipos disponibles: {_TIPO_CHOICES}
+
+Reglas de clasificacion:
+- COMPRA_ALMACEN: facturas con multiples productos/referencias con cantidades, codigos SKU/PLU, precios unitarios y totales por linea. Priorizar cuando hay tabla de articulos con columnas Cant/Ref/Descripcion/V.Unit/V.Total.
+- FACTURA_COMERCIAL: facturas DIAN con CUFE, compras de bienes o servicios normales sin tabla de inventario detallada.
+- SERVICIOS_PUBLICOS: recibos EPM, Codensa, Celsia, Gas Natural, Triple A, ETB, Claro, Movistar, etc.
+- IMPORTACION: facturas extranjeras, declaraciones de importacion DI, polizas aduaneras DIAN.
+- NOMINA: comprobantes de pago de nomina, liquidaciones laborales, planillas PILA.
+- ACTIVO_FIJO: compra de maquinaria, equipos, vehiculos, bienes capitalizables (generalmente 1 item de alto valor).
+- NOTA_CREDITO_DEBITO: notas credito o debito que afectan facturas anteriores.
+"""
+
+_PROMPT_MAP = {
+    "FACTURA_COMERCIAL":   _prompt_factura_comercial,
+    "SERVICIOS_PUBLICOS":  _prompt_servicios_publicos,
+    "IMPORTACION":         _prompt_importaciones,
+    "NOMINA":              _prompt_nomina_planilla,
+    "ACTIVO_FIJO":         _prompt_activos_fijos,
+    "NOTA_CREDITO_DEBITO": _prompt_notas_credito_debito,
+    "COMPRA_ALMACEN":      _prompt_compra_almacen,
+}
+
+
+def _build_client(user_key: str | None = None):
+    """Construye cliente IA: servidor (Gemini > Claude) → clave del usuario → error 503."""
+    key = settings.gemini_api_key or (user_key or "").strip()
+    if key:
+        return GeminiClient(api_key=key, model=settings.gemini_model or "gemini-2.0-flash")
+    if settings.claude_api_key:
+        return ClaudeClient(api_key=settings.claude_api_key, model=settings.claude_model or "claude-haiku-4-5-20251001")
+    raise HTTPException(
+        status_code=503,
+        detail="Sin clave IA. Configura tu clave Gemini en ⚙ Configuración.",
+    )
+
+
+def _parse_ai_json(text: str) -> dict:
+    """Parsea JSON de la IA; si está truncado, intenta repararlo cerrando estructuras abiertas."""
+    text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        result = json.loads(text)
+        return result if isinstance(result, dict) else {}
+    except json.JSONDecodeError:
+        pass
+
+    # Reparar JSON truncado: cerrar strings/arrays/objetos abiertos
+    in_string = False
+    escape_next = False
+    stack: list[str] = []
+    for ch in text:
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if ch in "{[":
+                stack.append(ch)
+            elif ch == "}" and stack and stack[-1] == "{":
+                stack.pop()
+            elif ch == "]" and stack and stack[-1] == "[":
+                stack.pop()
+
+    closing = ('"' if in_string else "") + "".join("}" if c == "{" else "]" for c in reversed(stack))
+    try:
+        result = json.loads(text + closing)
+        return result if isinstance(result, dict) else {}
+    except json.JSONDecodeError as exc:
+        raise exc
+
+
+async def _analyze_document_text(
+    client: GeminiClient | ClaudeClient,
+    instruction: str,
+    file_bytes: bytes,
+    mime_type: str,
+) -> str:
+    """Llama analyze_document y devuelve el texto. Fallback automático a Claude si Gemini da 429."""
+    try:
+        resp = await client.analyze_document(
+            instruction=instruction,
+            file_bytes=file_bytes,
+            mime_type=mime_type,
+        )
+        return client.response_text(resp)
+    except GeminiQuotaError:
+        if not settings.claude_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Cuota Gemini excedida y no hay clave Claude configurada como respaldo.",
+            )
+        fallback = ClaudeClient(
+            api_key=settings.claude_api_key,
+            model=settings.claude_model or "claude-haiku-4-5-20251001",
+        )
+        resp = await fallback.analyze_document(
+            instruction=instruction,
+            file_bytes=file_bytes,
+            mime_type=mime_type,
+        )
+        return fallback.response_text(resp)
+
+
+def _prompt_vision_colombia() -> str:
+    """Prompt completo compartido por orchestrate-ia y process-ia."""
+    return _accounting_context_colombia() + f"""
+Eres CONTA_COLPRO Vision Accounting Engine para Colombia — DIAN, PUC Decreto 2649/1993, Estatuto Tributario, Ley 1819/2016. Lee el comprobante PIXEL POR PIXEL.
+
+REGLA SUPREMA: El TOTAL A PAGAR impreso en el comprobante manda siempre. No calcules, no redondees, no inventes importes.
+
+MONEDA COLOMBIA: Los importes estan en Pesos Colombianos (COP). Pueden usar punto (.) como separador de miles y coma (,) como decimal.
+- "1.590.200" = 1590200 pesos COP
+- "190,10" = 190.10 pesos COP
+Devuelve SIEMPRE los importes como string con punto decimal: "190.10", "1590200.00".
+
+ORGANISMOS REGULADORES COLOMBIA - DESGLOSE OBLIGATORIO por fila visible:
+
+CREG - Energia electrica (EPM, Codensa, Celsia, Electrohuila, ESSA, Enerca, Emcali, Energuaviare):
+  * Energia activa / Consumo kWh → cuenta 513515
+  * Cargo fijo → cuenta 513516
+  * Alumbrado publico (contribucion) → cuenta 513517 (NO genera IVA — cargo regulado CREG)
+  * Contribucion especial solidaridad → cuenta 513518 (NO genera IVA)
+  * Comercializacion → cuenta 513519
+
+CRA - Agua y saneamiento (EPM Aguas, Triple A, Acueducto de Bogota, EMCALI, Aguas de Manizales):
+  * Cargo fijo acueducto → cuenta 513510
+  * Consumo agua potable (m3) → cuenta 513511
+  * Alcantarillado → cuenta 513512
+  * Aseo / residuos → cuenta 513513
+  * Contribucion solidaridad agua → cuenta 513514 (NO genera IVA)
+
+CREG - Gas natural (Gas Natural Fenosa, Gases de Occidente, Surtigas, Alcanos, Vanti, Metrogas):
+  * Cargo fijo gas → cuenta 513520
+  * Consumo gas natural (m3) → cuenta 513521
+  * Transporte / distribucion gas → cuenta 513522
+
+CRC - Telecomunicaciones (Claro, Movistar, Tigo, ETB, UNE, DirecTV, WOM):
+  * Plan basico / cargo fijo → cuenta 513525
+  * Internet / banda ancha → cuenta 513526
+  * Telefonia movil / fija → cuenta 513527
+  * Television por cable / streaming → cuenta 513528
+  * Contribucion FONTIC → cuenta 513529 (NO genera IVA)
+
+SALDO ANTERIOR / DEUDA ANTERIOR (EN CUALQUIER RECIBO DE SERVICIO PUBLICO):
+  * Si aparece "Saldo anterior", "Deuda anterior", "Recibo anterior" → es deuda de periodo anterior
+  * Cuenta: 280505 (Cuentas por pagar - deuda anterior servicios)
+  * NO genera nuevo IVA, NO es gasto nuevo
+  * line_type: "PRIOR_BALANCE"
+
+REGLAS PUC COLOMBIA PARA TODOS LOS RECIBOS:
+- Cada fila del recibo = un item separado en el JSON. PROHIBIDO agrupar.
+- El IVA (19% Art. 468 ET) va SOLO en cuenta 2408 como campo "igv" del JSON, nunca como item.
+- IVA en Colombia = 19%. Algunos servicios publicos: 0% (agua, alcantarillado, aseo, gas domiciliario residencial).
+- Si no lees el importe exacto, pon el importe mas cercano visible y marca requires_visual_review=true.
+- Los cargos regulados CREG/CRA/CRC (contribucion solidaridad, alumbrado publico, FONTIC) NO generan IVA.
+- La linea visible Diferencia de redondeo absorbe el cuadre contra el total impreso.
+- Facturas con CUFE valido → validar NIT del proveedor en DIAN (Art. 615 ET).
+- Retenciones: ReteIVA cuenta 2365, ReteICA cuenta 2368, ReteFuente segun concepto (Art. 383/384/385 ET).
+- Gastos deducibles: deben tener soporte DIAN valido (factura electronica con CUFE, Art. 771-2 ET).
+
+PLAN DE CUENTAS PUC COLOMBIA — GASTOS OPERACIONALES (cuenta 51):
+- 513505 Aseo y vigilancia
+- 513510 Acueducto y alcantarillado
+- 513515 Energia electrica
+- 513520 Gas domiciliario
+- 513525 Telecomunicaciones
+- 513530 Transporte, fletes y acarreos
+- 513535 Seguros
+- 513540 Mantenimiento y reparaciones
+- 513545 Arrendamientos (IVA si persona juridica — Art. 476 ET)
+- 513550 Honorarios profesionales (requiere ReteIVA y ReteFuente)
+- 513555 Papeleria y utiles de oficina
+- 513560 Combustibles y lubricantes
+- 513565 Publicidad y propaganda
+- 513570 Elementos de aseo y cafeteria
+
+INVENTARIO (cuenta 14):
+- 143505 Mercancias en almacen (comercio)
+- 143510 Materias primas
+- 143515 Productos en proceso
+- 143520 Productos terminados
+- 143525 Materiales, repuestos y accesorios
+
+PROVEEDORES Y CUENTAS POR PAGAR:
+- 220505 Proveedores nacionales
+- 220510 Proveedores del exterior
+- 2408 IVA por pagar (descontable — Art. 485 ET)
+- 2365 Retencion en la fuente a favor
+- 2368 ReteICA a favor
+
+Analiza el archivo PIXEL POR PIXEL como comprobante empresarial colombiano.
+
+REGLA ITEMS: Cada fila visible del comprobante = un item separado. PROHIBIDO agrupar lineas.
+REGLA INVENTARIO: Si el item es bien fisico tangible (producto, material, repuesto) → is_inventory=true, account_code=14xxxx. Si es servicio o gasto → is_inventory=false, account_code=5xxxxx.
+REGLA NIT: Devuelve SOLO los primeros 9 digitos del NIT (sin el digito de verificacion). Ejemplo: NIT impreso "830987654-1" → supplier_ruc="830987654".
+REGLA DESCUENTOS: Si hay descuentos, rebajas o notas debito en el comprobante → incluirlos como item con unit_price negativo y line_subtotal negativo. Ejemplo: "Descuento comercial -$100.000" → item separado con total_line="-100000.00".
+
+Devuelve SOLO este JSON valido sin markdown ni texto extra. Copia la estructura exacta, un objeto por item visible:
+{{"supplier_name":"","supplier_ruc":"","invoice_number":"","serie":"","issue_date":"","due_date":null,"currency":"COP","subtotal":"0.00","igv":"0.00","total":"0.00","payment_method":"CREDITO","cost_center":null,"items":[{{"code":"","description":"","unit":"UND","quantity":1,"unit_price":"0.00","line_subtotal":"0.00","igv_amount":"0.00","total_line":"0.00","account_code":"","account_name":"","cost_center":null,"tax_treatment":"GRAVADO_19","taxable":true,"is_inventory":false,"line_type":"EXPENSE_OR_ASSET","requires_support":false,"ai_confidence":0.95,"ai_reason":"cuenta PUC asignada porque..."}}],"warnings":[],"audit_metadata":{{"accounting_warnings":[],"tax_warnings":[],"ocr_warnings":[],"reconciliation_notes":[]}}}}
+"""
+
+
+@router.post("/orchestrate-ia")
+async def orchestrate_purchase_ia(
+    file: UploadFile = File(...),
+    ctx=Depends(get_current_context),
+    x_gemini_key: str | None = Header(default=None, alias="X-Gemini-Key"),
+):
+    """Orquestador IA: usa el mismo prompt completo que process-ia, 1 sola llamada."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacio.")
+
+    mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+    client = _build_client(x_gemini_key)
+
+    try:
+        text = await _analyze_document_text(
+            client=client,
+            instruction=_prompt_vision_colombia(),
+            file_bytes=raw,
+            mime_type=mime_type,
+        )
+        data = _parse_ai_json(text or "{}")
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=502, detail=f"IA devolvio JSON invalido: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error IA: {exc}") from exc
+
+    normalized = _normalize_ai_response(data)
+    normalized["_orquestador"] = {"tipo_detectado": "FACTURA_COMERCIAL", "confianza": 1.0}
+    return normalized
+
+
 @router.post("/process-ia")
 async def process_purchase_with_gemini(
     file: UploadFile = File(...),
     ctx=Depends(get_current_context),
+    x_gemini_key: str | None = Header(default=None, alias="X-Gemini-Key"),
 ):
-    if not is_vision_available():
-        raise HTTPException(status_code=500, detail="Configura CLAUDE_API_KEY o GEMINI_API_KEY para activar lectura IA de comprobantes.")
-
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Archivo vacio")
 
     mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
 
-    prompt = f"""
-Eres CONTA_COLPRO Vision Accounting Engine para Colombia — DIAN, PUC, Estatuto Tributario. Lee el comprobante PIXEL POR PIXEL.
-
-REGLA SUPREMA: El TOTAL A PAGAR impreso en el comprobante manda siempre. No calcules, no redondees, no inventes importes.
-
-DECIMALES PERUANOS: Los importes pueden usar punto (.) o coma (,) como separador decimal.
-- "190,10" = 190.10 soles
-- "1.590,20" = 1590.20 soles
-- "50.19" = 50.19 soles
-Devuelve SIEMPRE los importes como string con punto decimal: "190.10", "1590.20", "50.19".
-
-ORGANISMOS REGULADORES PERUANOS - DESGLOSE OBLIGATORIO por fila visible:
-
-OSINERGMIN - Electricidad (HIDRANDINA, ELECTRONORTE, ENEL, LUZ DEL SUR, SEAL, ELECTROCENTRO):
-  * Energia activa / Consumo activo → cuenta 636101
-  * Cargo fijo → cuenta 636102
-  * Alumbrado publico → cuenta 636103
-  * Reposicion y mantenimiento → cuenta 636104
-  * Aporte Ley 28749 → cuenta 636105 (NO afecto IGV)
-  * FOSE/FISE → cuenta 636106 (NO afecto IGV)
-
-SUNASS - Agua y saneamiento (SEDAPAL, SEDALIB, EPS GRAU, EPS ILO, SEDACAJ):
-  * Cargo fijo agua → cuenta 636201
-  * Consumo agua potable (m3) → cuenta 636202
-  * Alcantarillado / desague → cuenta 636203
-  * Aporte SUNASS → cuenta 636204 (NO afecto IGV)
-
-OSINERGMIN - Gas natural (CALIDDA, QUAVII, CONTUGAS):
-  * Cargo fijo gas → cuenta 636301
-  * Consumo gas natural → cuenta 636302
-  * Transporte/distribucion gas → cuenta 636303
-
-OSIPTEL - Telecomunicaciones (MOVISTAR, CLARO, ENTEL, BITEL):
-  * Renta basica / cargo fijo → cuenta 636401
-  * Internet / banda ancha → cuenta 636402
-  * Telefonia → cuenta 636403
-  * TV cable → cuenta 636404
-  * Aporte OSIPTEL/FITEL → cuenta 636405 (NO afecto IGV)
-
-SALDO ANTERIOR / DEUDA ANTERIOR (EN CUALQUIER RECIBO DE SERVICIO PUBLICO):
-  * Si aparece "Saldo anterior", "Deuda anterior", "Recibo anterior" → es deuda de periodo anterior
-  * Cuenta: 421201 (Cuentas por pagar - deuda anterior)
-  * NO genera nuevo IGV, NO es gasto nuevo
-  * line_type: "PRIOR_BALANCE"
-
-REGLAS PARA TODOS LOS RECIBOS REGULADOS:
-- Cada fila del recibo = un item separado en el JSON. PROHIBIDO agrupar.
-- El IGV no va en items; solo como campo "igv" del JSON.
-- Si no lees el importe exacto, pon el importe mas cercano visible y marca requires_visual_review=true.
-- FOSE/FISE y Aporte Ley aparecen DESPUES del total; si el total ya cuadra sin ellos, son informativos.
-- Diferencia de redondeo / Saldo por redondeo → absorbe el cuadre contra el total.
-- Si existe IGV impreso o se deduce del SUB TOTAL visible, usar ese IGV; no convertir diferencias de IGV en redondeo falso.
-- Si el recibo trae Saldo por redondeo o Diferencia de redondeo, NO crear una tercera linea de ajuste.
-- La linea visible Diferencia de redondeo absorbe el cuadre contra el total impreso.
-- Los cargos regulados de la CREG (contribucion especial, cargo solidaridad, alumbrado publico) no generan IVA; no crear linea IVA sobre ellos.
-- El IVA no debe aparecer como item de detalle del servicio; debe ir solo a 2408 como linea separada de tipo TAX.
-- Facturas comerciales normales siguen con validacion estricta de CUFE y NIT en DIAN.
-- Si el comprobante es de un prestador de servicios publicos domiciliarios (EPM, Codensa, Celsia, Gas Natural, Surtigas, ETB, Claro, Movistar) aplicar reglas de servicios regulados Colombia.
-
-Analiza el archivo como comprobante empresarial colombiano bajo normativa DIAN y Estatuto Tributario.
-Usa criterio contable PUC, tributario colombiano, legal-documentario y auditoria.
-{_json_schema_instruction()}
-"""
-
     try:
-        client = get_vision_client()
-        response = await client.analyze_document(
-            instruction=prompt,
+        client = _build_client(x_gemini_key)
+        text = await _analyze_document_text(
+            client=client,
+            instruction=_prompt_vision_colombia(),
             file_bytes=raw,
             mime_type=mime_type,
         )
-        text = client.response_text(response) or "{}"
-        data = json.loads(text)
-
-        if not isinstance(data, dict):
-            raise ValueError("Gemini no devolvio un objeto JSON")
-
+        data = _parse_ai_json(text or "{}")
         return _normalize_ai_response(data)
 
+    except HTTPException:
+        raise
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=502, detail=f"Gemini devolvio JSON invalido: {str(exc)}") from exc
+        raise HTTPException(status_code=502, detail=f"IA devolvio JSON invalido: {str(exc)}") from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Error Gemini: {str(exc)}") from exc
+        raise HTTPException(status_code=502, detail=f"Error IA: {str(exc)}") from exc

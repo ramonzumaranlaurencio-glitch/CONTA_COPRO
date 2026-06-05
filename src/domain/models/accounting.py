@@ -26,7 +26,7 @@ class Company(Base):
     legal_name: Mapped[str] = mapped_column(Text, nullable=False)
     trade_name: Mapped[str | None] = mapped_column(Text)
     ruc: Mapped[str] = mapped_column(String(11), nullable=False)
-    base_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    base_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     sunat_environment: Mapped[str] = mapped_column(String(20), nullable=False, default="BETA")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
@@ -66,7 +66,7 @@ class CurrencyRate(Base):
     tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
     rate_date: Mapped[date] = mapped_column(Date, nullable=False)
     from_currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    to_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    to_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     buy_rate: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     sell_rate: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     source: Mapped[str] = mapped_column(String(40), nullable=False, default="SUNAT")
@@ -142,7 +142,7 @@ class JournalEntry(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     source_module: Mapped[str] = mapped_column(String(40), nullable=False, default="ACCOUNTING")
     source_id: Mapped[str | None] = mapped_column(Text)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     total_debit: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     total_credit: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     tipo_cambio: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False, default=Decimal("1.0000"))
@@ -255,7 +255,7 @@ class FinancialDocument(Base):
     number: Mapped[str] = mapped_column(String(30), nullable=False)
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
     due_date: Mapped[date | None] = mapped_column(Date)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     taxable_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
@@ -280,7 +280,7 @@ class TreasuryAccount(Base):
     company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     bank_code: Mapped[str] = mapped_column(String(20), nullable=False)
     account_number: Mapped[str] = mapped_column(String(40), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     ledger_account_code: Mapped[str] = mapped_column(String(20), nullable=False)
     current_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -295,7 +295,7 @@ class TreasuryMovement(Base):
     movement_date: Mapped[date] = mapped_column(Date, nullable=False)
     movement_type: Mapped[str] = mapped_column(String(20), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="PEN")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
     reference: Mapped[str | None] = mapped_column(Text)
     partner_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     financial_document_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
@@ -547,4 +547,52 @@ class HrContract(Base):
     contract_text: Mapped[str] = mapped_column(Text, nullable=False)
     pdf_base64: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+# ─── Modelos de Nómina Colombia ───────────────────────────────────────────────
+
+class PayrollJournalEntry(Base):
+    """Asiento contable de nómina Colombia — PUC Decreto 2649/1993"""
+    __tablename__ = "payroll_journal_entries"
+    id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
+    company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
+    fecha_asiento: Mapped[date] = mapped_column(Date, nullable=False)
+    glosa: Mapped[str] = mapped_column(Text, nullable=False)
+    total_debe: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    total_haber: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    tipo_asiento: Mapped[str] = mapped_column(String(40), nullable=False, default="NOMINA_COLOMBIA")
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="POSTED")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    lines: Mapped[list["PayrollJournalLine"]] = relationship(back_populates="entry", cascade="all, delete-orphan")
+
+
+class PayrollJournalLine(Base):
+    """Línea de asiento nómina — débito/crédito por cuenta PUC"""
+    __tablename__ = "payroll_journal_lines"
+    id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
+    company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
+    asiento_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("payroll_journal_entries.id"), nullable=False)
+    cuenta_contable: Mapped[str] = mapped_column(String(20), nullable=False)
+    denominacion: Mapped[str | None] = mapped_column(Text)
+    monto: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    tipo_movimiento: Mapped[str] = mapped_column(CHAR(1), nullable=False)  # D=Débito H=Haber
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    entry: Mapped["PayrollJournalEntry"] = relationship(back_populates="lines")
+
+
+class PayrollProvision(Base):
+    """Provisiones de prestaciones sociales Colombia — CST Arts. 249, 306; Ley 50/1990"""
+    __tablename__ = "payroll_provisions"
+    id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
+    company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
+    trabajador_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
+    periodo_mes: Mapped[str] = mapped_column(String(7), nullable=False)   # YYYY-MM
+    monto_cts: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)         # Cesantías 8.33%
+    monto_gratificacion: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)  # Prima 8.33%
+    monto_vacaciones: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)  # Vacaciones 4.17%
+    estado_pago: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDIENTE")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

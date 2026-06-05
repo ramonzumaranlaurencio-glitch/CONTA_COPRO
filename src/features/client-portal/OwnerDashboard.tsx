@@ -855,7 +855,7 @@ export const OwnerDashboard = () => {
                 <Badge label="SOLO TÚ" color={C.purple} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {['Todos los módulos activos', 'IA ilimitada', 'Todos los clientes visibles', 'Validación de pagos Yape/Plin', 'Gestión de códigos únicos', 'Alertas del sistema', 'Configuración global', 'Sin fecha de vencimiento'].map((f, i) => (
+                {['Todos los módulos activos', 'IA ilimitada', 'Todos los clientes visibles', 'Validación de pagos Nequi/Daviplata', 'Gestión de códigos únicos', 'Alertas del sistema', 'Configuración global', 'Sin fecha de vencimiento'].map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.muted }}>
                     <span style={{ color: C.purple, fontWeight: 700 }}>⭐</span> {f}
                   </div>
@@ -872,7 +872,7 @@ export const OwnerDashboard = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {[
                 { title: '💰 Precios de planes', items: ['Plus Empresa: USD 119/mes', 'Pro Empresa: USD 149/mes', 'Maestro Empresa: A tratar', 'Plus Contador: USD 50/mes', 'Pro Contador: USD 99/mes', 'Maestro+: A tratar'] },
-                { title: '📱 Medios de pago activos', items: ['✅ Yape (validación manual)', '✅ Plin (validación manual)', '✅ Transferencia BCP/Interbank', '⬜ Culqi (tarjeta — próximamente)', '⬜ Izipay (POS virtual — próximamente)'] },
+                { title: '📱 Medios de pago activos', items: ['✅ Nequi (validación manual)', '✅ Daviplata (validación manual)', '✅ Transferencia Bancolombia/Davivienda', '⬜ PSE (próximamente)', '⬜ Tarjeta débito/crédito (próximamente)'] },
                 { title: '🤖 Límites de IA por plan', items: ['Trial: 0 docs/mes', 'Plus Empresa: 100 docs/mes', 'Pro Empresa: 200 docs/mes', 'Plus Contador: 50 docs/mes', 'Pro Contador: 100 docs/mes', 'Maestro: Ilimitado'] },
                 { title: '🔑 Reglas de códigos únicos', items: ['1 código por cliente al activar plan', 'Código no puede ser reutilizado', 'Máximo 2 IPs distintas por código', 'Bloqueo automático a la 3ra IP distinta', 'Alerta al dueño por intento duplicado'] },
               ].map((s, i) => (

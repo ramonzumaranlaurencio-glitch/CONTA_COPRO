@@ -156,7 +156,7 @@ export default function AccountingLivePanel({
         <div className="sap-actions">
           <input
             className="sap-search"
-            placeholder="Buscar cuenta, glosa, RUC, hash..."
+            placeholder="Buscar cuenta, glosa, NIT, hash..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

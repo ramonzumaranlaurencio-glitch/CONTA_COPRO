@@ -86,7 +86,7 @@ export const GuiaRemisionPanel: React.FC<GuiaRemisionPanelProps> = ({ token, ten
 
   const saveGuide = async () => {
     if (!data.transportistaRuc || !data.transportistaRazonSocial || !data.placaVehiculo) {
-      setMessage('Completa RUC, razon social y placa del transportista para guardar la guia.');
+      setMessage('Completa NIT, razon social y placa del transportista para guardar la remesa.');
       return;
     }
     setSaving(true);
@@ -159,15 +159,15 @@ BT
 0 -20 Td
 (Motivo: ${pdfEscape(data.motivoTraslado)}  Modalidad: ${pdfEscape(data.modalidadTransporte)}) Tj
 0 -20 Td
-(Destinatario RUC: ${pdfEscape(data.destinatarioRuc)}) Tj
+(Destinatario NIT: ${pdfEscape(data.destinatarioRuc)}) Tj
 0 -20 Td
-(Transportista: ${pdfEscape(data.transportistaRazonSocial)} RUC: ${pdfEscape(data.transportistaRuc)}) Tj
+(Transportista: ${pdfEscape(data.transportistaRazonSocial)} NIT: ${pdfEscape(data.transportistaRuc)}) Tj
 0 -20 Td
-(Placa: ${pdfEscape(data.placaVehiculo)}  Licencia: ${pdfEscape(data.conductorLicencia)}  DNI: ${pdfEscape(data.conductorDni)}) Tj
+(Placa: ${pdfEscape(data.placaVehiculo)}  Licencia: ${pdfEscape(data.conductorLicencia)}  Cédula: ${pdfEscape(data.conductorDni)}) Tj
 0 -20 Td
-(Punto Partida: ${pdfEscape(data.partidaDireccion)} UBIGEO ${pdfEscape(data.partidaUbigeo)}) Tj
+(Origen: ${pdfEscape(data.partidaDireccion)} DANE ${pdfEscape(data.partidaUbigeo)}) Tj
 0 -20 Td
-(Punto Llegada: ${pdfEscape(data.llegadaDireccion)} UBIGEO ${pdfEscape(data.llegadaUbigeo)}) Tj
+(Destino: ${pdfEscape(data.llegadaDireccion)} DANE ${pdfEscape(data.llegadaUbigeo)}) Tj
 0 -25 Td
 (DETALLE DE BIENES) Tj
 0 -16 Td
@@ -208,7 +208,7 @@ startxref
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
       <div style={{ width: 'min(96vw, 1200px)', maxHeight: '92vh', overflow: 'auto', background: '#fff', borderRadius: 12, padding: 16, border: '1px solid #dbe3ed' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0, color: '#0f548c' }}>Guia de Remision</h3>
+          <h3 style={{ margin: 0, color: '#0f548c' }}>Remesa de Mercancías</h3>
           <Button appearance="secondary" onClick={onClose}>Cerrar</Button>
         </div>
 
@@ -242,16 +242,16 @@ startxref
 
           <Field label="Peso bruto total (kg)"><Input value={data.pesoBrutoTotal} onChange={(_, d) => update('pesoBrutoTotal', d.value)} disabled={!editable} /></Field>
           <Field label="Numero bultos"><Input value={data.numeroBultos} onChange={(_, d) => update('numeroBultos', d.value)} disabled={!editable} /></Field>
-          <Field label="RUC destinatario"><Input value={data.destinatarioRuc} onChange={(_, d) => update('destinatarioRuc', d.value)} disabled={!editable} /></Field>
+          <Field label="NIT destinatario"><Input value={data.destinatarioRuc} onChange={(_, d) => update('destinatarioRuc', d.value)} disabled={!editable} /></Field>
 
-          <Field label="Partida (direccion)"><Input value={data.partidaDireccion} onChange={(_, d) => update('partidaDireccion', d.value)} disabled={!editable} /></Field>
-          <Field label="Partida ubigeo"><Input value={data.partidaUbigeo} onChange={(_, d) => update('partidaUbigeo', d.value)} disabled={!editable} /></Field>
-          <Field label="Llegada (direccion)"><Input value={data.llegadaDireccion} onChange={(_, d) => update('llegadaDireccion', d.value)} disabled={!editable} /></Field>
-          <Field label="Llegada ubigeo"><Input value={data.llegadaUbigeo} onChange={(_, d) => update('llegadaUbigeo', d.value)} disabled={!editable} /></Field>
+          <Field label="Origen (dirección)"><Input value={data.partidaDireccion} onChange={(_, d) => update('partidaDireccion', d.value)} disabled={!editable} /></Field>
+          <Field label="Código DANE origen"><Input value={data.partidaUbigeo} onChange={(_, d) => update('partidaUbigeo', d.value)} disabled={!editable} /></Field>
+          <Field label="Destino (dirección)"><Input value={data.llegadaDireccion} onChange={(_, d) => update('llegadaDireccion', d.value)} disabled={!editable} /></Field>
+          <Field label="Código DANE destino"><Input value={data.llegadaUbigeo} onChange={(_, d) => update('llegadaUbigeo', d.value)} disabled={!editable} /></Field>
 
-          <Field label="RUC transportista"><Input value={data.transportistaRuc} onChange={(_, d) => update('transportistaRuc', d.value)} disabled={!editable} /></Field>
-          <Field label="Razon social transportista"><Input value={data.transportistaRazonSocial} onChange={(_, d) => update('transportistaRazonSocial', d.value)} disabled={!editable} /></Field>
-          <Field label="DNI conductor"><Input value={data.conductorDni} onChange={(_, d) => update('conductorDni', d.value)} disabled={!editable} /></Field>
+          <Field label="NIT transportista"><Input value={data.transportistaRuc} onChange={(_, d) => update('transportistaRuc', d.value)} disabled={!editable} /></Field>
+          <Field label="Razón social transportista"><Input value={data.transportistaRazonSocial} onChange={(_, d) => update('transportistaRazonSocial', d.value)} disabled={!editable} /></Field>
+          <Field label="Cédula conductor"><Input value={data.conductorDni} onChange={(_, d) => update('conductorDni', d.value)} disabled={!editable} /></Field>
           <Field label="Licencia conductor"><Input value={data.conductorLicencia} onChange={(_, d) => update('conductorLicencia', d.value)} disabled={!editable} /></Field>
           <Field label="Placa vehiculo"><Input value={data.placaVehiculo} onChange={(_, d) => update('placaVehiculo', d.value)} disabled={!editable} /></Field>
         </div>

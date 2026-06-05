@@ -156,7 +156,7 @@ class ComplianceAgent:
     ) -> BankingValidation:
         """
         Ley para la Lucha contra la Evasión y para la Formalización de la Economía:
-        - Limite PEN: S/ 2,000
+        - Limite COP: $ 2,000
         - Límite USD: $ 500
         - Si excede, DEBE usar medio de pago bancario
         """
@@ -164,7 +164,7 @@ class ComplianceAgent:
         threshold_usd = Decimal("500")
 
         excede_limite = (
-            (currency == "PEN" and amount > threshold_pen)
+            (currency == "COP" and amount > threshold_pen)
             or (currency == "USD" and amount > threshold_usd)
         )
 

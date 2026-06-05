@@ -12,6 +12,7 @@ from src.application.services.sunat_realtime_verifier import (
     normalize_sunat_text,
 )
 from src.domain.exceptions import ExpertValidationException
+from src.config import settings
 
 
 INSUFFICIENT_JUSTIFICATIONS = {"ERROR", "ERRROR", "CAMBIO", "MODIFICAR", "ANULAR", "MAL", "CORREGIR"}
@@ -186,14 +187,29 @@ class ExpertAccountingGuard:
                 )
             ]
 
-        if not (str(partner_ruc).isdigit() and len(str(partner_ruc)) == 11):
-            return [
-                ValidationCheck(
-                    code="SUNAT_RUC_FORMAT",
-                    passed=False,
-                    detail="RUC invalido para verificacion SUNAT: debe tener 11 digitos",
-                )
-            ]
+        # Accept different taxpayer identifier lengths depending on configured country
+        ruc_digits = str(partner_ruc).isdigit() and str(partner_ruc).isdigit()
+        ruc_len = len(str(partner_ruc))
+        if settings.country_code == 'CO':
+            # Colombian NITs commonly range 9-12 digits (including DV), be permissive here
+            if not (str(partner_ruc).isdigit() and 9 <= ruc_len <= 12):
+                return [
+                    ValidationCheck(
+                        code="DIAN_NIT_FORMAT",
+                        passed=False,
+                        detail="NIT invalido para verificacion DIAN: debe tener entre 9 y 12 digitos",
+                    )
+                ]
+        else:
+            # Default: SUNAT RUC (Peru) expects exactly 11 digits
+            if not (str(partner_ruc).isdigit() and ruc_len == 11):
+                return [
+                    ValidationCheck(
+                        code="SUNAT_RUC_FORMAT",
+                        passed=False,
+                        detail="RUC invalido para verificacion SUNAT: debe tener 11 digitos",
+                    )
+                ]
 
         validation = self._get_sunat_validation(payload, partner_ruc)
         status = normalize_sunat_text(validation.get("taxpayer_status") or validation.get("estado"))
@@ -314,7 +330,7 @@ class ExpertAccountingGuard:
             "reason_code": "01" if (motivo or "").upper().startswith("ERROR_RUC") else "07",
             "reason": motivo or "Modificacion/anulacion con periodo declarado o plazo vencido",
             "total_amount": str(total or "0.00"),
-            "currency": datos_viejos.get("currency", "PEN"),
+            "currency": datos_viejos.get("currency", "COP"),
             "justification": justificacion,
             "status": "DRAFT_PENDING_SIGNATURE",
         }

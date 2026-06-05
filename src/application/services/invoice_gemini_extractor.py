@@ -272,7 +272,7 @@ Devuelve exclusivamente JSON valido con esta forma:
         text = (self._clean(value) or "").upper()
         if "USD" in text or "DOLAR" in text or "US$" in text:
             return "USD"
-        return "PEN"
+        return "COP"
 
     def _ruc(self, value: Any) -> str | None:
         if value is None:

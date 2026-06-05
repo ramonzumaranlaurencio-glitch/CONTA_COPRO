@@ -165,7 +165,7 @@ def lookup(description: str, account_code: str = "") -> dict | None:
     for keywords, item in _INDEX:
         score = sum(1 for kw in keywords if kw in desc)
         if score > 0:
-            # Bonus si la cuenta PCGE coincide
+            # Bonus si la cuenta PUC coincide
             if account_code and item["cta"] and account_code.startswith(item["cta"]):
                 score += 3
             candidates.append((score, item))

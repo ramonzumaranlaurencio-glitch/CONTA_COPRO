@@ -124,9 +124,9 @@ export default function PlanComparisonPage() {
     if (!selectedPlan) return;
     setError('');
 
-    // Validaciones básicas
-    if (!form.ruc || form.ruc.length !== 11) {
-      setError('Ingresa un RUC válido de 11 dígitos'); return;
+    // Validaciones básicas (acepta RUC/NIT entre 9 y 12 dígitos)
+    if (!form.ruc || form.ruc.length < 9 || form.ruc.length > 12) {
+      setError('Ingresa un identificador fiscal válido (9-12 dígitos)'); return;
     }
     if (!form.razonSocial.trim()) {
       setError('Ingresa la razón social'); return;
@@ -145,7 +145,7 @@ export default function PlanComparisonPage() {
       culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_tu_llave_publica';
       culqi.settings({
         title:   'ApexLogix Core',
-        currency: 'PEN',
+        currency: 'COP',
         description: `Plan ${selectedPlan.name}`,
         amount:  price(selectedPlan) * 100, // en centavos
       });
@@ -243,7 +243,7 @@ export default function PlanComparisonPage() {
                   <div style={styles.planName}>{plan.name}</div>
                   <div style={styles.planDesc}>{plan.desc}</div>
                   <div style={styles.planPrice}>
-                    S/ {price(plan)}
+                    $ {price(plan)}
                     <span style={styles.planPriceSub}>
                       {' '}/ {billing === 'annual' ? 'mes · anual' : 'mes'}
                     </span>
@@ -290,7 +290,7 @@ export default function PlanComparisonPage() {
         <div style={styles.checkoutWrap}>
           <div style={styles.checkoutCard}>
             <h2 style={styles.checkoutTitle}>
-              Plan {selectedPlan.name} — S/ {price(selectedPlan)}/mes
+              Plan {selectedPlan.name} — $ {price(selectedPlan)}/mes
             </h2>
             <p style={styles.checkoutSub}>
               Datos de empresa y tarjeta para activar

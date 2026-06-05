@@ -109,7 +109,7 @@ BT
 50 800 Td
 (FACTURA: ${invoiceData.serie}-${invoiceData.number}) Tj
 0 -30 Td
-(RUC Cliente: ${invoiceData.customerRuc}) Tj
+(NIT Cliente: ${invoiceData.customerRuc}) Tj
 0 -60 Td
 (DETALLE DE FACTURA) Tj
 0 -30 Td

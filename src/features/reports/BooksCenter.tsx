@@ -63,16 +63,11 @@ export const BooksCenter = ({ apiBase, tenantId }: Props) => {
   const [loading, setLoading] = useState(false);
 
   const requestToken = async () => {
-    const response = await fetch(`${apiBase}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: tenantId, user_id: 'erp.operator', role: 'ADMIN' }),
-    });
-    if (!response.ok) {
-      throw new Error('No se pudo generar token');
-    }
-    const payload = await response.json();
-    return payload.access_token as string;
+    const stored = localStorage.getItem('access_token');
+    if (stored) return stored;
+    const u = localStorage.getItem('login_username'); const p = localStorage.getItem('login_password');
+    if (u && p) { try { const r = await fetch(`${apiBase}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, tenant_id: tenantId }) }); if (r.ok) { const d = await r.json() as { access_token?: string }; if (d.access_token) { localStorage.setItem('access_token', d.access_token); return d.access_token; } } } catch {} }
+    return '';
   };
 
   const commonHeaders = async () => {

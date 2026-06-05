@@ -225,7 +225,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
     REG_ACCOUNTANT:
       'Paso dos: ingresa tus datos personales como contador. ' +
-      'Completa tu nombre, apellidos, número de D N I, teléfono y correo electrónico. ' +
+      'Completa tu nombre, apellidos, número de Cédula, teléfono y correo electrónico. ' +
       'Estos datos son los de tu perfil profesional. Los campos de colegiatura y especialidad son opcionales.',
 
     REG_COMPANY:
@@ -266,7 +266,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
     ADD_COMPANY:
       'Ya casi terminamos. Ahora registra las empresas cuyos libros contables vas a manejar. ' +
-      'Ingresa el R U C de once dígitos, la razón social y el rubro de cada empresa. ' +
+      'Ingresa el N I T de la empresa, la razón social y el rubro de cada negocio. ' +
       'Según tu plan, puedes agregar hasta ' +
       'tres empresas en el plan gratuito, cinco en básico, diez en Plus, y quince en Pro. ' +
       'Cuando hayas agregado al menos una empresa, haz clic en Entrar al sistema.',
@@ -318,7 +318,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   }, []);
 
   const handleGoogleLogin = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '956223061656-1bhou8snvs35ru2485kpbl7596ccrti4.apps.googleusercontent.com';
     if (!clientId) {
       setLandingError('Google Sign-In no está configurado. Usa usuario y contraseña.');
       setLoginError('Google Sign-In no está configurado. Usa usuario y contraseña.');
@@ -374,7 +374,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
   // ─── Google OAuth para REGISTRO — precarga nombre y email del formulario ────
   const handleGoogleRegister = (targetType: 'ACCOUNTANT' | 'COMPANY') => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '956223061656-1bhou8snvs35ru2485kpbl7596ccrti4.apps.googleusercontent.com';
     if (!clientId || !window.google?.accounts?.oauth2) return;
     setGoogleLoading(true);
     const client = window.google.accounts.oauth2.initTokenClient({
@@ -421,16 +421,29 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     if (!loginUser.trim() || !loginPass.trim()) { setLoginError('Ingrese usuario y contraseña.'); return; }
     setLoginLoading(true);
-    setTimeout(() => {
-      const u = USERS.find(u => u.username === loginUser.trim().toLowerCase() && u.password === loginPass);
-      if (u) { onLogin(u.rbacRole, u.role, u.plan); }
-      else { setLoginError('Usuario o contraseña incorrectos.'); setLoginLoading(false); }
-    }, 700);
+    const u = USERS.find(u => u.username === loginUser.trim().toLowerCase() && u.password === loginPass);
+    if (!u) { setLoginError('Usuario o contraseña incorrectos.'); setLoginLoading(false); return; }
+    // Guardar credenciales para renovación automática de token
+    localStorage.setItem('login_username', loginUser.trim().toLowerCase());
+    localStorage.setItem('login_password', loginPass);
+    // Obtener JWT real del backend (8 horas)
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUser.trim().toLowerCase(), password: loginPass }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { access_token?: string };
+        if (data.access_token) localStorage.setItem('access_token', data.access_token);
+      }
+    } catch { /* backend no disponible — continuar con modo local */ }
+    onLogin(u.rbacRole, u.role, u.plan);
   };
 
   const quickLogin = (u: typeof USERS[0]) => {
@@ -522,11 +535,10 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         <div style={{ ...card, padding: '36px 36px 28px', boxShadow: `0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px ${P.border}, 0 0 60px rgba(56,189,248,0.08)` }}>
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <h2 style={{ color: P.text, fontSize: 22, fontWeight: 800, margin: '0 0 6px' }}>Bienvenido a CONTA_PRO</h2>
-            <p style={{ color: P.muted, fontSize: 13, margin: 0 }}>Contabilidad inteligente para Peru · Potenciado con IA</p>
+            <p style={{ color: P.muted, fontSize: 13, margin: 0 }}>Contabilidad inteligente para Colombia · Potenciado con IA</p>
           </div>
 
-          {/* Botón Google — solo si VITE_GOOGLE_CLIENT_ID está configurado */}
-          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (<>
+          {/* Botón Google — siempre visible */}
           <button type="button" onClick={() => { setLandingError(''); handleGoogleLogin(); }}
             disabled={googleLoading || !gsiReady} style={{
             width: '100%', padding: '12px', marginBottom: 6,
@@ -553,7 +565,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               ⚠ {landingError}
             </div>
           )}
-          </>)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
             <div style={{ flex: 1, height: 1, background: P.border }} />
@@ -663,7 +674,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             </div>
           </div>
 
-          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0 12px' }}>
             <div style={{ flex: 1, height: 1, background: P.border }} />
             <span style={{ color: P.dim, fontSize: 11 }}>o ingresa con</span>
@@ -686,7 +696,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               </>
             )}
           </button>
-          </>)}
 
           <div style={{ textAlign: 'center', marginTop: 12 }}>
             <button type="button" onClick={() => setStep('REG_TYPE')} style={{ background: 'none', border: 'none', color: P.accent, fontSize: 13, cursor: 'pointer', fontFamily: "'Segoe UI', Arial, sans-serif" }}>
@@ -710,8 +719,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           <h2 style={{ color: P.text, fontSize: 20, fontWeight: 800, margin: '0 0 6px' }}>Crear cuenta</h2>
           <p style={{ color: P.dim, fontSize: 13, margin: '0 0 24px' }}>¿Cómo deseas usar CONTA_PRO?</p>
 
-          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-            <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 18 }}>
               <p style={{ margin: '0 0 10px', fontSize: 12, color: P.dim, textAlign: 'center' }}>Acceso rápido — Google autocompleta tus datos</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {([
@@ -736,7 +744,6 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                 <div style={{ flex: 1, height: 1, background: P.border }} />
               </div>
             </div>
-          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             {[
@@ -797,12 +804,12 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
-                { k: 'nombres' as const, lbl: 'Nombres *', ph: 'Juan Carlos' },
-                { k: 'apellidos' as const, lbl: 'Apellidos *', ph: 'Pérez García' },
-                { k: 'dni' as const, lbl: 'DNI / CE *', ph: '12345678' },
+                { k: 'nombres' as const, lbl: 'Nombres *', ph: 'Andrés Felipe' },
+                { k: 'apellidos' as const, lbl: 'Apellidos *', ph: 'Restrepo Cano' },
+                { k: 'dni' as const, lbl: 'Cédula / CE *', ph: '1.032.456.789' },
                 { k: 'telefono' as const, lbl: 'Teléfono *', ph: '+51 999 999 999' },
                 { k: 'email' as const, lbl: 'Correo electrónico *', ph: 'contador@email.com' },
-                { k: 'rucPersonal' as const, lbl: 'RUC personal', ph: '10XXXXXXXXX (si emite recibos)' },
+                { k: 'rucPersonal' as const, lbl: 'NIT personal', ph: '900XXXXXX-X' },
               ].map(f => (
                 <div key={f.k}>
                   <label style={label}>{f.lbl}</label>
@@ -873,14 +880,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
-                { k: 'ruc' as const, lbl: 'RUC *', ph: '20XXXXXXXXX', full: false },
-                { k: 'razonSocial' as const, lbl: 'Razón social *', ph: 'Mi Empresa S.A.C.', full: false },
+                { k: 'ruc' as const, lbl: 'NIT *', ph: '900.123.456-1', full: false },
+                { k: 'razonSocial' as const, lbl: 'Razón social *', ph: 'Mi Empresa S.A.S.', full: false },
                 { k: 'nombreComercial' as const, lbl: 'Nombre comercial', ph: 'Nombre de negocio', full: false },
                 { k: 'regimen' as const, lbl: 'Régimen tributario *', ph: 'SIMPLE / Ordinario / Gran Contribuyente', full: false },
                 { k: 'telefono' as const, lbl: 'Teléfono *', ph: '+57 300 XXX XXXX', full: false },
                 { k: 'emailEmpresa' as const, lbl: 'Correo de empresa *', ph: 'empresa@email.com', full: false },
-                { k: 'direccion' as const, lbl: 'Dirección fiscal', ph: 'Av. Principal 123, Lima', full: false },
-                { k: 'departamento' as const, lbl: 'Departamento', ph: 'Lima', full: false },
+                { k: 'direccion' as const, lbl: 'Dirección fiscal', ph: 'Calle 100 #15-20, Bogotá', full: false },
+                { k: 'departamento' as const, lbl: 'Departamento', ph: 'Cundinamarca', full: false },
               ].map(f => (
                 <div key={f.k}>
                   <label style={label}>{f.lbl}</label>
@@ -1269,9 +1276,9 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               <p style={{ margin: '0 0 12px', color: P.accent, fontSize: 12, fontWeight: 700 }}>+ Nueva empresa cliente</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RUC (11 dígitos)</label>
+                  <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>NIT</label>
                   <input value={acNewRuc} onChange={e => { setAcNewRuc(e.target.value); setAcAddError(''); }}
-                    placeholder="20XXXXXXXXX" maxLength={11}
+                    placeholder="900.XXX.XXX-X"
                     style={{ ...input(false), fontSize: 13, fontFamily: 'Consolas, monospace' }} />
                 </div>
                 <div>

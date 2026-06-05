@@ -98,7 +98,7 @@ class JournalPostRequest(BaseModel):
     description: str
     source_module: str = "ACCOUNTING"
     source_id: str | None = None
-    currency: str = "PEN"
+    currency: str = "COP"
     lines: list[JournalLineRequest] = Field(min_length=2)
     user_id: str | None = None
     trace_id: str | None = None
@@ -122,7 +122,7 @@ class InvoicePostRequest(BaseModel):
     igv: Decimal
     total: Decimal
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
-    currency: str = "PEN"
+    currency: str = "COP"
     exchange_rate: Decimal | None = None
     detraccion_amount: Decimal = Decimal("0.00")
     percepcion_amount: Decimal = Decimal("0.00")
@@ -168,7 +168,7 @@ class PurchasePostRequest(BaseModel):
     detraccion_amount: Decimal = Decimal("0.00")
     percepcion_amount: Decimal = Decimal("0.00")
     retencion_amount: Decimal = Decimal("0.00")
-    currency: str = "PEN"
+    currency: str = "COP"
     exchange_rate: Decimal | None = None
     expense_account: str = "6011"
     cost_center: str | None = None
@@ -215,7 +215,7 @@ class LedgerEngineHeader(BaseModel):
     operacion_id: str = ""
     modulo: str = ""
     tipo_transaccion: str = ""
-    moneda: str = "PEN"
+    moneda: str = "COP"
 
 
 class LedgerEngineAccountingLogic(BaseModel):
@@ -252,7 +252,7 @@ class HeaderModel(BaseModel):
     operacion_id: str = ""
     modulo: str = ""
     tipo_transaccion: str = ""
-    moneda: str = "PEN"
+    moneda: str = "COP"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

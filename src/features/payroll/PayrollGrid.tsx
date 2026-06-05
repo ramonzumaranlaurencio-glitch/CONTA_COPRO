@@ -316,10 +316,10 @@ const buildRequirementRecordsFromExtraction = (
       if (item.id === 'declaracion_jurada_domicilio' && worker.direccion_domicilio) {
         next = { ...next, status: 'OBSERVADO', evidence: String(worker.direccion_domicilio), source: 'IA_CV' };
       }
-      if (item.id === 'ficha_afp_onp' && worker.pension_system) {
-        next = { ...next, status: 'OBSERVADO', evidence: `Sistema pensionario detectado: ${String(worker.pension_system)}.`, source: 'IA_CV' };
+      if (item.id === 'afiliacion_afp' && worker.pension_system) {
+        next = { ...next, status: 'OBSERVADO', evidence: `AFP/Pensión detectado: ${String(worker.pension_system)}.`, source: 'IA_CV' };
       }
-      if (item.id === 'cuenta_bancaria_haberes' && (worker.cci || worker.cuenta_bancaria)) {
+      if (item.id === 'cuenta_bancaria' && (worker.cci || worker.cuenta_bancaria)) {
         next = { ...next, status: 'OBSERVADO', evidence: `Cuenta/CCI detectada: ${String(worker.cci || worker.cuenta_bancaria)}.`, source: 'IA_CV' };
       }
     }
@@ -419,32 +419,27 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
     'Content-Type': 'application/json',
   });
 
-  const requestDevToken = async () => {
-    const response = await fetch(`${apiBase}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: effectiveTenantId, user_id: DEV_USER_ID, role: 'ADMIN' }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    const payload = await response.json();
-    const generated = String(payload.access_token || '');
-    if (!generated) {
-      throw new Error('Token dev vacio');
-    }
-    setRuntimeToken(generated);
-    return generated;
-  };
-
   const ensureToken = async () => {
-    if (token && tokenTenantId(token) === effectiveTenantId) {
-      return token;
+    if (token && tokenTenantId(token) === effectiveTenantId) return token;
+    if (runtimeToken && tokenTenantId(runtimeToken) === effectiveTenantId) return runtimeToken;
+    const stored = localStorage.getItem('access_token') || '';
+    if (stored) { setRuntimeToken(stored); return stored; }
+    // Renovar vía /auth/login con credenciales guardadas
+    const u = localStorage.getItem('login_username');
+    const p = localStorage.getItem('login_password');
+    if (u && p) {
+      try {
+        const res = await fetch(`${apiBase}/auth/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p, tenant_id: effectiveTenantId }),
+        });
+        if (res.ok) {
+          const data = await res.json() as { access_token?: string };
+          if (data.access_token) { localStorage.setItem('access_token', data.access_token); setRuntimeToken(data.access_token); return data.access_token; }
+        }
+      } catch { /* sin conexión */ }
     }
-    if (runtimeToken && tokenTenantId(runtimeToken) === effectiveTenantId) {
-      return runtimeToken;
-    }
-    return requestDevToken();
+    return '';
   };
 
   const filteredWorkers = useMemo(() => {
@@ -557,7 +552,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           fecha_inicio_contrato: String(item.fecha_inicio_contrato ?? ''),
           fecha_fin_contrato: String(item.fecha_fin_contrato ?? ''),
           direccion_domicilio: String(item.direccion_domicilio ?? ''),
-          departamento: String(item.departamento ?? item.direccion_reniec ?? ''),
+          departamento: String(item.departamento ?? ''),
           telefono: String(item.telefono ?? ''),
           email: String(item.email ?? ''),
           profesion: String(item.profesion ?? ''),
@@ -604,7 +599,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
         setRequirementRecords(mergeRequirementRecords(mapped[0]?.cv_metadata?.requirements));
       }
     } catch {
-      onStatus?.('Planillas en modo local: no se pudo cargar trabajadores.');
+      onStatus?.('Nómina en modo local: no se pudo cargar trabajadores.');
     }
   };
 
@@ -631,9 +626,6 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
     setIsExtracting(true);
     const body = new FormData();
     body.append('file', file);
-    if (form.direccion_reniec.trim()) {
-      body.append('reniec_address', form.direccion_reniec.trim());
-    }
     try {
       const bearerToken = await ensureToken();
       const response = await fetch(`${apiBase}/hr/cv/extract`, {
@@ -678,7 +670,6 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
         fecha_inicio_contrato: prev.fecha_inicio_contrato,
         fecha_fin_contrato: prev.fecha_fin_contrato,
         direccion_domicilio: String(worker.direccion_domicilio || ''),
-        direccion_reniec: prev.direccion_reniec,
         telefono: String(worker.telefono || ''),
         email: String(worker.email || ''),
         profesion: String(worker.profesion || ''),
@@ -900,7 +891,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
       const alertText = Array.isArray(payload.compliance_alerts) && payload.compliance_alerts.length
         ? ` Alertas: ${payload.compliance_alerts.join(' | ')}`
         : '';
-      onStatus?.(`Contrato y anexos generados. Estado: ${payload.status}. Vence T-Registro: ${payload.t_registro_due}.${alertText}`);
+      onStatus?.(`Contrato y anexos generados. Estado: ${payload.status}.${alertText}`);
     } catch {
       onStatus?.('No se pudo generar contrato PDF.');
     } finally {
@@ -942,7 +933,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           year,
           month,
           entry_date: entryDate,
-          cost_center: form.area_centro_costo || selectedWorker?.area_centro_costo || 'LIM-ADM',
+          cost_center: form.area_centro_costo || selectedWorker?.area_centro_costo || 'BOG-ADM',
         }),
       });
       const payload = await response.json();
@@ -972,20 +963,21 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
   };
 
   const totals = useMemo(() => {
-    const ingresos = 
-      toPayrollNumber(form.sueldo_pactado) + 
-      toPayrollNumber(form.asignacion_familiar) + 
-      toPayrollNumber(form.horas_extras) + 
-      toPayrollNumber(form.bonificaciones) +
-      toPayrollNumber(form.comisiones) +
-      toPayrollNumber(form.gratificaciones);
-    
-    const descuentos = 
-      toPayrollNumber(form.afp_onp_monto) + 
-      toPayrollNumber(form.renta_quinta) + 
-      toPayrollNumber(form.adelantos) + 
-      toPayrollNumber(form.prestamos) +
-      toPayrollNumber(form.faltas_tardanzas);
+    const ingresos =
+      toPayrollNumber(form.sueldo_pactado) +
+      toPayrollNumber(form.horas_extras) +
+      toPayrollNumber(form.bonificaciones_const) +
+      toPayrollNumber(form.bonificaciones_no_const) +
+      toPayrollNumber(form.comisiones);
+
+    const descuentos =
+      toPayrollNumber(form.afp_empleado) +
+      toPayrollNumber(form.eps_empleado) +
+      toPayrollNumber(form.retefuente) +
+      toPayrollNumber(form.fondo_solidaridad) +
+      toPayrollNumber(form.adelantos) +
+      toPayrollNumber(form.libranza) +
+      toPayrollNumber(form.otras_deducciones);
 
     return { ingresos, descuentos, neto: ingresos - descuentos };
   }, [form]);
@@ -1008,9 +1000,9 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
             boxShadow: '0 4px 14px rgba(163,113,247,0.4)',
           }}>👥</div>
           <div>
-            <span className="hr-kicker">Planillas IA · Derecho Laboral Peruano</span>
-            <h2 style={{ margin: '2px 0 4px' }}>Planillas | Registro_Personal_V1</h2>
-            <p style={{ margin: 0, maxWidth: 680 }}>Alta de trabajador, captura de CV, validacion de datos personales y contratos con soporte legal RAG.</p>
+            <span className="hr-kicker">Nómina IA · Derecho Laboral Colombiano · CST / Ley 100</span>
+            <h2 style={{ margin: '2px 0 4px' }}>Nómina | Gestión de Trabajadores</h2>
+            <p style={{ margin: 0, maxWidth: 680 }}>Alta de trabajador, captura de hoja de vida, validacion documental y contratos con soporte legal RAG colombiano.</p>
           </div>
         </div>
         <div className="hr-hero-actions">
@@ -1042,7 +1034,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
             <DocumentPdf24Regular />
             <span>{isExtracting ? 'Procesando hoja de vida...' : 'Adjuntar hoja de vida'}</span>
           </label>
-          <div className="hr-hero-badge"><ShieldCheckmark24Regular /> Ley 29733 activa</div>
+          <div className="hr-hero-badge"><ShieldCheckmark24Regular /> CST / Ley 100 activa</div>
         </div>
       </section>
 
@@ -1075,7 +1067,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 18 }}>💰</span> Planilla mensual
           </span>
-          <strong style={{ fontSize: 22, color: '#a371f7', fontVariantNumeric: 'tabular-nums' }}>{formatPEN(payrollSummary.monthlyPayroll)}</strong>
+          <strong style={{ fontSize: 22, color: '#a371f7', fontVariantNumeric: 'tabular-nums' }}>{formatCOP(payrollSummary.monthlyPayroll)}</strong>
           <span style={{ fontSize: 10, color: '#6e7681', marginTop: -4 }}>COSTO TOTAL DEL MES</span>
           <div style={{ position: 'absolute', right: 12, bottom: 10, fontSize: 32, opacity: 0.06, fontWeight: 900 }}>💰</div>
         </article>
@@ -1102,70 +1094,120 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           <div className="hr-panel-title">
             <Bot24Regular />
             <div>
-              <strong>Registro de trabajador</strong>
-              <span>Datos laborales, remuneracion y validacion documental.</span>
+              <strong>Registro de Nómina</strong>
+              <span>Datos del trabajador · Contrato · Seguridad social Colombia</span>
             </div>
           </div>
 
-          <div className="hr-upload-row">
-            {/* Hidden file input triggered by the IA button */}
-            <input
-              ref={cvFileRef}
-              type="file"
-              accept=".pdf,image/*,.txt"
-              style={{ display: 'none' }}
-              onChange={(event) => {
-                void extractCv(event.target.files?.[0] || null);
-                event.currentTarget.value = '';
-              }}
-            />
-            <Button
-              appearance="primary"
-              onClick={() => cvFileRef.current?.click()}
-              disabled={isExtracting}
-              style={{ gap: 6 }}
-            >
-              <Bot24Regular />
-              {isExtracting ? 'Extrayendo con IA...' : 'Extraer CV con IA'}
-            </Button>
-
-            <label className="hr-upload">
-              <input
-                type="file"
-                accept=".pdf,.txt"
-                multiple
-                onChange={(event) => {
-                  void uploadLegalDocuments(event.target.files);
-                  event.currentTarget.value = '';
-                }}
-              />
-              <DocumentPdf24Regular />
-              <span>{isUploadingLegalDocs ? 'Indexando PDFs legales...' : 'Plantillas legales'}</span>
-            </label>
-          </div>
+          {/* Hidden file input for CV IA */}
+          <input
+            ref={cvFileRef}
+            type="file"
+            accept=".pdf,image/*,.txt"
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              void extractCv(event.target.files?.[0] || null);
+              event.currentTarget.value = '';
+            }}
+          />
 
           {alerts.map((alert) => (
             <MessageBar key={alert} intent="warning"><MessageBarBody>{alert}</MessageBarBody></MessageBar>
           ))}
 
+          {/* ── Foto + Datos del Trabajador (layout imagen) ── */}
           <div className="hr-form-section">
-            <div className="hr-section-divider">Datos personales</div>
-            <div className="hr-form-grid">
-              <Field label="Nombres"><Input value={form.nombres} onChange={(_, data) => updateField('nombres', data.value)} /></Field>
-              <Field label="Apellidos"><Input value={form.apellidos} onChange={(_, data) => updateField('apellidos', data.value)} /></Field>
-              <Field label="DNI"><Input value={form.dni} onChange={(_, data) => updateField('dni', data.value)} /></Field>
-              <Field label="Fecha nacimiento"><Input type="date" value={form.fecha_nacimiento} onChange={(_, data) => updateField('fecha_nacimiento', data.value)} /></Field>
-              <Field label="Telefono"><Input value={form.telefono} onChange={(_, data) => updateField('telefono', data.value)} /></Field>
-              <Field label="Correo"><Input value={form.email} onChange={(_, data) => updateField('email', data.value)} /></Field>
+            <div className="hr-section-divider">Datos del Trabajador</div>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+
+              {/* Columna izquierda: Foto / Avatar + botón CV */}
+              <div style={{ width: 130, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 120, height: 130, borderRadius: 12,
+                  background: 'linear-gradient(135deg, #1f6feb 0%, #a371f7 100%)',
+                  display: 'grid', placeItems: 'center',
+                  color: '#fff', fontWeight: 900, fontSize: 36,
+                  boxShadow: '0 4px 18px rgba(163,113,247,0.4)',
+                  position: 'relative', overflow: 'hidden',
+                  border: '2px solid rgba(163,113,247,0.35)',
+                }}>
+                  {(form.nombres?.[0] || '?').toUpperCase()}{(form.apellidos?.[0] || '').toUpperCase()}
+                  {(form.nombres || form.dni) && (
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
+                      background: 'rgba(35,134,54,0.9)', color: '#fff',
+                      fontSize: 9, fontWeight: 800, textAlign: 'center',
+                      padding: '4px 0', letterSpacing: '0.1em',
+                    }}>✓ CV CARGADO</div>
+                  )}
+                </div>
+                <button type="button" onClick={() => cvFileRef.current?.click()} disabled={isExtracting}
+                  style={{
+                    width: '100%', padding: '7px 6px',
+                    background: isExtracting ? 'rgba(31,111,235,0.1)' : 'rgba(31,111,235,0.18)',
+                    border: '1px solid rgba(31,111,235,0.45)',
+                    borderRadius: 8, color: '#58a6ff', fontSize: 11, fontWeight: 700,
+                    cursor: isExtracting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}>
+                  <Bot24Regular style={{ width: 13, height: 13 }} />
+                  {isExtracting ? 'Leyendo...' : 'Subir CV IA'}
+                </button>
+                <label style={{
+                  width: '100%', padding: '6px 4px',
+                  background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.15)',
+                  borderRadius: 8, color: '#8b949e', fontSize: 10, fontWeight: 600,
+                  cursor: 'pointer', textAlign: 'center', display: 'block',
+                }}>
+                  <input type="file" accept=".pdf,.txt" multiple style={{ display: 'none' }}
+                    onChange={(event) => { void uploadLegalDocuments(event.target.files); event.currentTarget.value = ''; }} />
+                  <DocumentPdf24Regular style={{ width: 12, height: 12 }} />
+                  <span style={{ display: 'block' }}>{isUploadingLegalDocs ? 'Indexando...' : 'Docs legales'}</span>
+                </label>
+              </div>
+
+              {/* Columna derecha: campos del formulario */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="hr-form-grid">
+                  <Field label="Nombres"><Input value={form.nombres} onChange={(_, data) => updateField('nombres', data.value)} placeholder="Juan Carlos" /></Field>
+                  <Field label="Apellidos"><Input value={form.apellidos} onChange={(_, data) => updateField('apellidos', data.value)} placeholder="Pérez Rodríguez" /></Field>
+                  <Field label="Cédula (DNI)"><Input value={form.dni} onChange={(_, data) => updateField('dni', data.value)} placeholder="1.234.567.890" /></Field>
+                  <Field label="Fecha de Nacimiento"><Input type="date" value={form.fecha_nacimiento} onChange={(_, data) => updateField('fecha_nacimiento', data.value)} /></Field>
+                  <Field label="Correo Electrónico"><Input value={form.email} onChange={(_, data) => updateField('email', data.value)} placeholder="juan.perez@email.com" /></Field>
+                  <Field label="Teléfono"><Input value={form.telefono} onChange={(_, data) => updateField('telefono', data.value)} placeholder="+57 300 XXX XXXX" /></Field>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <Field label="Dirección">
+                    <Input value={form.direccion_domicilio} onChange={(_, data) => updateField('direccion_domicilio', data.value)} placeholder="Av. Las Primaveras 123, Bogotá" />
+                  </Field>
+                </div>
+              </div>
             </div>
           </div>
 
+          {/* ── Datos laborales ── */}
           <div className="hr-form-section">
-            <div className="hr-section-divider">Datos laborales</div>
+            <div className="hr-section-divider">Datos Laborales</div>
             <div className="hr-form-grid">
-              <Field label="Cargo"><Input value={form.cargo_postulado} onChange={(_, data) => updateField('cargo_postulado', data.value)} /></Field>
-              <Field label="Area / centro costo"><Input value={form.area_centro_costo} onChange={(_, data) => updateField('area_centro_costo', data.value)} /></Field>
-              <Field label="Regimen"><Input value={form.regimen_laboral} onChange={(_, data) => updateField('regimen_laboral', data.value)} /></Field>
+              <Field label="Cargo"><Input value={form.cargo_postulado} onChange={(_, data) => updateField('cargo_postulado', data.value)} placeholder="Analista Contable" /></Field>
+              <Field label="Área / Centro de Costo"><Input value={form.area_centro_costo} onChange={(_, data) => updateField('area_centro_costo', data.value)} placeholder="Contabilidad" /></Field>
+              <Field label="Fecha de Ingreso"><Input type="date" value={form.fecha_inicio_contrato} onChange={(_, data) => updateField('fecha_inicio_contrato', data.value)} /></Field>
+              <Field label="Tipo de Contrato">
+                <select value={form.tipo_contrato} onChange={(event) => updateField('tipo_contrato', event.target.value)} className="erp-input">
+                  <option value="INDEFINIDO">Indefinido</option>
+                  <option value="TERMINO_FIJO">Término Fijo</option>
+                  <option value="OBRA_LABOR">Obra/Labor</option>
+                  <option value="APRENDIZAJE">Aprendizaje</option>
+                </select>
+              </Field>
+              <Field label="Sueldo Básico (COP)"><Input value={form.sueldo_pactado} onChange={(_, data) => updateField('sueldo_pactado', data.value)} placeholder="$ 1.520.000" /></Field>
+              <Field label="Tipo de Salario">
+                <select value={form.tipo_salario} onChange={(event) => updateField('tipo_salario', event.target.value)} className="erp-input">
+                  <option value="ORDINARIO">Ordinario</option>
+                  <option value="INTEGRAL">Integral</option>
+                </select>
+              </Field>
+              <Field label="Fecha Fin Contrato"><Input type="date" value={form.fecha_fin_contrato} onChange={(_, data) => updateField('fecha_fin_contrato', data.value)} /></Field>
               <Field label="Estado">
                 <select value={form.estado_trabajador} onChange={(event) => updateField('estado_trabajador', event.target.value)} className="erp-input">
                   <option value="ACTIVO">Activo</option>
@@ -1173,85 +1215,85 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   <option value="SUSPENDIDO">Suspendido</option>
                 </select>
               </Field>
-              <Field label="Inicio contrato"><Input type="date" value={form.fecha_inicio_contrato} onChange={(_, data) => updateField('fecha_inicio_contrato', data.value)} /></Field>
-              <Field label="Fin contrato"><Input type="date" value={form.fecha_fin_contrato} onChange={(_, data) => updateField('fecha_fin_contrato', data.value)} /></Field>
-              <Field label="Dias trabajados"><Input value={form.dias_trabajados} onChange={(_, data) => updateField('dias_trabajados', data.value)} /></Field>
-              <Field label="Vacaciones pendientes"><Input value={form.vacaciones_pendientes} onChange={(_, data) => updateField('vacaciones_pendientes', data.value)} /></Field>
             </div>
           </div>
 
+          {/* ── Seguridad Social Colombia ── */}
           <div className="hr-form-section">
-            <div className="hr-section-divider">Remuneraciones y beneficios</div>
+            <div className="hr-section-divider">Seguridad Social Colombia</div>
             <div className="hr-form-grid">
-              <Field label="Sueldo basico"><Input value={form.sueldo_pactado} onChange={(_, data) => updateField('sueldo_pactado', data.value)} /></Field>
-              <Field label="Asignacion familiar"><Input value={form.asignacion_familiar} onChange={(_, data) => updateField('asignacion_familiar', data.value)} /></Field>
+              <Field label="AFP / Pensión">
+                <select value={form.pension_system} onChange={(event) => updateField('pension_system', event.target.value)} className="erp-input">
+                  <option value="AFP_PORVENIR">Porvenir</option>
+                  <option value="AFP_PROTECCION">Protección</option>
+                  <option value="AFP_COLFONDOS">Colfondos</option>
+                  <option value="AFP_OLD_MUTUAL">Old Mutual</option>
+                  <option value="RPM_COLPENSIONES">Colpensiones (RPM)</option>
+                </select>
+              </Field>
+              <Field label="EPS"><Input value={form.eps_nombre} onChange={(_, data) => updateField('eps_nombre', data.value)} placeholder="Nueva EPS, Sura, Sanitas..." /></Field>
+              <Field label="Caja Compensación (CCF)"><Input value={form.ccf_nombre} onChange={(_, data) => updateField('ccf_nombre', data.value)} placeholder="Compensar, Colsubsidio..." /></Field>
+              <Field label="Clase Riesgo ARL">
+                <select value={form.clase_riesgo_arl} onChange={(event) => updateField('clase_riesgo_arl', event.target.value)} className="erp-input">
+                  <option value="I">Clase I — 0.348%</option>
+                  <option value="II">Clase II — 1.044%</option>
+                  <option value="III">Clase III — 2.436%</option>
+                  <option value="IV">Clase IV — 4.35%</option>
+                  <option value="V">Clase V — 6.96%</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+
+          {/* ── Devengado Colombia ── */}
+          <div className="hr-form-section">
+            <div className="hr-section-divider">Devengado del Período</div>
+            <div className="hr-form-grid">
+              <Field label="Días trabajados"><Input value={form.dias_trabajados} onChange={(_, data) => updateField('dias_trabajados', data.value)} /></Field>
+              <Field label="Días vacaciones"><Input value={form.dias_vacaciones} onChange={(_, data) => updateField('dias_vacaciones', data.value)} /></Field>
               <Field label="Horas extras"><Input value={form.horas_extras} onChange={(_, data) => updateField('horas_extras', data.value)} /></Field>
-              <Field label="Bonificaciones"><Input value={form.bonificaciones} onChange={(_, data) => updateField('bonificaciones', data.value)} /></Field>
+              <Field label="Bonificaciones constitutivas"><Input value={form.bonificaciones_const} onChange={(_, data) => updateField('bonificaciones_const', data.value)} /></Field>
+              <Field label="Bonificaciones no constitutivas"><Input value={form.bonificaciones_no_const} onChange={(_, data) => updateField('bonificaciones_no_const', data.value)} /></Field>
               <Field label="Comisiones"><Input value={form.comisiones} onChange={(_, data) => updateField('comisiones', data.value)} /></Field>
-              <Field label="Gratificaciones"><Input value={form.gratificaciones} onChange={(_, data) => updateField('gratificaciones', data.value)} /></Field>
-              <Field label="CTS"><Input value={form.cts} onChange={(_, data) => updateField('cts', data.value)} /></Field>
-              <Field label="Utilidades"><Input value={form.utilidades} onChange={(_, data) => updateField('utilidades', data.value)} /></Field>
             </div>
           </div>
 
+          {/* ── Deducciones Colombia ── */}
           <div className="hr-form-section">
-            <div className="hr-section-divider">Descuentos y aportes</div>
+            <div className="hr-section-divider">Deducciones y Descuentos</div>
             <div className="hr-form-grid">
-              <Field label="Sistema pensionario"><Input value={form.pension_system} onChange={(_, data) => updateField('pension_system', data.value)} /></Field>
-              <Field label="Monto AFP/ONP"><Input value={form.afp_onp_monto} onChange={(_, data) => updateField('afp_onp_monto', data.value)} /></Field>
-              <Field label="Renta quinta"><Input value={form.renta_quinta} onChange={(_, data) => updateField('renta_quinta', data.value)} /></Field>
+              <Field label="AFP empleado (4%)"><Input value={form.afp_empleado} onChange={(_, data) => updateField('afp_empleado', data.value)} /></Field>
+              <Field label="EPS empleado (4%)"><Input value={form.eps_empleado} onChange={(_, data) => updateField('eps_empleado', data.value)} /></Field>
+              <Field label="Fondo solidaridad (1%+)"><Input value={form.fondo_solidaridad} onChange={(_, data) => updateField('fondo_solidaridad', data.value)} /></Field>
+              <Field label="ReteFuente (Art. 383 ET)"><Input value={form.retefuente} onChange={(_, data) => updateField('retefuente', data.value)} /></Field>
+              <Field label="Libranza"><Input value={form.libranza} onChange={(_, data) => updateField('libranza', data.value)} /></Field>
               <Field label="Adelantos"><Input value={form.adelantos} onChange={(_, data) => updateField('adelantos', data.value)} /></Field>
-              <Field label="Prestamos"><Input value={form.prestamos} onChange={(_, data) => updateField('prestamos', data.value)} /></Field>
-              <Field label="Faltas / tardanzas"><Input value={form.faltas_tardanzas} onChange={(_, data) => updateField('faltas_tardanzas', data.value)} /></Field>
-              <Field label="EsSalud"><Input value={form.essalud} onChange={(_, data) => updateField('essalud', data.value)} /></Field>
-              <Field label="SCTR"><Input value={form.sctr} onChange={(_, data) => updateField('sctr', data.value)} /></Field>
-              <Field label="Vida Ley"><Input value={form.vida_ley} onChange={(_, data) => updateField('vida_ley', data.value)} /></Field>
             </div>
           </div>
 
+          {/* Totales */}
           <div className="hr-results-panel">
             <div className="hr-result-item">
-              <span>Total Ingresos</span>
-              <strong>{formatPEN(totals.ingresos)}</strong>
+              <span>Total Devengado</span>
+              <strong>{formatCOP(totals.ingresos)}</strong>
             </div>
             <div className="hr-result-item">
-              <span>Total Descuentos</span>
-              <strong>{formatPEN(totals.descuentos)}</strong>
+              <span>Total Deducciones</span>
+              <strong>{formatCOP(totals.descuentos)}</strong>
             </div>
             <div className="hr-result-item highlighted">
               <span>Neto a Pagar</span>
-              <strong>{formatPEN(totals.neto)}</strong>
-            </div>
-          </div>
-
-          <div className="hr-form-section">
-            <div className="hr-section-divider">Contacto, experiencia y competencias</div>
-            <div className="hr-textarea-grid">
-              <Field label="Direccion domicilio">
-                <Textarea value={form.direccion_domicilio} onChange={(_, data) => updateField('direccion_domicilio', data.value)} resize="vertical" />
-              </Field>
-              <Field label="Direccion RENIEC">
-                <Textarea value={form.direccion_reniec} onChange={(_, data) => updateField('direccion_reniec', data.value)} resize="vertical" />
-              </Field>
-              <Field label="Experiencia">
-                <Textarea value={form.experiencia} onChange={(_, data) => updateField('experiencia', data.value)} resize="vertical" />
-              </Field>
-              <Field label="Estudios realizados">
-                <Textarea value={form.estudios_realizados} onChange={(_, data) => updateField('estudios_realizados', data.value)} resize="vertical" />
-              </Field>
-              <Field label="Habilidades clave">
-                <Textarea value={form.habilidades_clave} onChange={(_, data) => updateField('habilidades_clave', data.value)} resize="vertical" />
-              </Field>
+              <strong>{formatCOP(totals.neto)}</strong>
             </div>
           </div>
 
           <div className="hr-actions">
             <Button appearance="secondary" onClick={validateIdentity} disabled={isValidatingIdentity || !form.dni}>
-              {isValidatingIdentity ? 'Validando DNI...' : 'Validar Identidad'}
+              {isValidatingIdentity ? 'Validando cédula...' : 'Validar Cédula'}
             </Button>
             <Button appearance="secondary" onClick={() => setForm(emptyForm)}>Limpiar</Button>
             <button type="button" className="btn-fluent-primary" onClick={saveWorker} disabled={isSaving}>
-              {isSaving ? 'Guardando...' : 'Guardar y Validar'}
+              {isSaving ? 'Guardando...' : 'Guardar Trabajador'}
             </button>
           </div>
         </section>
@@ -1320,7 +1362,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                       <td>{worker.dni || '-'}</td>
                       <td>{worker.cargo_postulado || '-'}</td>
                       <td>{worker.area_centro_costo || '-'}</td>
-                      <td className="money">{formatPEN(toPayrollNumber(worker.sueldo_pactado))}</td>
+                      <td className="money">{formatCOP(toPayrollNumber(worker.sueldo_pactado))}</td>
                       <td>
                         <span className={`hr-status ${workerReqSummary.required_pending.length ? 'alert' : 'ready'}`}>
                           {workerReqSummary.approved}/{workerReqSummary.total}
@@ -1374,7 +1416,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                 <div><dt>DNI</dt><dd>{selectedWorker.dni || '-'}</dd></div>
                 <div><dt>Area</dt><dd>{selectedWorker.area_centro_costo || '-'}</dd></div>
                 <div><dt>Pension</dt><dd>{selectedWorker.pension_system || '-'}</dd></div>
-                <div><dt>Sueldo</dt><dd style={{ color: '#3fb950' }}>{formatPEN(toPayrollNumber(selectedWorker.sueldo_pactado))}</dd></div>
+                <div><dt>Sueldo</dt><dd style={{ color: '#3fb950' }}>{formatCOP(toPayrollNumber(selectedWorker.sueldo_pactado))}</dd></div>
               </dl>
             )}
 
@@ -1491,7 +1533,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
               <ShieldCheckmark24Regular />
               <div>
                 <strong>Expediente de contratacion</strong>
-                <span>Checklist documentario peruano con semaforo de aprobacion.</span>
+                <span>Checklist documentario colombiano con semáforo de aprobación.</span>
               </div>
             </div>
             <div className="hr-requirement-summary">
@@ -1568,10 +1610,10 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                 <div className="hr-form-grid">
                   <Field label="Tipo de contrato">
                     <select className="erp-input" value={contractType} onChange={(event) => setContractType(event.target.value)}>
-                      <option value="PLAZO INDETERMINADO">Plazo indeterminado</option>
-                      <option value="PLAZO FIJO">Plazo fijo</option>
-                      <option value="PART TIME">Part time</option>
-                      <option value="PRACTICAS PREPROFESIONALES">Practicas preprofesionales</option>
+                      <option value="INDEFINIDO">Término indefinido</option>
+                      <option value="TERMINO_FIJO">Término fijo</option>
+                      <option value="OBRA_LABOR">Obra o labor</option>
+                      <option value="APRENDIZAJE">Contrato de aprendizaje</option>
                     </select>
                   </Field>
                   <Field label="Fecha de ingreso"><Input type="date" value={form.fecha_inicio_contrato} onChange={(_, data) => updateField('fecha_inicio_contrato', data.value)} /></Field>
@@ -1582,12 +1624,12 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
               <div className="hr-contract-preview">
                 <span>Trabajador</span>
                 <strong>{selectedWorker ? `${selectedWorker.nombres} ${selectedWorker.apellidos}` : `${form.nombres} ${form.apellidos}` || 'Sin seleccion'}</strong>
-                <p>{form.cargo_postulado || selectedWorker?.cargo_postulado || 'Cargo pendiente'} | {formatPEN(toPayrollNumber(form.sueldo_pactado || selectedWorker?.sueldo_pactado))}</p>
+                <p>{form.cargo_postulado || selectedWorker?.cargo_postulado || 'Cargo pendiente'} | {formatCOP(toPayrollNumber(form.sueldo_pactado || selectedWorker?.sueldo_pactado))}</p>
                 <ul>
-                  <li>Regimen laboral: {form.regimen_laboral}</li>
-                  <li>Sistema pensionario: {form.pension_system}</li>
+                  <li>Tipo de salario: {form.tipo_salario}</li>
+                  <li>AFP / Pensión: {form.pension_system}</li>
                   <li>Centro de costo: {form.area_centro_costo}</li>
-                  <li>Incluye anexos, ficha T-Registro y validaciones legales.</li>
+                  <li>Incluye anexos, autorización descuentos (Art. 149 CST) y validaciones legales.</li>
                 </ul>
               </div>
             </div>
@@ -1614,9 +1656,9 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   display: 'grid', placeItems: 'center', fontSize: 22, flexShrink: 0,
                 }}>💰</div>
                 <div>
-                  <strong style={{ fontSize: 16, letterSpacing: '0.06em' }}>BOLETA DE PAGO</strong>
+                  <strong style={{ fontSize: 16, letterSpacing: '0.06em' }}>COMPROBANTE DE NÓMINA</strong>
                   <span style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 }}>
-                    Periodo mayo 2026 · Ley 29783 · PCGE Perú
+                    Periodo {new Date().toLocaleString('es-CO', { month: 'long', year: 'numeric' })} · CST Art. 62 · PUC Colombia
                   </span>
                 </div>
               </div>
@@ -1625,7 +1667,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   {companyInfo?.legal_name || '— Configure la empresa —'}
                 </strong>
                 <span style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 }}>
-                  {companyInfo?.ruc ? `RUC: ${companyInfo.ruc}` : 'RUC no configurado'}
+                  {companyInfo?.ruc ? `NIT: ${companyInfo.ruc}` : 'NIT no configurado'}
                 </span>
               </div>
             </header>
@@ -1645,9 +1687,9 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   {selectedWorker ? `${selectedWorker.nombres} ${selectedWorker.apellidos}` : `${form.nombres} ${form.apellidos}` || 'Sin selección'}
                 </strong>
               </div>
-              <div><span>DNI</span><strong>{form.dni || selectedWorker?.dni || '-'}</strong></div>
+              <div><span>Cédula</span><strong>{form.dni || selectedWorker?.dni || '-'}</strong></div>
               <div><span>Cargo</span><strong>{form.cargo_postulado || selectedWorker?.cargo_postulado || '-'}</strong></div>
-              <div><span>Pensión</span><strong style={{ color: '#58a6ff' }}>{form.pension_system || selectedWorker?.pension_system || '-'}</strong></div>
+              <div><span>AFP/Pensión</span><strong style={{ color: '#58a6ff' }}>{form.pension_system || selectedWorker?.pension_system || '-'}</strong></div>
             </section>
 
             {/* Columnas Ingresos / Descuentos */}
@@ -1656,30 +1698,30 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                 <h3 style={{ background: 'linear-gradient(90deg, #238636, #2ea043)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>📈</span> Ingresos
                 </h3>
-                <p><span>Sueldo básico</span><strong style={{ color: '#3fb950' }}>{formatPEN(toPayrollNumber(form.sueldo_pactado || selectedWorker?.sueldo_pactado))}</strong></p>
-                <p><span>Asignación familiar</span><strong>{formatPEN(toPayrollNumber(form.asignacion_familiar))}</strong></p>
-                <p><span>Horas extras</span><strong>{formatPEN(toPayrollNumber(form.horas_extras))}</strong></p>
-                <p><span>Bonificaciones</span><strong>{formatPEN(toPayrollNumber(form.bonificaciones))}</strong></p>
-                <p><span>Comisiones</span><strong>{formatPEN(toPayrollNumber(form.comisiones))}</strong></p>
-                <p><span>Gratificaciones</span><strong>{formatPEN(toPayrollNumber(form.gratificaciones))}</strong></p>
+                <p><span>Sueldo básico</span><strong style={{ color: '#3fb950' }}>{formatCOP(toPayrollNumber(form.sueldo_pactado || selectedWorker?.sueldo_pactado))}</strong></p>
+                <p><span>Horas extras</span><strong>{formatCOP(toPayrollNumber(form.horas_extras))}</strong></p>
+                <p><span>Bonif. constitutivas</span><strong>{formatCOP(toPayrollNumber(form.bonificaciones_const))}</strong></p>
+                <p><span>Bonif. no constitutivas</span><strong>{formatCOP(toPayrollNumber(form.bonificaciones_no_const))}</strong></p>
+                <p><span>Comisiones</span><strong>{formatCOP(toPayrollNumber(form.comisiones))}</strong></p>
+                <p><span>Prima servicios (prov.)</span><strong>{formatCOP(toPayrollNumber(form.prima_servicios))}</strong></p>
                 <footer style={{ background: 'rgba(63,185,80,0.1)', borderTop: '2px solid #3fb950' }}>
                   <span>Total ingresos</span>
-                  <strong style={{ color: '#3fb950', fontSize: 15 }}>{formatPEN(totals.ingresos)}</strong>
+                  <strong style={{ color: '#3fb950', fontSize: 15 }}>{formatCOP(totals.ingresos)}</strong>
                 </footer>
               </article>
               <article>
                 <h3 style={{ background: 'linear-gradient(90deg, #b91c1c, #dc2626)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>📉</span> Descuentos
                 </h3>
-                <p><span>AFP / ONP</span><strong style={{ color: '#f85149' }}>{formatPEN(toPayrollNumber(form.afp_onp_monto))}</strong></p>
-                <p><span>Renta quinta</span><strong>{formatPEN(toPayrollNumber(form.renta_quinta))}</strong></p>
-                <p><span>Adelantos</span><strong>{formatPEN(toPayrollNumber(form.adelantos))}</strong></p>
-                <p><span>Préstamos</span><strong>{formatPEN(toPayrollNumber(form.prestamos))}</strong></p>
-                <p><span>Faltas / tardanzas</span><strong>{formatPEN(toPayrollNumber(form.faltas_tardanzas))}</strong></p>
-                <p><span>EsSalud (empleador)</span><strong>{formatPEN(toPayrollNumber(form.essalud))}</strong></p>
+                <p><span>AFP empleado (4%)</span><strong style={{ color: '#f85149' }}>{formatCOP(toPayrollNumber(form.afp_empleado))}</strong></p>
+                <p><span>EPS empleado (4%)</span><strong>{formatCOP(toPayrollNumber(form.eps_empleado))}</strong></p>
+                <p><span>Fondo solidaridad</span><strong>{formatCOP(toPayrollNumber(form.fondo_solidaridad))}</strong></p>
+                <p><span>ReteFuente (Art. 383 ET)</span><strong>{formatCOP(toPayrollNumber(form.retefuente))}</strong></p>
+                <p><span>Libranza</span><strong>{formatCOP(toPayrollNumber(form.libranza))}</strong></p>
+                <p><span>Adelantos</span><strong>{formatCOP(toPayrollNumber(form.adelantos))}</strong></p>
                 <footer style={{ background: 'rgba(248,81,73,0.08)', borderTop: '2px solid #f85149' }}>
                   <span>Total descuentos</span>
-                  <strong style={{ color: '#f85149', fontSize: 15 }}>{formatPEN(totals.descuentos)}</strong>
+                  <strong style={{ color: '#f85149', fontSize: 15 }}>{formatCOP(totals.descuentos)}</strong>
                 </footer>
               </article>
             </section>
@@ -1694,28 +1736,28 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   NETO A PAGAR AL TRABAJADOR
                 </span>
                 <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-                  Días trabajados: {form.dias_trabajados || '30'} · Vacaciones pendientes: {form.vacaciones_pendientes || '0'}
+                  Días trabajados: {form.dias_trabajados || '30'} · Vacaciones acumuladas: {form.vacaciones_acum || '0'}
                 </span>
               </div>
               <strong style={{ fontSize: 28, fontVariantNumeric: 'tabular-nums', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                {formatPEN(totals.neto)}
+                {formatCOP(totals.neto)}
               </strong>
             </div>
           </div>
 
           <aside className="hr-window-side">
             <strong style={{ fontSize: 14, color: '#58a6ff', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>📊</span> Asiento PCGE sugerido
+              <span>📊</span> Asiento PUC Colombia sugerido
             </strong>
             <div style={{
               background: '#0d1117', border: '1px solid #30363d', borderRadius: 8,
               padding: '10px 12px', fontFamily: 'Consolas, monospace', fontSize: 11, color: '#8b949e',
               lineHeight: 1.8,
             }}>
-              <div style={{ color: '#f85149' }}>62xx <span style={{ color: '#e6edf3' }}>Gastos de personal</span></div>
-              <div style={{ color: '#d29922' }}>40xx <span style={{ color: '#e6edf3' }}>Tributos (EsSalud)</span></div>
-              <div style={{ color: '#3fb950' }}>41xx <span style={{ color: '#e6edf3' }}>Remuneraciones por pagar</span></div>
-              <div style={{ color: '#58a6ff' }}>79xx <span style={{ color: '#e6edf3' }}>Cargas imputables</span></div>
+              <div style={{ color: '#f85149' }}>510506 <span style={{ color: '#e6edf3' }}>Sueldos y salarios</span></div>
+              <div style={{ color: '#d29922' }}>2407 <span style={{ color: '#e6edf3' }}>ARL por pagar</span></div>
+              <div style={{ color: '#3fb950' }}>2405 <span style={{ color: '#e6edf3' }}>AFP por pagar</span></div>
+              <div style={{ color: '#58a6ff' }}>2406 <span style={{ color: '#e6edf3' }}>EPS por pagar</span></div>
             </div>
             <div style={{
               background: 'rgba(63,185,80,0.08)', border: '1px solid rgba(63,185,80,0.25)',
@@ -1723,7 +1765,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span style={{ fontSize: 18 }}>✅</span>
-              <span>Liquidación verificada · Ley 29783 activa · T-Registro al día</span>
+              <span>Liquidación verificada · CST / Ley 100 activa · PILA al día</span>
             </div>
             <button type="button" className="btn-fluent-primary" style={{ width: '100%', justifyContent: 'center', gap: 8 }}>
               <span>🖨️</span> Imprimir / Descargar PDF

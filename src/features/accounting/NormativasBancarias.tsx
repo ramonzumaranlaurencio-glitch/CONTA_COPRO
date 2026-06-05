@@ -209,7 +209,7 @@ export const NormativasBancarias: React.FC = () => {
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {TABS.map(t => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)} style={{
-            padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
             background: tab === t.id ? `linear-gradient(135deg, ${C.blue}, ${C.accent})` : C.bgCard,
             color: tab === t.id ? '#fff' : C.muted,
             fontWeight: 700, fontSize: 12, fontFamily: "'Segoe UI', Arial, sans-serif",

@@ -6,6 +6,10 @@ import json
 import httpx
 
 
+class GeminiQuotaError(RuntimeError):
+    """Gemini devolvió 429 — cuota de API excedida."""
+
+
 class GeminiClient:
     def __init__(self, api_key: str | None, model: str):
         self.api_key = api_key
@@ -63,12 +67,15 @@ class GeminiClient:
             "generationConfig": {
                 "temperature": 0.05,
                 "response_mime_type": "application/json",
+                "maxOutputTokens": 8192,
             },
         }
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(url, params={"key": self.api_key}, json=payload)
             if not response.is_success:
                 detail = response.text[:400]
+                if response.status_code == 429:
+                    raise GeminiQuotaError(f"Gemini cuota excedida (429): {detail}")
                 raise RuntimeError(f"Gemini API error {response.status_code}: {detail}")
             return response.json()
 

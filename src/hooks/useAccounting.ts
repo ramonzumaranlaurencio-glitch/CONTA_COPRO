@@ -64,7 +64,7 @@ export const useAccounting = () => {
         description: payload.description,
         source_module: 'SALES',
         source_id: `sale:${Date.now()}`,
-        currency: 'PEN',
+        currency: 'COP',
         lines: payload.lines.map((line) => ({
           account_code: line.account,
           account_name: `Cuenta ${line.account}`,
@@ -83,21 +83,28 @@ export const useAccounting = () => {
   }, [getToken]);
 
   const validateRUC = useCallback(async (ruc: string) => {
-    if (!/^\d{11}$/.test(ruc)) {
-      return { valid: false, message: 'RUC invalido, debe tener 11 digitos.' };
+    const digitsOnly = /^\d+$/.test(ruc);
+    if (!digitsOnly || ruc.length < 9 || ruc.length > 12) {
+      return { valid: false, message: 'Identificador inválido. Ingrese NIT/RUC válido.' };
     }
 
-    try {
-      const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${ruc}`);
-      if (response.ok) {
-        const payload = await response.json();
-        const razonSocial = payload.razonSocial || payload.nombre || 'Contribuyente validado';
-        return { valid: true, message: razonSocial };
+    // If this is a Peruvian RUC (11 digits) attempt external SUNAT lookup
+    if (ruc.length === 11) {
+      try {
+        const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${ruc}`);
+        if (response.ok) {
+          const payload = await response.json();
+          const razonSocial = payload.razonSocial || payload.nombre || 'Contribuyente validado';
+          return { valid: true, message: razonSocial };
+        }
+        return { valid: true, message: 'RUC validado localmente. Servicio externo no disponible.' };
+      } catch {
+        return { valid: true, message: 'RUC validado localmente. Sin conectividad a servicio externo.' };
       }
-      return { valid: true, message: 'RUC validado localmente. Servicio externo no disponible.' };
-    } catch {
-      return { valid: true, message: 'RUC validado localmente. Sin conectividad a servicio externo.' };
     }
+
+    // For non-Peru identifiers (e.g., Colombian NIT) external validation not configured in frontend
+    return { valid: true, message: 'Identificador aceptado. Validación externa no configurada para este país.' };
   }, []);
 
   return { postEntry, validateRUC };

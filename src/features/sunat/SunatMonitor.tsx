@@ -250,15 +250,10 @@ export const SunatMonitor = () => {
 
   /* ── Auth token ── */
   const getHeaders = useCallback(async () => {
-    const r = await fetch(`${API_BASE}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: TENANT_ID, user_id: 'erp.operator', role: 'ADMIN' }),
-    });
-    if (!r.ok) throw new Error('Token no disponible');
-    const p = await r.json();
+    let tok = localStorage.getItem('access_token') || '';
+    if (!tok) { const u = localStorage.getItem('login_username'); const pw = localStorage.getItem('login_password'); if (u && pw) { try { const r = await fetch(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: pw }) }); if (r.ok) { const d = await r.json() as { access_token?: string }; tok = d.access_token || ''; if (tok) localStorage.setItem('access_token', tok); } } catch {} } }
     return {
-      Authorization: `Bearer ${p.access_token}`,
+      Authorization: `Bearer ${tok}`,
       'X-Tenant-Id': TENANT_ID,
       'Content-Type': 'application/json',
     };

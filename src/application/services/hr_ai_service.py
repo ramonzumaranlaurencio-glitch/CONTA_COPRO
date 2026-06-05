@@ -17,13 +17,14 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 
 CV_EXTRACTION_PROMPT = (
-    "Actua como un Especialista en Seleccion de Personal. Extrae del archivo adjunto los siguientes campos: "
-    "Nombres, Apellidos, DNI (valida que tenga 8 digitos), Fecha de nacimiento, Direccion, Telefono, Correo, "
-    "Profesion, Estudios, Experiencia, Sistema pensionario, cuenta bancaria/CCI y evidencias documentarias. "
-    "Instruccion critica: Si encuentras discrepancias entre la direccion del CV y los datos de Reniec, genera una "
+    "Actua como un Especialista en Seleccion de Personal Colombia. Extrae del archivo adjunto los siguientes campos: "
+    "Nombres, Apellidos, Cedula de Ciudadania o Extranjeria (valida entre 5 y 12 digitos), Fecha de nacimiento, "
+    "Direccion, Telefono, Correo, Profesion, Estudios, Experiencia, Fondo de pension (AFP), EPS, ARL, CCF, "
+    "cuenta bancaria y evidencias documentarias. "
+    "Instruccion critica: Si encuentras discrepancias entre la direccion del CV y los datos del RNEC/RUNT, genera una "
     "alerta de 'Validacion de Domicilio'. Mapea cada dato a su celda correspondiente en el formulario Registro_Personal_V1 "
-    "y llena la base de requisitos: DNI, foto, ficha personal, hoja de vida documentada, estudios, certificados laborales, "
-    "antecedentes policiales, penales, judiciales, declaracion de domicilio, AFP/ONP y cuenta bancaria."
+    "y llena la base de requisitos: Cedula, foto, ficha personal, hoja de vida documentada, estudios, certificados laborales, "
+    "antecedentes judiciales (Policia Nacional), declaracion de domicilio, afiliacion AFP/EPS/ARL/CCF y cuenta bancaria."
 )
 
 
@@ -553,13 +554,13 @@ VIGENCIA.
 {contract_window}
 
 PRIMERA: PUESTO Y REMUNERACION.
-EL TRABAJADOR prestara servicios como {cargo}, percibiendo una remuneracion mensual de S/ {sueldo}, sujeta a los descuentos y aportes de ley.
+EL TRABAJADOR prestara servicios como {cargo}, percibiendo una remuneracion mensual de $ {sueldo} COP, sujeta a los descuentos y aportes de ley.
 
 SEGUNDA: SUBORDINACION Y FACULTAD DIRECTRIZ.
-Las partes reconocen que la prestacion se realiza bajo subordinacion conforme al articulo 9 del D.L. 728, quedando EL EMPLEADOR facultado a normar, fiscalizar y sancionar razonablemente la labor.
+Las partes reconocen que la prestacion se realiza bajo subordinacion conforme al articulo 23 del Codigo Sustantivo del Trabajo (CST), quedando EL EMPLEADOR facultado a normar, fiscalizar y sancionar razonablemente la labor.
 
 TERCERA: PERIODO DE PRUEBA.
-Se pacta periodo de prueba conforme al articulo 10 del D.L. 728, salvo que por ley o convenio corresponda un plazo distinto.
+Se pacta periodo de prueba conforme al articulo 78 del CST (maximo 2 meses para contratos a termino indefinido), salvo que por ley o convenio colectivo corresponda un plazo distinto.
 
 CUARTA: JORNADA Y SOBRETIEMPO.
 La jornada ordinaria no excedera los maximos legales aplicables. El sobretiempo requerira autorizacion y sera compensado o pagado conforme a la Ley de Jornada de Trabajo, Horario y Trabajo en Sobretiempo.
@@ -568,7 +569,7 @@ QUINTA: SEGURIDAD Y SALUD EN EL TRABAJO.
 EL TRABAJADOR se obliga a cumplir el Reglamento Interno de Seguridad y Salud en el Trabajo, capacitaciones, controles y medidas preventivas aplicables.
 
 SEXTA: PROTECCION DE DATOS PERSONALES.
-EL TRABAJADOR autoriza el tratamiento de sus datos personales estrictamente para fines laborales, previsionales, tributarios y de gestion interna, conforme a la Ley 29733.
+EL TRABAJADOR autoriza el tratamiento de sus datos personales estrictamente para fines laborales, previsionales, tributarios y de gestion interna, conforme a la Ley 1581/2012 (Habeas Data Colombia) y Decreto 1377/2013.
 
 SEPTIMA: CLAUSULAS ESPECIFICAS DEL CARGO.
 {clauses}
@@ -608,7 +609,7 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
         story = [
             Paragraph("CONTRATO LABORAL - CONTA_PRO ENTERPRISE", styles["LegalTitle"]),
             Table(
-                [["Base legal", "D.L. 728, Ley de Jornada, SST, Ley 29733"], ["Fecha", date.today().isoformat()]],
+                [["Base legal", "CST, Ley 100/1993, Decreto 1072/2015, Ley 1581/2012"], ["Fecha", date.today().isoformat()]],
                 colWidths=[4 * cm, 11 * cm],
                 style=TableStyle([
                     ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#b7c7d9")),

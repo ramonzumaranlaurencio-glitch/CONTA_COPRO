@@ -144,9 +144,20 @@ class LedgerPostingService:
             if line.partner_ruc and not line.tercero_num:
                 line.tercero_num = line.partner_ruc
                 if not line.tercero_tipo_doc:
-                    line.tercero_tipo_doc = "6" if len(line.partner_ruc) == 11 else "1" if len(line.partner_ruc) == 8 else None
+                    # Map partner identifier length to document type
+                    #  - 8 digits -> DNI (tipo 1)
+                    #  - >=9 digits -> RUC/NIT-like (tipo 6)
+                    pr_len = len(line.partner_ruc or "")
+                    if pr_len == 8:
+                        line.tercero_tipo_doc = "1"
+                    elif pr_len >= 9:
+                        line.tercero_tipo_doc = "6"
+                    else:
+                        line.tercero_tipo_doc = None
 
-    def _normalize_code(self, value: str | None, fallback: str = "659101") -> str:
+    def _normalize_code(self, value: str | None, fallback: str | None = None) -> str:
+        # Use tenant/global default expense account when fallback not provided
+        fallback = fallback or settings.default_expense_account
         cleaned = "".join(ch for ch in str(value or "") if ch.isdigit())
         return cleaned or fallback
 
@@ -232,7 +243,7 @@ class LedgerPostingService:
                 description=payload["description"],
                 source_module=payload.get("source_module", "ACCOUNTING"),
                 source_id=payload.get("source_id"),
-                currency=payload.get("currency", "PEN"),
+                currency=payload.get("currency", "COP"),
                 total_debit=total_debit,
                 total_credit=total_credit,
                 previous_hash=previous_hash,
@@ -431,7 +442,7 @@ class LedgerPostingService:
                     credit = Decimal("0.00")
                 if debit == 0 and credit == 0:
                     continue
-                account_code = self._normalize_code(raw.get("account_code"), purchase_data.get("expense_account", "659101"))
+                account_code = self._normalize_code(raw.get("account_code"), purchase_data.get("expense_account") or settings.default_expense_account)
                 cost_center = raw.get("cost_center")
                 if cost_center == "-":
                     cost_center = None
@@ -448,9 +459,9 @@ class LedgerPostingService:
                     "project_code": raw.get("project_code"),
                 })
         else:
-            lines = [
+                lines = [
                 {
-                    "account_code": self._normalize_code(purchase_data.get("expense_account", "659101")),
+                    "account_code": self._normalize_code(purchase_data.get("expense_account") or settings.default_expense_account),
                     "account_name": "Compras y gastos",
                     "debit": subtotal,
                     "credit": Decimal("0.00"),
@@ -461,8 +472,8 @@ class LedgerPostingService:
                     "cost_center": purchase_data.get("cost_center"),
                 },
                 {
-                    "account_code": "40111",
-                    "account_name": "IGV credito fiscal",
+                    "account_code": "2408",
+                    "account_name": "IVA descontable",
                     "debit": igv,
                     "credit": Decimal("0.00"),
                     "partner_ruc": supplier_ruc,
@@ -472,8 +483,8 @@ class LedgerPostingService:
                     "cost_center": None,
                 },
                 {
-                    "account_code": "4212",
-                    "account_name": "Cuentas por pagar comerciales",
+                    "account_code": "2208",
+                    "account_name": "Obligaciones comerciales",
                     "debit": Decimal("0.00"),
                     "credit": payable_balance,
                     "partner_ruc": supplier_ruc,
@@ -484,11 +495,11 @@ class LedgerPostingService:
                 },
             ]
             if detraccion:
-                lines.append({"account_code": "1041", "account_name": "Banco detracciones", "debit": Decimal("0.00"), "credit": detraccion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": Decimal("0.00"), "credit": detraccion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
             if retencion:
-                lines.append({"account_code": "40114", "account_name": "IGV retenciones", "debit": Decimal("0.00"), "credit": retencion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": Decimal("0.00"), "credit": retencion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
             if percepcion:
-                lines.append({"account_code": "40113", "account_name": "IGV percepciones", "debit": percepcion, "credit": Decimal("0.00"), "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": percepcion, "credit": Decimal("0.00"), "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
 
         total_debit = sum(self._as_decimal(line.get("debit")) for line in lines)
         total_credit = sum(self._as_decimal(line.get("credit")) for line in lines)
@@ -601,7 +612,7 @@ class LedgerPostingService:
                 "number": number,
                 "issue_date": invoice_issue_date,
                 "due_date": purchase_data.get("due_date"),
-                "currency": purchase_data.get("currency", "PEN"),
+                "currency": purchase_data.get("currency", "COP"),
                 "exchange_rate": purchase_data.get("exchange_rate"),
                 "taxable_amount": subtotal,
                 "tax_amount": igv,
@@ -667,15 +678,15 @@ class LedgerPostingService:
 
             lines = [
                 JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="1212", account_name="Cuentas por cobrar comerciales", debit=total + percepcion - retencion - detraccion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
-                JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="4011", account_name="IGV por pagar", debit=Decimal("0.00"), credit=igv, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
+                JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="2408", account_name="IVA por pagar", debit=Decimal("0.00"), credit=igv, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
                 JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code=revenue_account, account_name=revenue_account_name, debit=Decimal("0.00"), credit=subtotal, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")),
             ]
             if detraccion:
-                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="1041", account_name="Banco detracciones", debit=detraccion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
+                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="2365", account_name="Retenciones y percepciones por pagar", debit=detraccion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
             if retencion:
-                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="40114", account_name="IGV retenciones", debit=retencion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
+                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="2365", account_name="Retenciones y percepciones por pagar", debit=retencion, credit=Decimal("0.00"), partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
             if percepcion:
-                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="40113", account_name="IGV percepciones", debit=Decimal("0.00"), credit=percepcion, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
+                lines.append(JournalLine(id=uuid4(), tenant_id=tenant_id, company_id=company_id, account_code="2365", account_name="Retenciones y percepciones por pagar", debit=Decimal("0.00"), credit=percepcion, partner_ruc=invoice_data.get("customer_ruc"), document_type=invoice_data.get("doc_type"), document_series=invoice_data.get("serie"), document_number=invoice_data.get("number"), cost_center=invoice_data.get("cost_center")))
 
             self._run_expert_guard({
                 "source_module": "BILLING",
@@ -716,7 +727,7 @@ class LedgerPostingService:
                 description=f"Venta {invoice_data.get('serie')}-{invoice_data.get('number')}",
                 source_module="BILLING",
                 source_id=str(invoice_data.get("invoice_id")),
-                currency=invoice_data.get("currency", "PEN"),
+                currency=invoice_data.get("currency", "COP"),
                 total_debit=total_debit,
                 total_credit=total_credit,
                 previous_hash=previous_hash,
@@ -736,7 +747,7 @@ class LedgerPostingService:
                 number=invoice_data.get("number"),
                 issue_date=self._as_date(invoice_data.get("entry_date")),
                 due_date=invoice_data.get("due_date"),
-                currency=invoice_data.get("currency", "PEN"),
+                currency=invoice_data.get("currency", "COP"),
                 exchange_rate=invoice_data.get("exchange_rate"),
                 taxable_amount=subtotal,
                 tax_amount=igv,

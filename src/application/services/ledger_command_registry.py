@@ -39,7 +39,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
         instruccion_ai=(
             "Analiza documento (PDF/XML/Foto). "
             "1. Valida estructura XML si aplica. "
-            "2. Detecta IGV al 18% si es factura. "
+            "2. Detecta IVA al 19% si es factura. "
             "3. Extrae RUC proveedor y verifica en SUNAT. "
             "4. Clasifica tipo de gasto (clase 6) y asigna centro de costo. "
             "5. Genera asiento doble entrada (Gasto | IGV | CxP). "
@@ -54,7 +54,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "Reglamento Comprobantes de Pago",
         ],
         validaciones_requeridas=[
-            "igv_18_percent_detectado",
+            "iva_19_percent_detectado",
             "proveedor_ruc_verificado_sunat",
             "centro_costo_asignado",
             "causalidad_principio_cumple",

@@ -1094,7 +1094,7 @@ async def get_pending_purchases(
             supplier_ruc  = str(meta.get("supplier_ruc") or "")
             issue_date    = str(fin_doc.issue_date if fin_doc and fin_doc.issue_date else meta.get("issue_date") or str(entry.entry_date))
             doc_type      = str(fin_doc.document_type if fin_doc and fin_doc.document_type else meta.get("document_type") or "01")
-            currency      = str(fin_doc.currency if fin_doc and fin_doc.currency else meta.get("currency") or "PEN")
+            currency      = str(fin_doc.currency if fin_doc and fin_doc.currency else meta.get("currency") or "COP")
             total_doc     = float(fin_doc.total_amount if fin_doc and fin_doc.total_amount else meta.get("total") or 0)
 
             # Los ítems se guardan bajo "line_items" en financial_documents.metadata_json

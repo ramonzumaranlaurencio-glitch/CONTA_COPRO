@@ -1,6 +1,6 @@
 """
 Endpoints del catálogo maestro de artículos.
-Multi-empresa · Multi-rubro · PCGE Perú.
+Multi-empresa · Multi-rubro · PUC Colombia.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ RUBROS: dict[str, str] = {
     "ED": "Educación",
 }
 
-PCGE_INVENTARIO: dict[str, str] = {
+PUC_INVENTARIO: dict[str, str] = {
     "201": "Mercaderías manufacturadas",
     "202": "Mercaderías no manufacturadas",
     "211": "Productos terminados",
@@ -59,7 +59,7 @@ PCGE_INVENTARIO: dict[str, str] = {
     "337": "Herramientas y utensilios",
 }
 
-PCGE_GASTO: dict[str, str] = {
+PUC_GASTO: dict[str, str] = {
     "6021": "Compras de MP manufactureras",
     "6022": "Compras de MP no manufactureras",
     "6031": "Materiales auxiliares",
@@ -163,8 +163,8 @@ MASTER_CATALOG: list[dict[str, Any]] = [
 
 # Enriquecer el catálogo con nombres de cuentas
 def _enrich(item: dict) -> dict:
-    item["cta_name"]   = PCGE_INVENTARIO.get(item["cta"], item["cta"])
-    item["gasto_name"] = PCGE_GASTO.get(item["gasto"], item["gasto"])
+    item["cta_name"]   = PUC_INVENTARIO.get(item["cta"], item["cta"])
+    item["gasto_name"] = PUC_GASTO.get(item["gasto"], item["gasto"])
     return item
 
 MASTER_CATALOG = [_enrich(i) for i in MASTER_CATALOG]
@@ -176,7 +176,7 @@ MASTER_CATALOG = [_enrich(i) for i in MASTER_CATALOG]
 
 def match_catalog_item(description: str, account_code: str | None = None, rubro: str | None = None) -> dict | None:
     """
-    Dado el texto de una línea de factura y opcionalmente la cuenta PCGE asignada por la IA,
+    Dado el texto de una línea de factura y opcionalmente la cuenta PUC asignada por la IA,
     retorna el artículo del catálogo más probable.
     """
     desc = description.lower()
@@ -192,7 +192,7 @@ def match_catalog_item(description: str, account_code: str | None = None, rubro:
     best_score = 0
 
     for item in pool:
-        # Si hay cuenta PCGE, solo considerar ítems de esa cuenta
+        # Si hay cuenta PUC, solo considerar ítems de esa cuenta
         if cta_prefix and item["cta"] != cta_prefix:
             continue
 
@@ -255,7 +255,7 @@ async def list_catalog_items(
     """
     Lista artículos del catálogo con filtros opcionales.
     - rubro: filtrar por industria (GE, MI, CO, FA, CM, DI, AG, PE, SA, HO, TR, EN, TE, RE, ED)
-    - cta: filtrar por cuenta PCGE de inventario (252, 241, 202...)
+    - cta: filtrar por cuenta PUC de inventario (252, 241, 202...)
     - nat: filtrar por naturaleza (SU, MP, ME, HE...)
     - tk: filtrar por token (P, T, F)
     - search: búsqueda por nombre/alias
@@ -288,16 +288,16 @@ async def get_catalog_item(code: str):
     return item
 
 
-@router.get("/pcge/inventario")
-async def get_pcge_inventario():
-    """Retorna todas las cuentas PCGE de inventario."""
-    return [{"code": k, "name": v} for k, v in PCGE_INVENTARIO.items()]
+@router.get("/puc/inventario")
+async def get_puc_inventario():
+    """Retorna todas las cuentas PUC de inventario."""
+    return [{"code": k, "name": v} for k, v in PUC_INVENTARIO.items()]
 
 
-@router.get("/pcge/gasto")
-async def get_pcge_gasto():
-    """Retorna todas las cuentas PCGE de gasto."""
-    return [{"code": k, "name": v} for k, v in PCGE_GASTO.items()]
+@router.get("/puc/gasto")
+async def get_puc_gasto():
+    """Retorna todas las cuentas PUC de gasto."""
+    return [{"code": k, "name": v} for k, v in PUC_GASTO.items()]
 
 
 @router.post("/ai/match")
@@ -338,10 +338,10 @@ async def ai_match_batch(payload: AiMatchBatchPayload):
             **item,
             "catalog_code":    match["code"]     if match else None,
             "catalog_name":    match["name"]     if match else None,
-            # cta = primeros 3 dígitos (grupo PCGE para el token de almacén)
+            # cta = primeros 3 dígitos (grupo PUC para el token de almacén)
             # account_code completo se preserva en el campo "account_code" original del item
             "cta":             match["cta"]      if match else (acc[:3] if acc else "252"),
-            "cta_name":        match["cta_name"] if match else PCGE_INVENTARIO.get(acc[:3] if acc else "252", "Suministros"),
+            "cta_name":        match["cta_name"] if match else PUC_INVENTARIO.get(acc[:3] if acc else "252", "Suministros"),
             "gasto":           match["gasto"]    if match else "6569",
             "gasto_name":      match["gasto_name"] if match else "Suministros diversos",
             "nat":             match["nat"]      if match else "SU",

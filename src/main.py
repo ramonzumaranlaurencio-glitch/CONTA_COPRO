@@ -56,9 +56,52 @@ from src.infrastructure.observability.tracing import configure_tracing
 
 
 async def _apply_schema_patches() -> None:
-    """Aplica columnas faltantes sin requerir migraciones Alembic completas."""
-    from src.infrastructure.db.session import AsyncSessionLocal
+    """Crea todas las tablas si no existen y aplica columnas faltantes."""
+    from src.infrastructure.db.session import engine, AsyncSessionLocal
+    # ── Paso 1: crear todas las tablas (create_all es idempotente — no borra datos) ──
+    try:
+        from src.domain.models.accounting import Base as AccountingBase
+        async with engine.begin() as conn:
+            await conn.run_sync(AccountingBase.metadata.create_all, checkfirst=True)
+    except Exception:
+        pass  # DB no disponible
+    try:
+        from src.domain.models.inventory import Base as InventoryBase
+        async with engine.begin() as conn:
+            await conn.run_sync(InventoryBase.metadata.create_all, checkfirst=True)
+    except Exception:
+        pass
+    try:
+        from src.domain.models.catalog import Base as CatalogBase
+        async with engine.begin() as conn:
+            await conn.run_sync(CatalogBase.metadata.create_all, checkfirst=True)
+    except Exception:
+        pass
     patches = [
+        # journal_lines: columnas del motor contable (migration 010)
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS linea_idx INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(6,4) NOT NULL DEFAULT 1.0000",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS periodo_fiscal VARCHAR(7) NOT NULL DEFAULT ''",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS modulo_origen VARCHAR(20) NOT NULL DEFAULT 'ACCOUNTING'",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS comp_tipo CHAR(2)",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS comp_fecha_emision DATE",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS tercero_tipo_doc VARCHAR(2)",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS tercero_num VARCHAR(20)",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS tercero_razon_social TEXT",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS estado_asiento VARCHAR(20) NOT NULL DEFAULT 'VALIDADO'",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS validar_status VARCHAR(30) NOT NULL DEFAULT 'OK'",
+        # debe_mn y haber_mn: columnas computadas (PostgreSQL GENERATED ALWAYS AS ... STORED)
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS debe_mn NUMERIC(18,4) GENERATED ALWAYS AS (debit * tipo_cambio) STORED",
+        "ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS haber_mn NUMERIC(18,4) GENERATED ALWAYS AS (credit * tipo_cambio) STORED",
+        # journal_entries: columnas del motor contable
+        "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(6,4) NOT NULL DEFAULT 1.0000",
+        "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS estado_asiento VARCHAR(20) NOT NULL DEFAULT 'VALIDADO'",
+        "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS validar_status VARCHAR(30) NOT NULL DEFAULT 'OK'",
+        "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS tipo_asiento_id INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS asiento_num VARCHAR(24)",
+        # financial_documents: columnas adicionales
+        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS sunat_status VARCHAR(20) DEFAULT 'PENDING'",
+        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS metadata_json JSONB",
         # kardex_movements: columnas añadidas al modelo pero aún no en BD
         "ALTER TABLE kardex_movements ADD COLUMN IF NOT EXISTS area VARCHAR(50)",
         "ALTER TABLE kardex_movements ADD COLUMN IF NOT EXISTS validated_by VARCHAR(100)",

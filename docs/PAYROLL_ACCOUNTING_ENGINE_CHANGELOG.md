@@ -1,63 +1,45 @@
 # CHANGELOG - Sistema Contable de Planillas (Payroll Accounting Engine)
 
 ## Versión 2.0 - Mayo 2026
-**Mejoras de Auditoría, Distribución de Centros de Costo y Validación Robusta**
+**Mejoras de auditoría, costos por centro y cumplimiento PUC Colombia**
 
 ---
 
 ## 📋 Resumen de Cambios
 
 Se implementó un motor contable enterprise-grade con:
-- ✅ Asiento de Destino automático (Clase 6 → Clase 9) según centro de costo
-- ✅ Auditoría y trazabilidad completa
+- ✅ Registro de gastos de nómina directamente en cuentas PUC Colombia
+- ✅ Cálculo de obligaciones laborales y retenciones con reglas colombianas
+- ✅ Auditoría completa y trazabilidad por NIT
 - ✅ Bloqueos de período para evitar duplicados
-- ✅ Validador de partida doble mejorado con diagnósticos
+- ✅ Validación robusta de partida doble y redondeo en COP
 
 ---
 
 ## 🔧 Cambios Técnicos
 
-### 1. **Asiento de Destino por Centro de Costo** (PCGE Compliant)
+### 1. **Gastos de Nómina con PUC Colombia**
 
-#### Problema Anterior:
-- Todos los gastos se transferían a cuenta **941** (Administración)
-- Ignoraba el departamento/puesto del trabajador
-- No diferenciaba entre áreas (Ventas, Producción, etc.)
+#### Problema anterior:
+- No se diferenciaba entre sueldos, cargas sociales y obligaciones laborales
+- El motor usaba un modelo de cuentas heredado que no coincidía con el PUC
+- No había una asignación clara por centro de costo
 
 #### Solución:
-Se agregó mapeo de cargos → centros de costo:
-
-```python
-COST_CENTER_MAP = {
-    # Administración: 941
-    "gerente general": {"cuenta": "941", "desc": "Gastos de Administración"},
-    
-    # Ventas: 942
-    "vendedor": {"cuenta": "942", "desc": "Gastos de Ventas"},
-    "ejecutivo de ventas": {"cuenta": "942", "desc": "Gastos de Ventas"},
-    
-    # Producción: 943
-    "operario": {"cuenta": "943", "desc": "Gastos de Producción"},
-    "supervisor de producción": {"cuenta": "943", "desc": "Gastos de Producción"},
-    
-    # Logística: 944
-    "almacenero": {"cuenta": "944", "desc": "Gastos de Logística"},
-    
-    # I+D: 945
-    "ingeniero": {"cuenta": "945", "desc": "Gastos de Investigación y Desarrollo"},
-}
-```
+- Se registra la nómina directamente en cuentas PUC específicas
+- Se separan sueldos, aportes de seguridad social y salarios por pagar
+- Se añade mapeo de centro de costo para análisis por área
 
 **Impacto:**
-- Estado de Resultados ahora refleja costos reales por departamento
-- Facilita análisis de rentabilidad por unidad de negocio
-- Cumple con PCGE y normativa contable peruana
+- El Estado de Resultados refleja costos reales de nómina
+- Mejora el análisis de rentabilidad por negocio y por departamento
+- Alinea con PUC Colombia y la normativa laboral colombiana
 
 ---
 
-### 2. **Auditoría y Trazabilidad**
+### 2. **Auditoría y trazabilidad por NIT**
 
-#### Campos Agregados a `PayrollJournalEntry`:
+#### Campos agregados a `PayrollJournalEntry`:
 
 | Campo | Tipo | Propósito |
 |-------|------|-----------|
@@ -66,50 +48,48 @@ COST_CENTER_MAP = {
 | `reference_document_type` | String(50) | WORKER_PAYROLL |
 | `status` | String(20) | CONFIRMADO, ANULADO, PENDIENTE |
 | `motivo_anulacion` | Text | Razón si fue anulado |
-| `centro_costo` | String(10) | Cuenta de destino (941-945) |
+| `centro_costo` | String(10) | Centro de costo asociado |
 
-#### Índices Creados:
+#### Índices creados:
 ```sql
-idx_libro_diario_created_by         -- Trazas de usuario
-idx_libro_diario_status             -- Búsqueda por estado
-idx_libro_diario_reference          -- Link a trabajador
-idx_libro_diario_centro_costo       -- Análisis por departamento
+CREATE INDEX idx_libro_diario_created_by ON libro_diario(created_by);
+CREATE INDEX idx_libro_diario_status ON libro_diario(status);
+CREATE INDEX idx_libro_diario_reference ON libro_diario(reference_document_id);
+CREATE INDEX idx_libro_diario_centro_costo ON libro_diario(centro_costo);
 ```
 
-**Auditoría Trail Automática:**
+**Auditoría automática:**
 ```
-Evento: Planilla Mayo/2026 para Juan Pérez (DNI 12345678)
+Evento: Planilla Mayo/2026 para Juan Pérez (NIT 830987654)
 Generado por: user_id = "uuid-contador-principal"
 Fecha: 2026-05-12 14:30:15
 Estado: CONFIRMADO
-Centro de Costo: 942 (Gastos de Ventas)
+Centro de Costo: VENTAS
 ```
 
 ---
 
-### 3. **Bloqueos de Período**
+### 3. **Bloqueos de período**
 
-#### Validación Automática:
-
+#### Validación automática:
 ```python
-# Si intenta procesar el mismo período dos veces:
-ValueError: ❌ BLOQUEO ACTIVO: El período 2026-05 ya fue procesado para Juan Pérez. 
-Genere una liquidación si necesita ajustes.
+ValueError: ❌ BLOQUEO ACTIVO: El período 2026-05 ya fue procesado para Juan Pérez.
+Genere una liquidación si requiere ajustes.
 ```
 
 #### Mecanismo:
-- Verifica `UNIQUE(tenant_id, trabajador_id, periodo_mes)` en `provisiones_sociales`
-- Falla antes de generar asiento duplicado
-- Fuerza liquidación como camino para correcciones
+- Verifica `UNIQUE(tenant_id, trabajador_id, periodo_mes)` en la tabla de provisiones sociales
+- Evita generar el mismo asiento dos veces
+- Obliga a usar una liquidación para correcciones
 
 **Seguridad:**
-- Previene errores humanos (doble clic)
-- Mantiene integridad referencial del Libro Diario
-- Auditable: cada intento queda en logs
+- Previene duplicados accidentales
+- Mantiene integridad del libro diario
+- Deja registro auditable de cada intento
 
 ---
 
-### 4. **Validador de Partida Doble Mejorado**
+### 4. **Validación robusta de partida doble**
 
 #### Antes:
 ```python
@@ -126,87 +106,86 @@ def _validar_partida_doble(asiento) -> tuple[bool, str]:
     ✅ Existencia de items
     ✅ Al menos una línea DEBE y una HABER
     ✅ Partida doble (Δ ≤ 0.01)
-    ✅ Formato válido de cuentas (PCGE)
+    ✅ Formato válido de cuentas PUC
     ✅ Montos positivos
     ✅ Ajuste automático de redondeo
-    
-    # Retorna diagnóstico detallado
+
     return (es_valido, mensaje_detallado)
 ```
 
-#### Ejemplo de Salida:
+#### Ejemplo de salida:
 ```
-✅ Asiento válido: Debe/Haber perfectamente cuadrado (S/ 5,250.00)
+✅ Asiento válido: Debe/Haber perfectamente cuadrado ($ 5.250.000)
 ```
 
 ```
-❌ DESCUADRE CRÍTICO: Debe S/ 5,250.00 vs Haber S/ 5,249.99 
-(Diferencia: S/ 0.01)  → Se ajusta automáticamente
+❌ DESCUADRE CRÍTICO: Debe $ 5.250.000 vs Haber $ 5.249.950
+(Diferencia: $ 50) → Requiere revisión humana por umbral COP
 ```
 
 ---
 
-### 5. **Separación de Responsabilidades**
+### 5. **Separación de responsabilidades**
 
-#### Cambio en `calcular_neto_y_provisiones()`:
-
-**Antes:** Generaba asientos automáticamente (efecto secundario)
+#### Antes:
 ```python
 async def calcular_neto_y_provisiones(worker_id):
     resultado = engine.procesar_cierre_mensual(worker)
-    await self._persistir_asiento(...)  # ⚠️ Genera asiento aquí
-    await self._persistir_provisiones(...)
+    await self._persistir_asiento(...)  # genera asiento aquí
     return resultado
 ```
 
-**Ahora:** Solo calcula y retorna preview
+#### Ahora:
 ```python
 async def calcular_neto_y_provisiones(worker_id):
     resultado = engine.procesar_cierre_mensual(worker)
-    # NO genera asientos
     return {
         "neto": resultado["boleta"]["neto"],
         "detalles": resultado["boleta"],
-        "asiento_preview": resultado["asiento"],  # Preview, NO generado
+        "asiento_preview": resultado["asiento"],
     }
 ```
 
-**Flujos Correctos:**
-- **Consulta:** `calcular_neto_y_provisiones()` → información sin efectos
-- **Confirmar:** `ejecutar_flujo_contratacion_y_pago()` → genera asientos + auditoría
+**Flujos recomendados:**
+- `calcular_neto_y_provisiones()` → preview sin efectos secundarios
+- `ejecutar_flujo_contratacion_y_pago()` → genera asiento con auditoría
 
 ---
 
-## 📊 Estructura del Asiento Mejorado
+## 📊 Estructura del asiento mejorado
 
-### Asiento Contable Completo (Ejemplo):
+### Asiento contable de ejemplo
 
 ```
-PLANILLA Mayo/2026 - Vendedor Juan Pérez (DNI 12345678)
+PLANILLA Mayo/2026 - Vendedor Juan Pérez (NIT 830987654)
 
-SECCIÓN 1: Gastos de Explotación (Clase 6) - DEBE
-  6211 - Sueldos                          5,000.00 D
-  6271 - EsSalud                            450.00 D
+SECCIÓN 1: Gastos de personal - DEBE
+  510506 - Sueldos y salarios           5.000.000 D
+  5110   - Aportes de seguridad social   850.000 D
 
-SECCIÓN 2: Obligaciones por Pagar (Clase 4) - HABER
-  4031 - EsSalud x Pagar                    450.00 H
-  4032 - Retenciones Pensión x Pagar        650.00 H
-  4111 - Sueldos x Pagar                  4,350.00 H
+SECCIÓN 2: Obligaciones por pagar - HABER
+  2370 - Retenciones y aportes por pagar 850.000 H
+  2365 - Retención en la fuente          150.000 H
+  2505 - Salarios por pagar             4.850.000 H
 
-SECCIÓN 3: Asiento de Destino (Clase 6→9) - DEBE/HABER
-  942  - Gastos de Ventas                 5,450.00 D
-  791  - Cargas Imputables                5,450.00 H
+SECCIÓN 3: Costos asignados por centro
+  510506 - Sueldos y salarios           5.000.000 D
+  5110   - Aportes de seguridad social   850.000 D
+  2370   - Retenciones y aportes por pagar 850.000 H
+  2365   - Retención en la fuente          150.000 H
+  2505   - Salarios por pagar             4.850.000 H
 
 SECCIÓN 4: Redondeo (si aplica)
-  6799 - Redondeo - Gastos Otros               0.00 (sin diferencia)
+  539595 - Gastos diversos (redondeo)         0 D
+  429595 - Ingresos diversos (redondeo)       0 H
 
-─────────────────────────────────────────────────────
-TOTALES:        5,450.00  DEBE  =  5,450.00  HABER ✅
+────────────────────────────────────────
+TOTALES:  5.850.000 DEBE  =  5.850.000 HABER ✅
 ```
 
 ---
 
-## 🗄️ Migraciones de Base de Datos
+## 🗄️ Migraciones de base de datos
 
 ### Migración: `008_payroll_audit_fields.py`
 
@@ -232,76 +211,62 @@ alembic upgrade head
 
 ---
 
-## 🔍 Diferencias Clave: Antes vs Después
+## 🔍 Diferencias clave: Antes vs Después
 
 | Aspecto | Antes | Después |
 |---------|-------|---------|
-| **Centro de Costo** | 941 (Todos) | 941-945 (Mapeo por puesto) |
-| **Auditoría** | Sin registro | Creador, timestamp, referencia |
-| **Bloqueo de Período** | No | Sí, automático |
-| **Validación** | Básica (Δ ≤ 0.01) | Robusta (9 validaciones) |
-| **Diagnóstico de Errores** | Genérico | Específico y detallado |
-| **Separación de Responsabilidades** | Débil | Fuerte |
-| **PCGE Compliance** | 60% | 100% |
+| Cuentas | Modelo heredado | PUC Colombia |
+| Centro de costo | No diferenciado | Mapeo por área y responsabilidad |
+| Auditoría | Débil | Completa y trazable |
+| Período | Duplicados posibles | Bloqueo automático |
+| Validación | Básica | Robusta |
+| Moneda | Sin estándar claro | $ COP estándar |
 
 ---
 
-## 🚀 Guía de Uso
+## 🚀 Guía de uso
 
-### Flujo Recomendado:
+### Flujo recomendado:
 
 ```python
-# 1. Consultar cálculo (sin efectos)
 result = await payroll_service.calcular_neto_y_provisiones(worker_id)
-print(f"Neto: {result['neto']}")
-print(f"Asiento: {result['asiento_preview']}")
+print(result["neto"])
+print(result["asiento_preview"])
 
-# 2. Confirmar y generar (con auditoría)
 result = await payroll_service.ejecutar_flujo_contratacion_y_pago(
     worker_id=worker_id,
     periodo="2026-05",
     created_by_id=current_user.id,
 )
-
-# Resultado:
-{
-  "status": "success",
-  "message": "Proceso completado: Contabilidad asentada...",
-  "boleta_path": "/temp/boleta_12345678_2026-05.pdf",
-  "liquidacion_path": "/temp/liquidacion_12345678_2026-05.pdf",
-  "email_status": {...}
-}
 ```
 
-### Manejo de Errores:
+### Manejo de errores:
 
 ```python
 try:
     await payroll_service.ejecutar_flujo_contratacion_y_pago(...)
 except ValueError as e:
-    # Validación: período ya procesado
     print(f"⚠️ Bloqueo: {e}")
 except Exception as e:
-    # Error contable: asiento descuadrado
     print(f"❌ Error: {e}")
 ```
 
 ---
 
-## 📝 Notas Importantes
+## 📝 Notas importantes
 
 1. **Retrocompatibilidad:** Las rutas API mantienen la firma actual. El cambio es interno.
-2. **Performance:** Los índices nuevos mejoran búsquedas de auditoría en O(log n).
-3. **Cumplimiento:** Ahora cumple 100% con PCGE (Plan Contable General Empresarial).
-4. **Testing:** Se recomienda suite de tests para validar asientos en cada departamento.
+2. **Performance:** Los índices nuevos mejoran búsquedas de auditoría.
+3. **Cumplimiento:** Se usa PUC Colombia como estándar contable.
+4. **Testing:** Se recomienda validar asientos y centros de costo.
 
 ---
 
-## 👤 Auditoría de Cambios
+## 👤 Auditoría de cambios
 
 **Desarrollador:** GitHub Copilot
 **Fecha:** 12-May-2026
-**Archivos Modificados:**
+**Archivos modificados:**
 - `src/application/services/payroll_service.py`
 - `src/domain/models/accounting.py`
 - `src/api/routes/hr.py`
@@ -311,4 +276,4 @@ except Exception as e:
 - ✅ Partida doble verificada
 - ✅ Auditoría rastreable
 - ✅ Bloqueos funcionales
-- ✅ PCGE compliant
+- ✅ Alineado con PUC Colombia

@@ -198,7 +198,7 @@ export const CompanySelectScreen: React.FC<Props> = ({ userPlan, displayName, on
               <div>
                 <label style={{ display: 'block', fontSize: 10, color: C.muted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RUC (11 dígitos) *</label>
                 <input value={ruc} onChange={e => { setRuc(e.target.value); setError(''); }}
-                  placeholder="20XXXXXXXXX" maxLength={11}
+                  placeholder="20XXXXXXXXX" maxLength={12}
                   style={{ ...inp, fontFamily: 'Consolas, monospace' }} />
               </div>
               <div>

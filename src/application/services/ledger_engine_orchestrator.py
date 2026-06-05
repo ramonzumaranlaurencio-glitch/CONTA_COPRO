@@ -47,7 +47,7 @@ class LedgerEngineOrchestrator:
         module_command: ModuleCommand,
         transaction_type: str,
         amount: Decimal,
-        currency: Literal["PEN", "USD"] = "PEN",
+        currency: Literal["COP", "USD"] = "COP",
         **kwargs
     ) -> LedgerEngineOutput:
         """
@@ -185,7 +185,7 @@ class LedgerEngineOrchestrator:
             if compliance.detraccion.status.value != "NO_APLICA":
                 action.notificar_tesoreria = (
                     f"Registrar detracción {compliance.detraccion.tasa_porcentaje*100:.0f}% "
-                    f"por S/ {compliance.detraccion.monto_detraccion} en cuenta 104"
+                    f"por $ {compliance.detraccion.monto_detraccion} en cuenta 104"
                 )
             action.registro_sunat_listo = True
 

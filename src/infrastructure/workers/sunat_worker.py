@@ -28,10 +28,12 @@ class CircuitBreaker:
         if self.failures >= self.failure_threshold:
             self.opened_at = time.time()
 
-class SunatOutboxWorker:
-    def __init__(self, uow_factory, sunat_client, xml_signer, audit_copilot, breaker: CircuitBreaker):
+class DianOutboxWorker:
+    """Worker outbox para envío de facturas electrónicas a DIAN (UBL 2.1 / CUFE)."""
+
+    def __init__(self, uow_factory, dian_client, xml_signer, audit_copilot, breaker: CircuitBreaker):
         self.uow_factory = uow_factory
-        self.sunat_client = sunat_client
+        self.dian_client = dian_client
         self.xml_signer = xml_signer
         self.audit_copilot = audit_copilot
         self.breaker = breaker
@@ -43,22 +45,22 @@ class SunatOutboxWorker:
             events = await repo.get_pending_outbox_for_update(tenant_id, limit)
             for event in events:
                 if not self.breaker.allow():
-                    diagnosis = await self.audit_copilot.diagnose_sunat_failure(event.payload, "Circuit breaker abierto")
-                    await repo.move_to_dlq(event, "SUNAT circuit breaker abierto", diagnosis)
+                    diagnosis = await self.audit_copilot.diagnose_dian_failure(event.payload, "Circuit breaker abierto")
+                    await repo.move_to_dlq(event, "DIAN circuit breaker abierto", diagnosis)
                     result["dlq"] += 1
                     continue
                 try:
                     signed = await self.xml_signer.sign(event.payload["invoice"])
-                    response = await self.sunat_client.send_bill(signed)
+                    response = await self.dian_client.send_bill(signed)
                     if not response.get("success"):
-                        raise RuntimeError(response.get("error", "SUNAT rechazó comprobante"))
+                        raise RuntimeError(response.get("error", "DIAN rechazó el comprobante electrónico"))
                     self.breaker.success()
                     await repo.mark_outbox_processed(event)
                     result["processed"] += 1
                 except Exception as exc:
                     self.breaker.failure()
                     if event.attempts + 1 >= event.max_attempts:
-                        diagnosis = await self.audit_copilot.diagnose_sunat_failure(event.payload, str(exc))
+                        diagnosis = await self.audit_copilot.diagnose_dian_failure(event.payload, str(exc))
                         await repo.move_to_dlq(event, str(exc), diagnosis)
                         result["dlq"] += 1
                     else:
@@ -66,3 +68,7 @@ class SunatOutboxWorker:
                         result["retrying"] += 1
             await uow.commit()
             return result
+
+
+# Alias backward-compat
+SunatOutboxWorker = DianOutboxWorker

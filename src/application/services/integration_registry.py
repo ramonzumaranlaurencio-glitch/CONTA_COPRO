@@ -17,8 +17,8 @@ class ConnectorDefinition:
 class IntegrationRegistry:
     def list_connectors(self) -> list[ConnectorDefinition]:
         return [
-            ConnectorDefinition("SUNAT", "tax_authority", bool(settings.sunat_endpoint), ["SUNAT_ENDPOINT", "SUNAT_RUC", "SUNAT_SOL_USER", "SUNAT_SOL_PASSWORD", "P12_CERT_PATH"], ["UBL_2_1", "SOAP", "CDR", "SIRE", "PLE"]),
-            ConnectorDefinition("SUNAT_LOOKUP", "tax_authority", bool(settings.sunat_ruc_lookup_url or settings.sunat_cpe_lookup_url), ["SUNAT_RUC_LOOKUP_URL", "SUNAT_CPE_LOOKUP_URL"], ["ruc_status", "cpe_status", "guard_realtime"]),
+            ConnectorDefinition("DIAN_FE", "tax_authority", bool(settings.dian_fe_endpoint), ["DIAN_FE_ENDPOINT", "DIAN_NIT", "P12_CERT_PATH"], ["UBL_2_1", "SOAP", "CUFE", "NOTA_CREDITO", "NOTA_DEBITO", "DOCUMENTO_SOPORTE"]),
+            ConnectorDefinition("DIAN_LOOKUP", "tax_authority", bool(settings.dian_nit_lookup_url or settings.dian_cufe_validation_url), ["DIAN_NIT_LOOKUP_URL", "DIAN_CUFE_VALIDATION_URL"], ["nit_status", "cufe_validation", "guard_realtime"]),
             ConnectorDefinition("BANKS", "treasury", bool(settings.bank_api_base_url), ["BANK_API_BASE_URL"], ["statements", "payments", "reconciliation"]),
             ConnectorDefinition("GEMINI", "ai", bool(settings.gemini_api_key), ["GEMINI_API_KEY"], ["embeddings", "rag", "audit_reasoning", "copilots"]),
             ConnectorDefinition("RAG_VECTOR", "ai_vector_store", settings.rag_vector_provider.lower() in {"pgvector", "chroma", "chromadb"}, ["RAG_VECTOR_PROVIDER"], ["legal_batch_ingest", "pgvector", "chromadb"]),

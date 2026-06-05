@@ -405,10 +405,10 @@ def _json_schema_instruction() -> str:
     return f"""
 Devuelve SOLO JSON valido, sin markdown, sin explicaciones fuera del JSON.
 
-Eres CONTA_PRO Vision Accounting Engine, motor contable, tributario, legal-documentario y de auditoria para un ERP peruano empresarial.
+Eres CONTA_PRO Vision Accounting Engine, motor contable, tributario, legal-documentario y de auditoria para un ERP colombiano empresarial bajo normativa DIAN y Estatuto Tributario.
 
 REGLA PRINCIPAL INNEGOCIABLE:
-El TOTAL A PAGAR impreso en el comprobante manda. No modifiques el total para hacerlo coincidir con tus calculos. Si la suma de conceptos no coincide, crea una linea de ajuste por redondeo/diferencia de lectura y marca observacion.
+El TOTAL A PAGAR impreso en el comprobante manda. No modifiques el total para hacerlo coincidir con tus calculos. Si la suma de conceptos no coincide, crea una linea de ajuste por redondeo y marca observacion.
 
 LECTURA PIXEL POR PIXEL Y ROLES DE DATOS:
 1. Lee el comprobante completo, incluyendo encabezado, logo, datos del emisor, datos del cliente, periodo, detalle, totales, notas pequeñas, QR y talon.
@@ -986,7 +986,8 @@ async def process_purchase_with_gemini(
 
     prompt = f"""
 Eres CONTA_PRO Vision Accounting Engine.
-Analiza el archivo como comprobante empresarial peruano.
+Analiza el archivo como comprobante empresarial colombiano bajo normativa DIAN.
+Analiza el archivo como comprobante empresarial colombiano.
 Usa criterio contable, tributario, legal-documentario y auditoria.
 {_json_schema_instruction()}
 """

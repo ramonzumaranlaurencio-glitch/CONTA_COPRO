@@ -269,9 +269,9 @@ type GeminiSaleResponse = {
 };
 
 const API_BASE = '/api/v1';
-const DEFAULT_COST_CENTER = 'LIM-ADM';
-const ENGINE_VERSION = 'CONTA_PRO_SALE_AI_RULES_PE_2026_01';
-const AUTO_ROUNDING_TOLERANCE = 0.5;
+const DEFAULT_COST_CENTER = 'BOG-ADM';
+const ENGINE_VERSION = 'CONTA_PRO_SALE_AI_RULES_CO_2026_01';
+const AUTO_ROUNDING_TOLERANCE = 100; // tolerance in COP
 
 const RECEIVABLE_ACCOUNT = '1212';
 const RECEIVABLE_NAME = 'Cuentas por cobrar comerciales';
@@ -279,8 +279,8 @@ const SALES_IGV_ACCOUNT = '40111';
 const SALES_IGV_NAME = 'IGV débito fiscal';
 const DEFAULT_SERVICE_REVENUE_ACCOUNT = '704101';
 const DEFAULT_GOODS_REVENUE_ACCOUNT = '701101';
-const ROUNDING_INCOME_ACCOUNT = '759901';
-const ROUNDING_EXPENSE_ACCOUNT = '659101';
+const ROUNDING_INCOME_ACCOUNT = '429595';
+const ROUNDING_EXPENSE_ACCOUNT = '539595';
 
 const toNumber = (value: string | number | undefined | null) => {
   const parsed = Number.parseFloat(String(value ?? '0').replace(',', '.'));
@@ -486,7 +486,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     [items],
   );
   const subtotal = toNumber(form.subtotal) > 0 ? toNumber(form.subtotal) : subtotalItems;
-  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.18 : toNumber(form.igv);
+  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.igv);
   const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + igv;
 
   const groupedLines = useMemo(() => {
@@ -595,7 +595,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     const next = { ...form, [key]: value };
 
     if (key === 'subtotal' && isAutoIgv) {
-      next.igv = money(toNumber(value) * 0.18);
+      next.igv = money(toNumber(value) * 0.19);
     }
 
     if (key === 'costCenter') {
@@ -626,12 +626,12 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
 
         if (key === 'quantity' || key === 'unitPrice') {
           next.lineSubtotal = money(toNumber(next.quantity) * toNumber(next.unitPrice));
-          next.igvAmount = next.taxable ? money(toNumber(next.lineSubtotal) * 0.18) : '0.00';
+          next.igvAmount = next.taxable ? money(toNumber(next.lineSubtotal) * 0.19) : '0.00';
           next.totalLine = money(toNumber(next.lineSubtotal) + toNumber(next.igvAmount));
         }
 
         if (key === 'lineSubtotal') {
-          next.igvAmount = next.taxable ? money(toNumber(value) * 0.18) : '0.00';
+          next.igvAmount = next.taxable ? money(toNumber(value) * 0.19) : '0.00';
           next.totalLine = money(toNumber(value) + toNumber(next.igvAmount));
         }
 
@@ -740,7 +740,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         aiConfidence,
         requiresReview,
         taxable: Boolean(raw.taxable ?? detectedLineType === 'REVENUE'),
-        igvAmount: money(toNumber(raw.igv_amount ?? raw.igvAmount ?? (detectedLineType === 'REVENUE' ? lineSubtotal * 0.18 : 0))),
+        igvAmount: money(toNumber(raw.igv_amount ?? raw.igvAmount ?? (detectedLineType === 'REVENUE' ? lineSubtotal * 0.19 : 0))),
         totalLine: money(toNumber(raw.total_line ?? raw.totalLine ?? (lineSubtotal + toNumber(raw.igv_amount ?? raw.igvAmount ?? 0)))),
         lineType: detectedLineType,
         requiresSupport,
@@ -801,24 +801,11 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     try {
       const currentTenantId = tenantId || localStorage.getItem('tenant_id') || '11111111-1111-1111-1111-111111111111';
 
-      const tokenResponse = await fetch(`${API_BASE}/auth/dev-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant_id: currentTenantId,
-          user_id: 'erp.operator',
-          role: 'ADMIN',
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error(await tokenResponse.text());
+      let token = localStorage.getItem('access_token') || '';
+      if (!token) {
+        const _u = localStorage.getItem('login_username'); const _p = localStorage.getItem('login_password');
+        if (_u && _p) { const _r = await fetch(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: _u, password: _p, tenant_id: currentTenantId }) }); if (_r.ok) { const _d = await _r.json() as { access_token?: string }; token = _d.access_token || ''; if (token) localStorage.setItem('access_token', token); } }
       }
-
-      const tokenPayload = await tokenResponse.json();
-      const token = tokenPayload.access_token;
       const formData = new FormData();
       formData.append('file', file);
 
@@ -845,27 +832,33 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
   };
 
   const validateRucExternally = async () => {
-    if (!/^\d{11}$/.test(form.customerRuc)) {
+    const clean = form.customerRuc.replace(/[^0-9]/g, '');
+    if (!/^\d{9,12}$/.test(clean)) {
       setRucState('invalid');
-      setRucMessage('RUC inválido: debe tener 11 dígitos.');
+      setRucMessage('Identificador inválido. Debe tener entre 9 y 12 dígitos.');
       return;
     }
-    setRucState('validating');
-    setRucMessage('Consultando servicio externo...');
-    try {
-      const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${form.customerRuc}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCustomerName(data.razonSocial || data.nombre || customerName);
-        setRucState('valid');
-        setRucMessage('RUC validado. Razón social cargada si el servicio la devolvió.');
-        return;
+    if (clean.length === 11) {
+      setRucState('validating');
+      setRucMessage('Consultando servicio externo...');
+      try {
+        const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${clean}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCustomerName(data.razonSocial || data.nombre || customerName);
+          setRucState('valid');
+          setRucMessage('RUC validado. Razón social cargada si el servicio la devolvió.');
+          return;
+        }
+        setRucState('unknown');
+        setRucMessage('SUNAT externo no disponible. Continuar con validación manual.');
+      } catch {
+        setRucState('unknown');
+        setRucMessage('No se pudo validar externamente. Verifica red/CORS.');
       }
+    } else {
       setRucState('unknown');
-      setRucMessage('SUNAT externo no disponible. Continuar con validación manual.');
-    } catch {
-      setRucState('unknown');
-      setRucMessage('No se pudo validar externamente. Verifica red/CORS.');
+      setRucMessage('Identificador aceptado. Validación externa no configurada para este país.');
     }
   };
 
@@ -883,7 +876,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     if (!form.serie.trim()) return 'Falta serie.';
     if (!form.number.trim()) return 'Falta número.';
     if (!issueDate.trim()) return 'Falta fecha.';
-    if (!/^\d{11}$/.test(form.customerRuc)) return 'RUC cliente inválido.';
+    if (!/^\d{9,12}$/.test(form.customerRuc.replace(/[^0-9]/g, ''))) return 'Identificador cliente inválido (9-12 dígitos).';
     if (!customerName.trim()) return 'Falta razón social cliente.';
     if (items.length === 0) return 'Agrega al menos un item.';
     if (total <= 0) return 'Total inválido.';
@@ -1124,7 +1117,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       {aiTotalReadFromDocument && (
         <MessageBar intent={aiReconciliationStatus === 'OK' ? 'success' : 'warning'}>
           <MessageBarBody>
-            Total leído del comprobante: S/ {aiTotalReadFromDocument}
+            Total leído del comprobante: $ {aiTotalReadFromDocument}
             {aiReconciliationStatus ? ` | Conciliación: ${aiReconciliationStatus}` : ''}
             {aiReconciliationDifference && aiReconciliationDifference !== '0.00' ? ` | Diferencia: ${aiReconciliationDifference}` : ''}
           </MessageBarBody>
@@ -1190,16 +1183,16 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         <Field label="Cuenta ingreso fallback"><Input value={form.revenueAccount} onChange={(_, d) => updateField('revenueAccount', d.value)} /></Field>
         <Field label="Centro costo general"><Input value={form.costCenter} onChange={(_, d) => updateField('costCenter', d.value)} /></Field>
         <Field label="Subtotal"><Input value={money(subtotal)} disabled /></Field>
-        <Field label="IGV"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
+        <Field label="IVA"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
       </div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
         <input type="checkbox" checked={isAutoIgv} onChange={(e) => setIsAutoIgv(e.target.checked)} />
-        IGV auto-calculado 18%
+        IVA auto-calculado 19%
       </label>
 
-      <Text weight="semibold">Total: S/ {money(total)}</Text>
-      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: S/ {aiTotalReadFromDocument}</Text>}
+      <Text weight="semibold">Total: $ {money(total)}</Text>
+      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {aiTotalReadFromDocument}</Text>}
 
       {status && <MessageBar intent={status.includes('No se pudo') || status.includes('Falta') || status.includes('requiere') ? 'error' : 'success'}><MessageBarBody>{status}</MessageBarBody></MessageBar>}
 

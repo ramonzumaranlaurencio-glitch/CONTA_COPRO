@@ -33,7 +33,7 @@ export interface PlanFeatures {
   ai:                boolean;
   toolTokens:        boolean;
   advancedBI:        boolean;
-  sunat:             boolean;
+  dian:              boolean;
   audit:             boolean;
   integrations:      boolean;
   // Nuevos campos
@@ -52,35 +52,35 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
   TRIAL_CONTADOR: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: false,  payroll: false,  ocr: false,  ai: false,  toolTokens: false,
-    advancedBI: false, sunat: true,  audit: true,  integrations: false,
+    advancedBI: false, dian: true,  audit: true,  integrations: false,
     maxBusinesses: 3,  aiDocsPerMonth: 0,  fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   BASICO_CONTADOR: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: false,  payroll: false,  ocr: false,  ai: false,  toolTokens: false,
-    advancedBI: false, sunat: true,  audit: true,  integrations: false,
+    advancedBI: false, dian: true,  audit: true,  integrations: false,
     maxBusinesses: 5,  aiDocsPerMonth: 0,  fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   PLUS_CONTADOR: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: false,  payroll: false,  ocr: true,  ai: true,  toolTokens: false,
-    advancedBI: false, sunat: true,  audit: true,  integrations: false,
+    advancedBI: false, dian: true,  audit: true,  integrations: false,
     maxBusinesses: 10, aiDocsPerMonth: 50,  fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   PRO_CONTADOR: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: false,  payroll: false,  ocr: true,  ai: true,  toolTokens: false,
-    advancedBI: true,  sunat: true,  audit: true,  integrations: false,
+    advancedBI: true,  dian: true,  audit: true,  integrations: false,
     maxBusinesses: 15, aiDocsPerMonth: 100, fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   MAESTRO_PLUS: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: true,
-    advancedBI: true,  sunat: true,  audit: true,  integrations: true,
+    advancedBI: true,  dian: true,  audit: true,  integrations: true,
     maxBusinesses: UNLIMITED, aiDocsPerMonth: UNLIMITED, fullErp: true,
     costCenters: true, multiWarehouse: true, superAdmin: false,
   },
@@ -88,21 +88,21 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
   PLUS_EMPRESA: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: false, ocr: true,  ai: true,  toolTokens: false,
-    advancedBI: false, sunat: false, audit: false, integrations: false,
+    advancedBI: false, dian: false, audit: false, integrations: false,
     maxBusinesses: 1,  aiDocsPerMonth: 100, fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   PRO_EMPRESA: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: false,
-    advancedBI: true,  sunat: true,  audit: false, integrations: false,
+    advancedBI: true,  dian: true,  audit: false, integrations: false,
     maxBusinesses: 1,  aiDocsPerMonth: 200, fullErp: false, costCenters: true,
     multiWarehouse: true, superAdmin: false,
   },
   MAESTRO_EMPRESA: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: true,
-    advancedBI: true,  sunat: true,  audit: true,  integrations: true,
+    advancedBI: true,  dian: true,  audit: true,  integrations: true,
     maxBusinesses: UNLIMITED, aiDocsPerMonth: UNLIMITED, fullErp: true,
     costCenters: true, multiWarehouse: true, superAdmin: false,
   },
@@ -110,21 +110,21 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
   BASIC: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: false,  payroll: false, ocr: false, ai: false, toolTokens: false,
-    advancedBI: false, sunat: false, audit: false, integrations: false,
+    advancedBI: false, dian: false, audit: false, integrations: false,
     maxBusinesses: 5, aiDocsPerMonth: 0, fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   PLUS: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: false,
-    advancedBI: true,  sunat: false, audit: false, integrations: false,
+    advancedBI: true,  dian: false, audit: false, integrations: false,
     maxBusinesses: 10, aiDocsPerMonth: 50, fullErp: false, costCenters: false,
     multiWarehouse: false, superAdmin: false,
   },
   PREMIUM: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: true,
-    advancedBI: true,  sunat: true,  audit: true,  integrations: true,
+    advancedBI: true,  dian: true,  audit: true,  integrations: true,
     maxBusinesses: UNLIMITED, aiDocsPerMonth: UNLIMITED, fullErp: true,
     costCenters: true, multiWarehouse: true, superAdmin: false,
   },
@@ -132,7 +132,7 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
   CONTA_PRO: {
     accounting: true,  sales: true,  purchases: true,  reports: true,  dashboard: true,
     inventory: true,   payroll: true,  ocr: true,  ai: true,  toolTokens: true,
-    advancedBI: true,  sunat: true,  audit: true,  integrations: true,
+    advancedBI: true,  dian: true,  audit: true,  integrations: true,
     maxBusinesses: UNLIMITED, aiDocsPerMonth: UNLIMITED, fullErp: true,
     costCenters: true, multiWarehouse: true, superAdmin: true,
   },

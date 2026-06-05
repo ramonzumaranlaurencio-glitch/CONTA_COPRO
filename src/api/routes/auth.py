@@ -1,5 +1,9 @@
 import httpx
+from datetime import datetime, timedelta
+from uuid import uuid4
+
 from fastapi import APIRouter, HTTPException
+from jose import jwt
 from pydantic import BaseModel
 
 from src.config import settings
@@ -116,6 +120,52 @@ async def google_sign_in(payload: GoogleAuthRequest):
             "picture": picture,
             "google_sub": info.get("sub"),
         },
+    }
+
+
+TENANT_DEFAULT = "11111111-1111-1111-1111-111111111111"
+
+SYSTEM_USERS = [
+    {"username": "contapro", "password": "ContaPro2026!", "role": "SUPER_ADMIN", "plan": "CONTA_PRO"},
+    {"username": "admin",    "password": "admin123",      "role": "ADMIN",       "plan": "PREMIUM"},
+    {"username": "contador", "password": "conta2026",     "role": "ACCOUNTANT",  "plan": "PLUS"},
+    {"username": "gerente",  "password": "gerente2026",   "role": "CONTROLLER",  "plan": "PLUS"},
+    {"username": "demo",     "password": "demo",          "role": "ACCOUNTANT",  "plan": "BASIC"},
+]
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    tenant_id: str = TENANT_DEFAULT
+
+
+@router.post("/login")
+async def login(payload: LoginRequest):
+    user = next(
+        (u for u in SYSTEM_USERS if u["username"] == payload.username and u["password"] == payload.password),
+        None,
+    )
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos.")
+    now = datetime.utcnow()
+    token_payload = {
+        "sub": payload.username,
+        "tenant_id": payload.tenant_id,
+        "role": user["role"],
+        "plan": user["plan"],
+        "type": "access",
+        "iat": now,
+        "exp": now + timedelta(hours=8),
+        "jti": str(uuid4()),
+    }
+    access_token = jwt.encode(token_payload, settings.ledger_hmac_secret, algorithm="HS256")
+    return {
+        "token_type": "bearer",
+        "access_token": access_token,
+        "expires_in_minutes": 480,
+        "role": user["role"],
+        "plan": user["plan"],
     }
 
 

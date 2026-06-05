@@ -84,7 +84,7 @@ class ClassificationAgent:
     - Destino a cuenta 9 (Centro de Costos)
     - Línea en cuenta 79 (Cuentas de Orden)
     
-    Validación: Factura → verificar IGV 18%
+    Validación: Factura → verificar IVA 19%
                  Recibo Honorarios → calcular retención 4ta categoría 8%
     """
 
@@ -103,7 +103,7 @@ class ClassificationAgent:
 
         if transaction_type == TransactionType.FACTURA and igv_included:
             igv_detectado = True
-            # IGV = Monto * 0.1525 (equivalente a 18% sobre subtotal)
+            # IVA = Monto * 0.159663 (equivalente a 19% sobre subtotal)
             igv_monto = (amount * Decimal("0.1525")).quantize(Decimal("0.01"))
 
         # Asiento principal según tipo

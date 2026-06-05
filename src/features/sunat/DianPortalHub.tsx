@@ -271,7 +271,7 @@ export const DianPortalHub: React.FC = () => {
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           {([['servicios', '🔗 Servicios DIAN'], ['biblioteca', '📚 Biblioteca Tributaria']] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: '8px 20px', borderRadius: 8, border: 'none',
+              padding: '8px 20px', borderRadius: 8,
               background: activeTab === tab ? `linear-gradient(135deg, ${C.yellow}, #d4a800)` : C.bgCard,
               color: activeTab === tab ? '#000' : C.muted,
               fontWeight: 700, fontSize: 13, cursor: 'pointer',

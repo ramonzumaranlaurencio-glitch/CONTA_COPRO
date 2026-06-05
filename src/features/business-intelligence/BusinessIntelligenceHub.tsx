@@ -149,7 +149,7 @@ export const BusinessIntelligenceHub: React.FC = () => {
       },
       {
         type: 'Gasto Anómalo',
-        description: 'Software Licencias: S/ 85,000 (3x promedio mensual)',
+        description: 'Software Licencias: $85,000 (3x promedio mensual)',
         impact: 'medium',
         confidence: 87,
         suggestedAction: 'Validar contrato - ¿Es facturación agrupada o compra única?',
@@ -388,9 +388,9 @@ export const BusinessIntelligenceHub: React.FC = () => {
               <h3 className="font-bold text-white text-lg mb-4">💰 Flujo de Caja Proyectado</h3>
               <div className="space-y-4">
                 {[
-                  { month: 'Jun 2026', amount: 'S/ 520,000', pct: 92 },
-                  { month: 'Jul 2026', amount: 'S/ 485,000', pct: 82 },
-                  { month: 'Ago 2026', amount: 'S/ 545,000', pct: 95 },
+                  { month: 'Jun 2026', amount: '$520,000', pct: 92 },
+                  { month: 'Jul 2026', amount: '$485,000', pct: 82 },
+                  { month: 'Ago 2026', amount: '$545,000', pct: 95 },
                 ].map((item, i) => (
                   <div key={i}>
                     <div className="flex justify-between mb-2 text-sm">
@@ -410,9 +410,9 @@ export const BusinessIntelligenceHub: React.FC = () => {
               <h3 className="font-bold text-white text-lg mb-4">📊 Ingresos Proyectados</h3>
               <div className="space-y-4">
                 {[
-                  { month: 'Jun 2026', amount: 'S/ 1.24M', pct: 88 },
-                  { month: 'Jul 2026', amount: 'S/ 1.18M', pct: 82 },
-                  { month: 'Ago 2026', amount: 'S/ 1.32M', pct: 92 },
+                  { month: 'Jun 2026', amount: '$1.24M', pct: 88 },
+                  { month: 'Jul 2026', amount: '$1.18M', pct: 82 },
+                  { month: 'Ago 2026', amount: '$1.32M', pct: 92 },
                 ].map((item, i) => (
                   <div key={i}>
                     <div className="flex justify-between mb-2 text-sm">

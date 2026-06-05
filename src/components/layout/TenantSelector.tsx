@@ -100,7 +100,7 @@ export const TenantSelector = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
               <label style={{ fontSize: 10, color: '#7da3c4', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>NIT (9-10 dígitos Colombia)</label>
-              <input value={ruc} onChange={e => setRuc(e.target.value)} placeholder="900XXXXXX-1" maxLength={11} style={inp} />
+              <input value={ruc} onChange={e => setRuc(e.target.value)} placeholder="900XXXXXX-1" maxLength={12} style={inp} />
             </div>
             <div>
               <label style={{ fontSize: 10, color: '#7da3c4', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Razón social</label>

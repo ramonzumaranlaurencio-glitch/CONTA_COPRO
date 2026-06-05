@@ -88,7 +88,7 @@ class TreasuryStatementImportRequest(BaseModel):
     tenant_id: str
     treasury_account_id: str
     csv_content: str
-    default_currency: str = "PEN"
+    default_currency: str = "COP"
 
 
 class TreasuryAutoMatchRequest(BaseModel):
@@ -120,7 +120,7 @@ async def post_provision(payload: ProvisionRequest, request: Request, ctx=Depend
         "description": payload.description,
         "source_module": "PROVISIONS",
         "source_id": f"provision:{payload.year}-{payload.month}:{payload.description}",
-        "currency": "PEN",
+        "currency": "COP",
         "lines": [
             {"account_code": payload.debit_account, "account_name": "Provision expense", "debit": payload.amount, "credit": Decimal("0.00"), "cost_center": payload.cost_center},
             {"account_code": payload.credit_account, "account_name": "Provision liability", "debit": Decimal("0.00"), "credit": payload.amount, "cost_center": payload.cost_center},
@@ -135,7 +135,7 @@ async def post_depreciation(payload: DepreciationRequest, request: Request, ctx=
         "description": f"Depreciacion activo {payload.asset_code}",
         "source_module": "FIXED_ASSETS",
         "source_id": f"depreciation:{payload.asset_code}:{payload.year}-{payload.month}",
-        "currency": "PEN",
+        "currency": "COP",
         "lines": [
             {"account_code": payload.expense_account, "account_name": "Depreciation expense", "debit": payload.amount, "credit": Decimal("0.00"), "cost_center": payload.cost_center},
             {"account_code": payload.accumulated_account, "account_name": "Accumulated depreciation", "debit": Decimal("0.00"), "credit": payload.amount, "cost_center": payload.cost_center},
@@ -155,7 +155,7 @@ async def post_fx_difference(payload: FxDifferenceRequest, request: Request, ctx
         "description": "Diferencia de cambio ganancia" if payload.gain else "Diferencia de cambio perdida",
         "source_module": "FX_REVALUATION",
         "source_id": f"fx:{payload.source_account}:{payload.year}-{payload.month}",
-        "currency": "PEN",
+        "currency": "COP",
         "lines": lines,
     }, request, ctx)
 
@@ -176,7 +176,7 @@ async def post_annual_close(payload: AnnualCloseRequest, request: Request, ctx=D
         "description": f"Cierre anual {payload.fiscal_year}",
         "source_module": "ANNUAL_CLOSE",
         "source_id": f"annual-close:{payload.fiscal_year}",
-        "currency": "PEN",
+        "currency": "COP",
         "lines": lines,
     }, request, ctx)
 

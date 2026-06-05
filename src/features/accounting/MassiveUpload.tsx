@@ -20,7 +20,7 @@ export const MassiveUpload = () => {
         <ArrowUpload24Regular className="text-white text-3xl" />
       </div>
       <h3 className="text-lg font-bold text-slate-700">Importador Masivo de Comprobantes</h3>
-      <p className="text-sm text-slate-500 mb-6">Arrastra tus archivos XML de SUNAT aqui para contabilizarlos automaticamente.</p>
+      <p className="text-sm text-slate-500 mb-6">Arrastra tus archivos XML de DIAN aqui para contabilizarlos automaticamente.</p>
 
       <button type="button" className="btn-fluent-primary" onClick={openFilePicker}>
         Seleccionar Archivos

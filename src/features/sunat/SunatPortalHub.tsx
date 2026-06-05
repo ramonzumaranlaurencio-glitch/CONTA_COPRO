@@ -1,7 +1,7 @@
 /**
- * SunatPortalHub — Portal SUNAT completo
+ * DianPortalHub — Portal DIAN completo
  * Acceso a trámites · Biblioteca tributaria completa · Audio natural Google
- * Todos los planes (sunat:true)
+ * Todos los planes (dian:true)
  */
 import React, { useRef, useState } from 'react';
 
@@ -44,77 +44,77 @@ const speak = (text: string, onEnd?: () => void) => {
 
 const stopAudio = () => { window.speechSynthesis?.cancel(); currentUtterance = null; };
 
-// ─── Datos: Servicios SUNAT ────────────────────────────────────────────────
-// ─── Servicios SUNAT con URLs verificadas junio 2026 ──────────────────────
-const SUNAT_SERVICIOS = [
+// ─── Datos: Servicios DIAN ────────────────────────────────────────────────
+// ─── Servicios DIAN con URLs verificadas 2026 ────────────────────────────
+const DIAN_SERVICIOS = [
   {
-    categoria: 'Operaciones en Línea (SOL)',
+    categoria: 'Portal Muisca (DIAN)',
     icon: '🔐', color: C.blue,
     items: [
-      { nombre: 'Menú SOL — Panel principal', url: 'https://e-menu.sunat.gob.pe/', desc: 'Acceso a todos los servicios con Clave SOL · Requiere Clave SOL', sol: true },
-      { nombre: 'Obtener / recuperar Clave SOL', url: 'https://orientacion.sunat.gob.pe/3333-recuperacion-de-clave-sol-por-internet-personas', desc: 'Crear o recuperar tu clave SOL desde internet · Público', sol: false },
-      { nombre: 'Declaraciones y Pagos', url: 'https://www2.sunat.gob.pe/pdt/modulos_independientes.html', desc: 'PDT 621 IGV-Renta, PDT 601 planillas, PDT 617 · Requiere Clave SOL', sol: true },
-      { nombre: 'Formulario Virtual 621', url: 'https://orientacion.sunat.gob.pe/01-formulario-virtual-ndeg-621-igv-renta-mensual', desc: 'Guía para declarar IGV y Renta mensual · Público', sol: false },
+      { nombre: 'Portal Transaccional', url: 'https://muisca.dian.gov.co/', desc: 'Acceso a servicios con firma digital · Requiere Usuario Muisca', sol: true },
+      { nombre: 'Recuperar contraseña', url: 'https://www.dian.gov.co/servicios/identidad-digital', desc: 'Recuperar acceso al portal Muisca · Público', sol: false },
+      { nombre: 'Declaraciones y Pagos', url: 'https://www.dian.gov.co/servicios/en-linea', desc: 'Presentar y pagar IVA, renta y retenciones · Requiere Cuenta Muisca', sol: true },
+      { nombre: 'Formulario 300 - IVA', url: 'https://www.dian.gov.co/', desc: 'Guía para declarar IVA y presentar el Formulario 300 · Público', sol: false },
     ],
   },
   {
     categoria: 'Comprobantes Electrónicos',
     icon: '📄', color: C.green,
     items: [
-      { nombre: 'SIRE — Registros Electrónicos 2026', url: 'https://sire.sunat.gob.pe/', desc: 'Sistema Integrado de Registros de Ventas e Ingresos · Requiere Clave SOL', sol: true },
-      { nombre: 'Consulta validez de CPE', url: 'https://e-consulta.sunat.gob.pe/ol-ti-itconsvalicpe/ConsValiCpe.htm', desc: 'Verificar si una factura electrónica es válida · Público', sol: false },
-      { nombre: 'Emitir comprobantes — SEE SOL', url: 'https://cpe.sunat.gob.pe/sistema_emision/see_sol', desc: 'Emitir facturas y boletas gratis desde SUNAT · Requiere Clave SOL', sol: true },
-      { nombre: 'Portal CPE — Comprobantes', url: 'https://cpe.sunat.gob.pe/', desc: 'Información y acceso a sistema de comprobantes · Público', sol: false },
+      { nombre: 'Facturación Electrónica', url: 'https://catalogo-vpfe.dian.gov.co/', desc: 'Acceso al sistema de facturación electrónica · Requiere Token', sol: true },
+      { nombre: 'Consulta de CUFE', url: 'https://catalogo-vpfe.dian.gov.co/User/SearchDocument', desc: 'Verificar validez de facturas electrónicas · Público', sol: false },
+      { nombre: 'Habilitación de Factura', url: 'https://www.dian.gov.co/', desc: 'Pasos para habilitarse como facturador · Público', sol: false },
+      { nombre: 'Documento Soporte', url: 'https://www.dian.gov.co/', desc: 'Información sobre documentos de soporte y facturación electrónica · Público', sol: false },
     ],
   },
   {
     categoria: 'Consultas Públicas',
     icon: '🔍', color: C.accent,
     items: [
-      { nombre: 'Consulta de RUC', url: 'https://e-consultaruc.sunat.gob.pe/', desc: 'Estado, régimen y condición del RUC · Público sin clave', sol: false },
-      { nombre: 'Consulta de expedientes externos', url: 'https://www.sunat.gob.pe/cl-at-itconsultaext/consultaExterna/iniciarParametros', desc: 'Estado de trámites sin Clave SOL · Público', sol: false },
-      { nombre: 'Padrón de Buenos Contribuyentes', url: 'https://ww3.sunat.gob.pe/descarga/BueCont/BueCont0.html', desc: 'Lista de contribuyentes con excelente cumplimiento · Público', sol: false },
-      { nombre: 'Deuda tributaria', url: 'https://e-consulta.sunat.gob.pe/cl-at-itcalculibre/actdeuS01Alias', desc: 'Consultar deuda tributaria pendiente · Requiere Clave SOL', sol: true },
+      { nombre: 'Consulta de NIT (RUT)', url: 'https://muisca.dian.gov.co/WebRutMuisca/', desc: 'Estado y condición del NIT · Público sin clave', sol: false },
+      { nombre: 'Consulta de CUFE', url: 'https://catalogo-vpfe.dian.gov.co/User/SearchDocument', desc: 'Verificar validez de facturas electrónicas · Público', sol: false },
+      { nombre: 'Consultas de normatividad', url: 'https://www.dian.gov.co/consultas', desc: 'Buscar decretos, circulares y normas tributarias · Público', sol: false },
+      { nombre: 'Deuda tributaria', url: 'https://www.dian.gov.co/', desc: 'Consultar obligaciones y saldo con DIAN · Requiere Cuenta Muisca', sol: true },
     ],
   },
   {
-    categoria: 'Libros Electrónicos PLE',
+    categoria: 'Documentos Electrónicos',
     icon: '📚', color: C.purple,
     items: [
-      { nombre: 'Descargar PLE v5.2 (2026)', url: 'https://emprender.sunat.gob.pe/comprobantes-libros/registros-libros-electronicos/programa-libros-electronicos-ple', desc: 'Programa para generar y validar libros electrónicos · Público', sol: false },
-      { nombre: 'Enviar libros (PLES)', url: 'https://e-menu.sunat.gob.pe/', desc: 'Enviar libros PLE a SUNAT desde el menú SOL · Requiere Clave SOL', sol: true },
-      { nombre: 'Información sobre PLE/SIRE', url: 'https://orientacion.sunat.gob.pe/', desc: 'Guías, cronogramas y obligados a libros electrónicos · Público', sol: false },
-      { nombre: 'Cronograma vencimientos 2026', url: 'https://www.sunat.gob.pe/orientacion/cronogramas/2026/', desc: 'Fechas de vencimiento por dígito RUC · Público', sol: false },
+      { nombre: 'Habilitar facturación electrónica', url: 'https://www.dian.gov.co/', desc: 'Guía para habilitarse como facturador electrónico · Público', sol: false },
+      { nombre: 'Envío de documentos', url: 'https://www.dian.gov.co/', desc: 'Procedimientos para enviar facturas y documentos electrónicos a DIAN · Público', sol: false },
+      { nombre: 'Conservación digital', url: 'https://www.dian.gov.co/', desc: 'Requisitos para conservar documentos electrónicos · Público', sol: false },
+      { nombre: 'Cronograma DIAN', url: 'https://www.dian.gov.co/', desc: 'Fechas y plazos para obligaciones electrónicas · Público', sol: false },
     ],
   },
   {
-    categoria: 'Detracciones SPOT',
+    categoria: 'Retenciones en la fuente',
     icon: '🏦', color: C.yellow,
     items: [
-      { nombre: 'Guía SPOT — Detracciones', url: 'https://emprender.sunat.gob.pe/detracciones-operatividad', desc: 'Qué es SPOT, cómo depositar, tasas · Público', sol: false },
-      { nombre: 'Depositar detracciones (SOL)', url: 'https://e-menu.sunat.gob.pe/', desc: 'Realizar depósito de detracciones online · Requiere Clave SOL', sol: true },
-      { nombre: 'Liberación de fondos (Form. 1697)', url: 'https://e-menu.sunat.gob.pe/', desc: 'Solicitar liberación del saldo no usado · Requiere Clave SOL', sol: true },
-      { nombre: 'Saldo cuenta detracciones (BN)', url: 'https://www.bn.com.pe/', desc: 'Consultar saldo en Banco de la Nación · Requiere cuenta BN', sol: false },
+      { nombre: 'Retenciones en la fuente', url: 'https://www.dian.gov.co/', desc: 'Guía general sobre retenciones en la fuente · Público', sol: false },
+      { nombre: 'Base gravable y tarifas', url: 'https://www.dian.gov.co/', desc: 'Tarifas de retención según tipo de pago · Público', sol: false },
+      { nombre: 'Declaración de retenciones', url: 'https://www.dian.gov.co/', desc: 'Presentar declaración de retenciones a la DIAN · Requiere Cuenta Muisca', sol: true },
+      { nombre: 'Pagos a la DIAN', url: 'https://www.dian.gov.co/', desc: 'Pagar retenciones y anticipos de impuesto en línea · Requiere Cuenta Muisca', sol: true },
     ],
   },
   {
-    categoria: 'Trámites y Orientación',
+    categoria: 'Trámites DIAN',
     icon: '📋', color: C.orange,
     items: [
-      { nombre: 'Orientación tributaria SUNAT', url: 'https://orientacion.sunat.gob.pe/', desc: 'Guías, manuales, FAQ y cronogramas · Público', sol: false },
-      { nombre: 'TUPA — Trámites y procedimientos', url: 'https://www.sunat.gob.pe/legislacion/tupa/index.html', desc: 'Requisitos y plazos de todos los trámites · Público', sol: false },
-      { nombre: 'Mesa de partes virtual', url: 'https://ww1.sunat.gob.pe/ol-at-ittramitedoc/registro/iniciar', desc: 'Presentar documentos 24/7 sin ir a SUNAT · Requiere Clave SOL', sol: true },
-      { nombre: 'Aplazamiento / fraccionamiento', url: 'https://e-menu.sunat.gob.pe/', desc: 'Refinanciar deudas tributarias hasta 72 cuotas · Requiere Clave SOL', sol: true },
+      { nombre: 'Orientación tributaria', url: 'https://www.dian.gov.co/', desc: 'Manuales, preguntas frecuentes y servicios en línea · Público', sol: false },
+      { nombre: 'Mesa de partes virtual', url: 'https://www.dian.gov.co/', desc: 'Presentar documentos y peticiones ante DIAN · Requiere Cuenta Muisca', sol: true },
+      { nombre: 'Aplazamientos y calendarios', url: 'https://www.dian.gov.co/', desc: 'Información sobre plazos, prórrogas y pagos fraccionados · Público', sol: false },
+      { nombre: 'Noticias DIAN', url: 'https://www.dian.gov.co/', desc: 'Actualizaciones de normativa y comunicación oficial · Público', sol: false },
     ],
   },
   {
-    categoria: 'Capacitación y Recursos',
+    categoria: 'Recursos y Capacitación DIAN',
     icon: '🎓', color: C.indigo,
     items: [
-      { nombre: 'Charlas virtuales SUNAT', url: 'https://charlas.sunat.gob.pe/', desc: 'Capacitaciones gratuitas online de SUNAT · Público', sol: false },
-      { nombre: 'Portal del emprendedor SUNAT', url: 'https://emprender.sunat.gob.pe/', desc: 'Guías para nuevos negocios y emprendedores · Público', sol: false },
-      { nombre: 'Cronogramas tributarios 2026', url: 'https://www.sunat.gob.pe/orientacion/cronogramas/2026/', desc: 'Calendario completo de vencimientos · Público', sol: false },
-      { nombre: 'SUNAT sin clave SOL', url: 'https://www.sunat.gob.pe/sinclavesol/', desc: 'Servicios disponibles sin necesidad de Clave SOL · Público', sol: false },
+      { nombre: 'Capacitación DIAN', url: 'https://www.dian.gov.co/', desc: 'Cursos y seminarios oficiales de la DIAN · Público', sol: false },
+      { nombre: 'Normatividad tributaria', url: 'https://www.dian.gov.co/', desc: 'Texto consolidado de leyes, decretos y normas tributarias · Público', sol: false },
+      { nombre: 'Consultas de reforma tributaria', url: 'https://www.dian.gov.co/', desc: 'Actualizaciones sobre leyes y cambios de impuesto · Público', sol: false },
+      { nombre: 'Portal empresarial DIAN', url: 'https://www.dian.gov.co/', desc: 'Recursos para empresarios y contadores · Público', sol: false },
     ],
   },
 ];
@@ -123,114 +123,102 @@ const SUNAT_SERVICIOS = [
 const BIBLIOTECA = [
   {
     id: 'igv',
-    categoria: 'IGV — Impuesto General a las Ventas',
+    categoria: 'IVA — Impuesto sobre las Ventas',
     icon: '💰', color: C.blue,
     articulos: [
       {
-        titulo: 'IGV: Base legal y tasa vigente',
-        resumen: 'El Impuesto General a las Ventas (IGV) en Perú tiene una tasa del 18%, compuesta por el 16% de IGV más el 2% del Impuesto de Promoción Municipal (IPM). Es un impuesto al valor agregado que grava la venta de bienes, prestación de servicios, contratos de construcción, importación de bienes e importación de servicios.',
-        audio: 'El Impuesto General a las Ventas, conocido como I G V, tiene una tasa total del dieciocho por ciento en Perú. Esta tasa se compone del dieciséis por ciento de I G V más el dos por ciento del Impuesto de Promoción Municipal. Grava la venta de bienes muebles, la prestación de servicios, los contratos de construcción y la importación de bienes y servicios. La base legal se encuentra en el Texto Único Ordenado de la Ley del I G V, aprobado por Decreto Supremo cero cincuenta y cinco guión noventa y nueve guión E F.',
-        datos: ['Tasa: 18% (16% IGV + 2% IPM)', 'Base legal: D.S. 055-99-EF (TUO IGV)', 'Declaración: PDT 621 mensual', 'Vence: según último dígito RUC'],
+        titulo: 'IVA: Base legal y tasa vigente',
+        resumen: 'El Impuesto sobre las Ventas (IVA) en Colombia se aplica a la venta de bienes, la prestación de servicios y las importaciones. La tasa general es 19%.',
+        audio: 'En Colombia el Impuesto sobre las Ventas, conocido como IVA, grava la venta de bienes y servicios y las importaciones. Su tasa general es diecinueve por ciento.',
+        datos: ['Tasa general: 19%', 'Declaración: Formulario 300', 'Base legal: Estatuto Tributario', 'IVA en importaciones'],
       },
       {
-        titulo: 'Crédito fiscal del IGV: requisitos',
-        resumen: 'El crédito fiscal del IGV permite descontar el IGV de las compras del IGV de las ventas. Para ser válido, el comprobante debe ser emitido por un contribuyente habido, el gasto debe ser causal (vinculado al negocio), el comprobante debe estar anotado en el Registro de Compras dentro del plazo (máximo 12 meses), y la operación debe ser fehaciente (real y sustentada).',
-        audio: 'El crédito fiscal del I G V tiene cuatro requisitos fundamentales que el contador debe verificar siempre. Primero: el proveedor debe ser un contribuyente habido y activo según SUNAT. Segundo: el gasto debe cumplir el principio de causalidad, es decir, debe estar vinculado con la actividad generadora de renta. Tercero: el comprobante debe anotarse en el Registro de Compras máximo doce meses después de la fecha de emisión. Cuarto: la operación debe ser fehaciente, con contratos, guías de remisión u otros sustentos que demuestren que la operación realmente ocurrió. Si falla cualquiera de estos cuatro requisitos, SUNAT puede desconocer el crédito fiscal.',
-        datos: ['Requisito 1: Proveedor habido y activo', 'Requisito 2: Causalidad del gasto', 'Requisito 3: Anotación oportuna (máx. 12 meses)', 'Requisito 4: Fehaciencia de la operación'],
+        titulo: 'Crédito fiscal del IVA: requisitos',
+        resumen: 'Para descontar el IVA soportado en compras, se requiere factura electrónica válida, proveedor activo en el RUT, relación causal con la actividad económica y registro en el libro de compras dentro del plazo.',
+        audio: 'El crédito fiscal del IVA se aplica cuando el comprobante es válido, el proveedor está activo en el RUT, la adquisición es necesaria para la actividad económica y el IVA se registra en el libro de compras o en la contabilidad electrónica dentro del plazo correspondiente.',
+        datos: ['Proveedor activo en el RUT', 'Factura electrónica válida', 'Gasto causal', 'Registro oportuno en libro de compras'],
       },
       {
-        titulo: 'Operaciones exoneradas e inafectas del IGV',
-        resumen: 'Las operaciones exoneradas están listadas en los Apéndices I y II del TUO del IGV. Las inafectas no están dentro del campo de aplicación del impuesto. Ejemplos exonerados: alimentos de primera necesidad, servicios educativos, servicios de transporte interprovincial. Ejemplos inafectos: exportaciones, transferencias de empresas.',
-        audio: 'En el I G V peruano existen dos grupos importantes de operaciones que no generan impuesto. Las operaciones exoneradas están en los Apéndices Primero y Segundo del T U O del I G V. Incluyen alimentos de primera necesidad como arroz, azúcar, aceite y leche, así como servicios educativos y transporte interprovincial de pasajeros. Las operaciones inafectas son aquellas que no están dentro del campo de aplicación del impuesto, como las exportaciones de bienes y servicios, que tienen tasa cero y permiten solicitar devolución del I G V pagado en las compras.',
-        datos: ['Apéndice I: bienes exonerados', 'Apéndice II: servicios exonerados', 'Exportaciones: tasa 0% con derecho a devolución', 'Base: Art. 1° TUO del IGV'],
+        titulo: 'Operaciones exentas y no sujetas',
+        resumen: 'En Colombia hay operaciones exentas, excluidas y no sujetas al IVA. Exentas son servicios de salud, educación y transporte público. Exportaciones son no sujetas con tarifa 0%.',
+        audio: 'En Colombia algunas operaciones están exentas del IVA, como servicios de salud, educación y transporte público. Las exportaciones son no sujetas con tarifa cero. Las operaciones excluidas no forman parte del hecho generador del impuesto.',
+        datos: ['Exentas: salud, educación, transporte público', 'Exportaciones: tarifa 0%', 'No sujetas: fuera del hecho generador', 'Diferente a exentas y excluidas'],
       },
     ],
   },
   {
     id: 'renta',
-    categoria: 'Impuesto a la Renta',
+    categoria: 'Impuesto sobre la Renta',
     icon: '📊', color: C.green,
     articulos: [
       {
-        titulo: 'Regímenes tributarios en Perú 2026',
-        resumen: 'Existen 4 regímenes: NRUS (Nuevo RUS) para los más pequeños con cuotas fijas de S/20 o S/50; RER (Régimen Especial de Renta) con tasa de 1.5% sobre ingresos netos; MYPE Tributario con tasa de 10% hasta las primeras 15 UIT de utilidades y 29.5% sobre el exceso; Régimen General para empresas grandes con tasa del 29.5%.',
-        audio: 'Perú tiene cuatro regímenes tributarios para empresas y negocios. El Nuevo R U S, o N R U S, es para los más pequeños con ingresos hasta noventa y seis mil soles anuales. Pagan una cuota fija mensual de veinte o cincuenta soles según categoría, y no están obligados a llevar contabilidad completa. El R E R o Régimen Especial paga el uno coma cinco por ciento de los ingresos netos mensuales. El Régimen M Y P E Tributario aplica el diez por ciento sobre las primeras quince Unidades Impositivas Tributarias de utilidades y el veintinueve coma cinco por ciento sobre el exceso. El Régimen General aplica la tasa del veintinueve coma cinco por ciento sobre la renta neta anual y está obligado a llevar contabilidad completa.',
-        datos: ['NRUS: cuota S/20 o S/50/mes', 'RER: 1.5% ingresos netos mensual', 'MYPE: 10% hasta 15 UIT, 29.5% exceso', 'General: 29.5% renta neta anual'],
+        titulo: 'Regímenes tributarios en Colombia',
+        resumen: 'Colombia distingue el Régimen Común, el Régimen Simplificado, el Régimen Simple de Tributación y regímenes especiales. Cada uno tiene requisitos, obligaciones de facturación y régimen de IVA diferentes.',
+        audio: 'En Colombia existen varios regímenes tributarios. El Régimen Común paga IVA y retenciones en la fuente. El Régimen Simplificado está diseñado para pequeños comerciantes. El Régimen Simple unifica impuesto de renta e IVA en un solo pago. Los regímenes especiales aplican a sectores particulares con normas propias.',
+        datos: ['Régimen Común', 'Régimen Simplificado', 'Régimen Simple de Tributación', 'Regímenes especiales'],
       },
       {
-        titulo: 'Pagos a cuenta del Impuesto a la Renta',
-        resumen: 'Los contribuyentes del régimen general deben realizar pagos a cuenta mensuales. El método de coeficiente aplica el ratio utilidad/ingresos del año anterior. El método de porcentaje aplica la tasa del 1.5% sobre los ingresos netos del mes. Se elige el mayor de ambos. Se declaran en el PDT 621 junto con el IGV.',
-        audio: 'Los pagos a cuenta del Impuesto a la Renta son adelantos mensuales obligatorios para el Régimen General. Hay dos métodos de cálculo. El método del coeficiente multiplica los ingresos del mes por el coeficiente obtenido dividiendo el impuesto calculado entre los ingresos netos del año anterior. El método del porcentaje aplica el uno coma cinco por ciento sobre los ingresos netos del mes. El contribuyente usa el que resulte mayor. Estos pagos se declaran mensualmente en el P D T seiscientos veintiuno junto con el I G V. Al final del año, se resta lo pagado a cuenta del impuesto anual calculado en la declaración jurada anual.',
-        datos: ['Método coeficiente: imp.anterior/ingresos anterior', 'Método porcentaje: 1.5% ingresos netos', 'Se aplica el mayor de ambos', 'Declaración: PDT 621 mensual'],
-      },
-      {
-        titulo: 'Renta de quinta categoría: trabajadores',
-        resumen: 'Los trabajadores en planilla tributan por renta de quinta categoría. La empresa retiene y paga el impuesto. Se aplica la escala: hasta 5 UIT exonerado; de 5 a 20 UIT: 8%; de 20 a 35 UIT: 14%; de 35 a 45 UIT: 17%; más de 45 UIT: 30%. La UIT 2026 es S/5,350.',
-        audio: 'La renta de quinta categoría aplica a los trabajadores en planilla. La empresa actúa como agente de retención y paga el impuesto al fisco en nombre del trabajador. La escala progresiva para el año dos mil veintiséis con una U I T de cinco mil trescientos cincuenta soles es la siguiente: hasta cinco U I T, equivalentes a veintiseis mil setecientos cincuenta soles, está exonerado de impuesto. De cinco a veinte U I T paga el ocho por ciento. De veinte a treinta y cinco U I T paga el catorce por ciento. De treinta y cinco a cuarenta y cinco U I T paga el diecisiete por ciento. Y por encima de cuarenta y cinco U I T paga el treinta por ciento. La retención se distribuye en doce meses más una treceava parte en julio y otra en diciembre.',
-        datos: ['UIT 2026: S/ 5,350', 'Hasta 5 UIT (S/26,750): exonerado', '5 a 20 UIT: 8%', '20 a 35 UIT: 14%', '35 a 45 UIT: 17%', 'Más 45 UIT: 30%'],
+        titulo: 'Pagos a cuenta y retenciones en la fuente',
+        resumen: 'Las empresas deben practicar retención en la fuente sobre pagos a proveedores y trabajadores según tarifas definidas por la DIAN. Los anticipos de renta se consolidan en la declaración anual.',
+        audio: 'Las retenciones en la fuente son anticipos del impuesto a cargo del beneficiario. En Colombia se practican sobre honorarios, servicios, arrendamientos y pagos de nómina. El agente retenedor es responsable de declarar y pagar esa renta a la DIAN.',
+        datos: ['Retención a proveedores', 'Retención de nómina', 'Pagar a DIAN en plazo', 'Crédito para el beneficiario'],
       },
     ],
   },
   {
     id: 'detracciones',
-    categoria: 'Detracciones SPOT',
+    categoria: 'Retenciones en la fuente',
     icon: '🏦', color: C.yellow,
     articulos: [
       {
-        titulo: '¿Qué es el sistema de detracciones SPOT?',
-        resumen: 'El SPOT (Sistema de Pago de Obligaciones Tributarias) obliga al comprador de ciertos bienes o servicios a depositar un porcentaje del precio de venta en una cuenta especial del Banco de la Nación a nombre del proveedor. Este dinero solo puede usarse para pagar tributos y contribuciones al proveedor.',
-        audio: 'El sistema S P O T, que significa Sistema de Pago de Obligaciones Tributarias, obliga al comprador de ciertos bienes y servicios a depositar un porcentaje del precio de venta en una cuenta especial del Banco de la Nación, a nombre del proveedor. Por ejemplo, si compras servicios de transporte de bienes por cien soles, debes depositar cuatro soles en la cuenta de detracciones del transportista antes de que sea el décimo cuarto del mes siguiente. El proveedor solo puede usar ese dinero para pagar impuestos, contribuciones a ESSALUD y ONP, y multas tributarias. Si el proveedor no usa el dinero en cuatro meses, puede solicitar la liberación de fondos. La infracción por no depositar a tiempo tiene una multa del cien por ciento del monto no depositado.',
-        datos: ['Administrado por SUNAT', 'Depósito en Banco de la Nación', 'Solo para pagar tributos del proveedor', 'Liberación: si no se usa en 4 meses'],
+        titulo: '¿Qué es la retención en la fuente?',
+        resumen: 'La retención en la fuente es un mecanismo por el cual el pagador descuenta una parte del pago y la entrega directamente a la DIAN. Se aplica a servicios, honorarios, arrendamientos y otros pagos gravados.',
+        audio: 'La retención en la fuente en Colombia es un anticipo del impuesto de renta o del IVA. El pagador descuenta una proporción y la entrega a la DIAN. El proveedor recibe el neto y puede usar la retención como crédito fiscal o de renta.',
+        datos: ['Anticipo de impuesto', 'Se descuenta al pagar', 'Se paga a DIAN', 'Crédito para el beneficiario'],
       },
       {
-        titulo: 'Tasas de detracciones 2026 más comunes',
-        resumen: 'Las tasas más aplicadas son: Servicios de transporte de bienes (4%), Arrendamiento de bienes (12%), Mantenimiento y reparación de bienes muebles (12%), Servicios de publicidad (12%), Servicios de asesoría y consultoría (12%), Contratos de construcción (4%), Intermediación laboral (12%), Demás servicios gravados con IGV (12%).',
-        audio: 'Las tasas de detracciones más comunes en dos mil veintiséis son las siguientes. Servicios de transporte de bienes por carretera: cuatro por ciento. Arrendamiento de bienes muebles e inmuebles: doce por ciento. Mantenimiento y reparación de bienes muebles: doce por ciento. Publicidad: doce por ciento. Asesorías y consultorías profesionales: doce por ciento. Contratos de construcción: cuatro por ciento. Intermediación laboral y tercerización: doce por ciento. Para los demás servicios gravados con I G V que no tienen tasa específica, se aplica el doce por ciento. Recuerda que el depósito lo hace el comprador o usuario del servicio, no el proveedor.',
-        datos: ['Transporte de bienes: 4%', 'Arrendamiento: 12%', 'Consultoría/asesoría: 12%', 'Construcción: 4%', 'Demás servicios IGV: 12%'],
+        titulo: 'Tarifas de retención más comunes',
+        resumen: 'Las tarifas varían según el tipo de pago: honorarios 11%, servicios 11%, arrendamientos 3.5% o 4.1%, obras civiles 3.5%, compras nacionales 1.5%.',
+        audio: 'Las retenciones en la fuente más frecuentes en Colombia aplican a honorarios, servicios profesionales, arrendamientos y contratos de obra. La tarifa depende del tipo de pago y del agente retenedor, y se consulta en la normativa DIAN vigente.',
+        datos: ['Honorarios: 11%', 'Servicios: 11%', 'Arrendamientos: 3.5–4.1%', 'Obras civiles: 3.5%'],
       },
     ],
   },
   {
     id: 'comprobantes',
-    categoria: 'Comprobantes de Pago',
+    categoria: 'Comprobantes Electrónicos',
     icon: '🧾', color: C.accent,
     articulos: [
       {
-        titulo: 'Tipos de comprobantes de pago',
-        resumen: 'Los principales comprobantes son: Factura (operaciones B2B con empresa o persona con RUC), Boleta de venta (consumidores finales), Recibo por Honorarios (cuarta categoría), Liquidación de compra (cuando el proveedor no tiene RUC), Nota de débito (aumenta el importe de una operación), Nota de crédito (reduce el importe o anula).',
-        audio: 'Los tipos de comprobantes de pago reconocidos por SUNAT son los siguientes. La factura se emite en operaciones entre empresas o cuando el comprador tiene R U C y necesita sustentar gasto o costo. La boleta de venta se entrega a consumidores finales personas naturales. El recibo por honorarios lo emiten los profesionales independientes de cuarta categoría. La liquidación de compra se usa cuando el proveedor es una persona natural sin R U C, por ejemplo un agricultor. La nota de crédito reduce o anula el importe de una operación ya emitida. La nota de débito aumenta el importe. Desde dos mil dieciocho, la mayoría de empresas están obligadas a emitir comprobantes electrónicos a través del sistema del contribuyente o el sistema de SUNAT.',
-        datos: ['Factura: B2B con RUC', 'Boleta: consumidor final', 'Rec. Honorarios: 4ta categoría', 'Nota crédito: reduce/anula', 'Nota débito: aumenta importe'],
+        titulo: 'Tipos de documentos DIAN',
+        resumen: 'En Colombia los comprobantes incluyen factura electrónica, nota crédito, nota débito, documento soporte y tiquete electrónico. La mayoría se emiten de forma electrónica y deben cumplir con los requisitos de la DIAN.',
+        audio: 'Los documentos tributarios en Colombia incluyen factura electrónica, nota crédito, nota débito y documento soporte. La DIAN exige que el emisor esté autorizado y que los comprobantes electrónicos se transmitan con el esquema oficial.',
+        datos: ['Factura electrónica', 'Nota crédito', 'Nota débito', 'Documento soporte'],
       },
       {
-        titulo: 'Comprobantes electrónicos: obligaciones 2026',
-        resumen: 'Desde 2023, prácticamente todos los contribuyentes están obligados a emitir comprobantes electrónicos. Los sistemas disponibles son: SEE del Contribuyente (propio del negocio), SEE de OSE (Operador de Servicios Electrónicos), y SEE desde SOL (portal SUNAT, gratuito). Las facturas y boletas deben enviarse a SUNAT en el momento de emisión.',
-        audio: 'En dos mil veintiséis, prácticamente todos los contribuyentes peruanos están obligados a emitir comprobantes electrónicos. Existen tres sistemas para hacerlo. El S E E del Contribuyente es el sistema propio de la empresa, integrado con su software contable o E R P. El S E E a través de un O S E, que es un Operador de Servicios Electrónicos autorizado por SUNAT. Y el S E E desde S O L, que es el portal web de SUNAT y es completamente gratuito. Las facturas electrónicas se envían a SUNAT en tiempo real y el comprador recibe una copia en su correo electrónico. Una factura electrónica rechazada por SUNAT no tiene validez tributaria.',
-        datos: ['SEE Contribuyente: sistema propio', 'SEE-OSE: operador autorizado', 'SEE-SOL: portal SUNAT (gratis)', 'Envío en tiempo real a SUNAT'],
+        titulo: 'Obligación de facturación electrónica',
+        resumen: 'Las empresas obligadas deben expedir factura electrónica o tiquete electrónico en la plataforma de la DIAN o mediante un proveedor tecnológico autorizado.',
+        audio: 'La facturación electrónica en Colombia es obligatoria para contribuyentes definidos por la DIAN. Se puede usar la plataforma de la DIAN o un proveedor tecnológico autorizado, y los documentos deben conservarse digitalmente.',
+        datos: ['DIAN o proveedor autorizado', 'Factura electrónica obligatoria', 'Tiquete electrónico para puntos de venta', 'Conservación digital de documentos'],
       },
     ],
   },
   {
     id: 'infracciones',
-    categoria: 'Infracciones y Sanciones',
+    categoria: 'Infracciones y sanciones DIAN',
     icon: '⚠️', color: C.red,
     articulos: [
       {
-        titulo: 'Infracciones más comunes del artículo 174°',
-        resumen: 'Art. 174° TUO Código Tributario: No emitir comprobante (multa: 1 UIT o cierre), emitir comprobante que no reúne requisitos (multa: 50% UIT), usar máquina registradora no declarada (50% UIT), emitir comprobante sin clave electrónica cuando se está obligado (1 UIT o cierre).',
-        audio: 'El artículo ciento setenta y cuatro del Código Tributario sanciona infracciones relacionadas con la emisión de comprobantes de pago. No emitir comprobante cuando se está obligado tiene una multa de una U I T, equivalente a cinco mil trescientos cincuenta soles en dos mil veintiséis, o el cierre del local. Emitir comprobante que no cumple los requisitos mínimos tiene una multa del cincuenta por ciento de la U I T. Usar máquinas registradoras no declaradas a SUNAT también tiene una multa del cincuenta por ciento de la U I T. No emitir comprobante electrónico cuando se está obligado a hacerlo tiene la misma sanción que no emitir: una U I T o cierre. Recuerda que la primera infracción detectada puede acogerse a gradualidad para reducir la multa.',
-        datos: ['No emitir: 1 UIT o cierre', 'Comp. sin requisitos: 50% UIT', 'UIT 2026: S/ 5,350', 'Gradualidad: rebaja la primera vez'],
+        titulo: 'Sanciones por incumplimiento tributario',
+        resumen: 'La DIAN impone sanciones por no facturar, no declarar, presentar información falsa o incumplir plazos de pago. Las multas pueden ser porcentajes del impuesto omitido o sanciones fijas.',
+        audio: 'La DIAN sanciona las omisiones tributarias. No presentar declaraciones, presentar información inexacta o expedir documentos no autorizados puede resultar en multas calculadas sobre el impuesto omitido o valores fijos.',
+        datos: ['Multas por no declarar', 'Multas por facturación irregular', 'Multas por información falsa', 'Plazo de prescripción tributaria'],
       },
       {
-        titulo: 'Infracciones más comunes del artículo 175° y 176°',
-        resumen: 'Art. 175°: No llevar libros contables (0.6% ingresos), llevarlos atrasados (0.3% ingresos), no conservarlos por el período legal (0.3% ingresos). Art. 176°: No declarar dentro del plazo (1 UIT o 50% UIT), presentar declaración con datos falsos (50% del tributo omitido), no incluir ingresos en la declaración (50% del tributo).',
-        audio: 'El artículo ciento setenta y cinco sanciona infracciones relacionadas con los libros contables. No llevar libros y registros obligatorios tiene una multa del cero coma seis por ciento de los ingresos netos del año. Llevarlos con más de diez días de atraso tiene una multa del cero coma tres por ciento de los ingresos. El artículo ciento setenta y seis sanciona las declaraciones. No presentar la declaración mensual dentro del plazo tiene una multa de una U I T para el Régimen General y del cincuenta por ciento de la U I T para el R E R. Presentar declaraciones con datos falsos u omitir ingresos tiene una multa equivalente al cincuenta por ciento del tributo omitido. Todas estas multas pueden reducirse con el régimen de gradualidad si el contribuyente subsana voluntariamente antes de que SUNAT lo detecte.',
-        datos: ['No llevar libros: 0.6% ingresos', 'Libros atrasados: 0.3% ingresos', 'No declarar: 1 UIT (RG) / 50%UIT (RER)', 'Datos falsos: 50% tributo omitido'],
-      },
-      {
-        titulo: 'Régimen de gradualidad: cómo reducir multas',
-        resumen: 'El régimen de gradualidad permite reducir multas tributarias entre 90% y 50% según la oportunidad de subsanación. Si se subsana antes de que SUNAT notifique: 90% de rebaja. Si se subsana después de notificado pero antes del inicio de la fiscalización: 80%. Si se subsana durante la fiscalización: 70%. Si se subsana después de la resolución: 60%.',
-        audio: 'El régimen de gradualidad es el mecanismo que permite a los contribuyentes reducir significativamente las multas tributarias. Si subsanas la infracción voluntariamente y antes de que SUNAT te notifique, obtienes un noventa por ciento de descuento sobre la multa. Si subsanas después de recibir la notificación de SUNAT pero antes de que inicie la fiscalización, el descuento es del ochenta por ciento. Si subsanas durante el proceso de fiscalización, el descuento es del setenta por ciento. Y si subsanas después de que SUNAT emite la resolución de multa, el descuento es del sesenta por ciento. Para acceder a la gradualidad debes pagar el tributo omitido más los intereses moratorios junto con la multa ya rebajada.',
-        datos: ['Antes de notificación: 90% rebaja', 'Después notificación: 80% rebaja', 'Durante fiscalización: 70% rebaja', 'Después resolución: 60% rebaja'],
+        titulo: 'Solicitud de corrección y gradualidad',
+        resumen: 'En Colombia existen mecanismos para corregir errores y reducir sanciones cuando se subsanan antes de una notificación administrativa. La gradualidad no elimina la obligación de pagar el tributo.',
+        audio: 'Si un contribuyente corrige una declaración o presenta información en forma voluntaria, puede reducir la sanción. Este mecanismo promueve el cumplimiento oportuno, pero el impuesto adeudado sigue siendo exigible.',
+        datos: ['Subsanación voluntaria', 'Reducir sanción', 'No exime de pagar impuesto', 'Aplicable antes de notificación'],
       },
     ],
   },
@@ -240,49 +228,49 @@ const BIBLIOTECA = [
     icon: '📅', color: C.indigo,
     articulos: [
       {
-        titulo: 'Vencimientos mensuales según último dígito RUC',
-        resumen: 'Las declaraciones mensuales (PDT 621) vencen según el último dígito del RUC. Generalmente: dígito 0: día 14, dígito 1: día 15, dígito 2: día 16, dígito 3: día 17, dígito 4: día 18, dígito 5: día 19, dígito 6 y 7: día 20, dígito 8 y 9: día 21. Buenos contribuyentes tienen días adicionales. Si cae en feriado o fin de semana, se traslada al siguiente día hábil.',
-        audio: 'El vencimiento de las declaraciones mensuales del P D T seiscientos veintiuno depende del último dígito del número de R U C de la empresa. Para el año dos mil veintiséis, los plazos generales son los siguientes: si el R U C termina en cero, vence el catorce de cada mes. Si termina en uno, el quince. Si termina en dos, el dieciséis. Si termina en tres, el diecisiete. Si termina en cuatro, el dieciocho. Si termina en cinco, el diecinueve. Si termina en seis o siete, el veinte. Si termina en ocho o nueve, el veintiuno. Los contribuyentes reconocidos como Buenos Contribuyentes por SUNAT tienen hasta cinco días adicionales. Cuando la fecha cae en sábado, domingo o feriado nacional, el vencimiento se traslada al siguiente día hábil.',
-        datos: ['RUC 0: día 14', 'RUC 1: día 15', 'RUC 2-5: días 16-19', 'RUC 6-7: día 20', 'RUC 8-9: día 21', 'Buenos Contribuyentes: +5 días'],
+        titulo: 'Fechas de declaración DIAN por NIT',
+        resumen: 'Las obligaciones de IVA, retenciones y otros impuestos se consultan con el último dígito del NIT y el calendario publicado por la DIAN. Las fechas varían por tipo de contribuyente y régimen.',
+        audio: 'El calendario tributario de la DIAN establece las fechas de presentación y pago según el último dígito del NIT y el régimen del contribuyente. Hay plazos específicos para el Formulario 300, retenciones y renta.',
+        datos: ['Último dígito del NIT', 'Formulario 300', 'Retenciones en la fuente', 'Calendario DIAN vigente'],
       },
       {
-        titulo: 'Declaración anual del Impuesto a la Renta',
-        resumen: 'La declaración jurada anual del IR se presenta en marzo de cada año para el ejercicio anterior. El cronograma sigue el mismo criterio del último dígito RUC. Los formularios son: PDT 702 (persona jurídica), PDT 703 (persona natural 1ra y 2da categoría), PDT 704 (persona natural 3ra categoría). Se puede presentar de forma virtual desde SUNAT Operaciones en Línea.',
-        audio: 'La declaración jurada anual del Impuesto a la Renta se presenta durante el mes de marzo del año siguiente al ejercicio gravable. Por ejemplo, la declaración del año dos mil veinticinco se presenta en marzo de dos mil veintiséis. El cronograma de vencimientos sigue el mismo orden del último dígito del R U C. Para personas jurídicas o empresas en Régimen General se usa el P D T setecientos dos. Para personas naturales con rentas de primera y segunda categoría se usa el P D T setecientos tres. Para personas naturales con negocio en tercera categoría se usa el P D T setecientos cuatro. Si el resultado es un impuesto a pagar, debe cancelarse en la misma fecha del vencimiento. Si hay saldo a favor, puede solicitarse devolución o aplicarse a futuros pagos.',
-        datos: ['Presentación: marzo del año siguiente', 'PDT 702: personas jurídicas', 'PDT 703: persona natural 1ra/2da', 'PDT 704: persona natural 3ra', 'Cronograma: por último dígito RUC'],
+        titulo: 'Declaración anual de renta',
+        resumen: 'La declaración de renta de personas jurídicas y naturales se presenta en el mes que indica la DIAN para cada grupo de NIT. El formulario y la periodicidad dependen del régimen.',
+        audio: 'La declaración anual de renta en Colombia se presenta en las fechas que la DIAN define para cada grupo de NIT. La forma y el formulario dependen de si el contribuyente está en Régimen Común, Simplificado o Simple.',
+        datos: ['Fechas según NIT', 'Persona jurídica y natural', 'Formularios DIAN aplicables', 'Dependiente del régimen'],
       },
     ],
   },
   {
     id: 'pcge',
-    categoria: 'PCGE — Plan Contable',
+    categoria: 'PUC — Plan Único de Cuentas',
     icon: '📒', color: C.purple,
     articulos: [
       {
-        titulo: 'Estructura del PCGE 2020 actualizado',
-        resumen: 'El Plan Contable General Empresarial (PCGE) vigente en Perú tiene 9 elementos: 1-Activo, 2-Pasivo, 3-Patrimonio, 4-Pasivo diferido/tributos, 5-Capital, 6-Gastos por naturaleza, 7-Ingresos, 8-Saldos intermediarios de gestión, 9-Contabilidad analítica.',
-        audio: 'El Plan Contable General Empresarial de Perú, conocido como P C G E, fue actualizado en dos mil veinte y tiene nueve elementos principales. El elemento uno corresponde al Activo, que incluye el efectivo, cuentas por cobrar, inventarios e inmuebles. El elemento dos es el Pasivo, con las obligaciones financieras y comerciales. El elemento tres es el Patrimonio neto. El elemento cuatro incluye los Tributos y aportes al sistema de pensiones. El elemento cinco es el Patrimonio o resultados acumulados. El elemento seis son los Gastos por naturaleza, donde se registran todos los costos y gastos del negocio. El elemento siete son los Ingresos. El elemento ocho son los Saldos intermediarios de gestión. Y el elemento nueve es la Contabilidad analítica de explotación o centros de costo.',
-        datos: ['1: Activo', '2: Pasivo', '3: Patrimonio', '4: Tributos', '6: Gastos por naturaleza', '7: Ingresos', '9: Analítica/Centros de costo'],
+        titulo: 'Estructura del PUC Colombia',
+        resumen: 'El Plan Único de Cuentas en Colombia agrupa las cuentas en clases: 1 Activo, 2 Pasivo, 3 Patrimonio, 4 Ingresos, 5 Costos y 6 Gastos. Las cuentas auxiliares permiten detallar inventarios, cuentas por cobrar, proveedores e IVA.',
+        audio: 'El PUC colombiano usa seis clases contables. La clase uno agrupa activos; la clase dos pasivos; la clase tres patrimonio; la clase cuatro ingresos; la clase cinco costos; y la clase seis gastos. Además existen cuentas auxiliares para IVA, inventarios y proveedores.',
+        datos: ['1: Activo', '2: Pasivo', '3: Patrimonio', '4: Ingresos', '5: Costos', '6: Gastos'],
       },
       {
-        titulo: 'Cuentas más usadas en contabilidad empresarial',
-        resumen: 'Las cuentas de uso frecuente son: 10 (Efectivo y equivalentes), 12 (Cuentas por cobrar), 20 (Mercaderías), 40 (Tributos), 42 (Cuentas por pagar comerciales), 60 (Compras), 69 (Costo de ventas), 70 (Ventas), 636 (Servicios básicos), 401111 (IGV por pagar), 40111 (IGV crédito fiscal).',
-        audio: 'Las cuentas contables más utilizadas en el día a día de una empresa peruana son las siguientes. La cuenta diez corresponde a Efectivo y equivalentes, donde se registra el dinero en caja y bancos. La cuenta doce son las Cuentas por cobrar comerciales, que representan las ventas pendientes de cobro. La cuenta veinte son las Mercaderías para las empresas comerciales. La cuenta cuarenta uno once corresponde al I G V por pagar que surge de las ventas. La cuenta cuarenta cero ciento once es el I G V crédito fiscal de las compras. La cuenta cuarenta y dos son las Cuentas por pagar comerciales a proveedores. La cuenta sesenta son las Compras de bienes. La cuenta sesenta y nueve es el Costo de Ventas. La cuenta setenta registra las Ventas e ingresos. Y la cuenta seiscientos treinta y seis son los Servicios prestados por terceros, como luz, agua e internet.',
-        datos: ['10: Caja y bancos', '12: CxC comerciales', '40111: IGV crédito fiscal', '40111: IGV por pagar', '42: CxP comerciales', '60: Compras', '70: Ventas'],
+        titulo: 'Cuentas frecuentes en PUC',
+        resumen: 'Ejemplos de cuentas típicas colombianas incluyen 1110 Caja, 1125 Cuentas por cobrar comerciales, 1310 Inventarios, 2208 Cuentas por pagar comerciales, 2408 IVA, 4105 Ventas y 5105 Compras.',
+        audio: 'En el PUC de Colombia las cuentas frecuentes para operaciones comerciales incluyen la clase once de caja y bancos, la clase doce de cuentas por cobrar, la clase trece de inventarios, la clase veintidós de cuentas por pagar, la clase veinticuatro de impuestos y la clase cuarenta y uno de ingresos.',
+        datos: ['1110: Caja', '1125: CxC comerciales', '1310: Inventarios', '2208: CxP comerciales', '2408: IVA', '4105: Ventas'],
       },
     ],
   },
 ];
 
 // ─── Componente ─────────────────────────────────────────────────────────────
-type Tab = 'ACCESO' | 'BIBLIOTECA' | 'CONSULTA_RUC';
+type Tab = 'ACCESO' | 'BIBLIOTECA' | 'CONSULTA_NIT';
 
 export const SunatPortalHub: React.FC = () => {
   const [tab, setTab] = useState<Tab>('ACCESO');
   const [catActiva, setCatActiva] = useState('igv');
   const [artActivo, setArtActivo] = useState('');
   const [playingId, setPlayingId] = useState('');
-  const [rucQuery, setRucQuery] = useState('');
+  const [nitQuery, setNitQuery] = useState('');
   const audioIdRef = useRef('');
 
   const playArticulo = (id: string, audioText: string) => {
@@ -305,16 +293,16 @@ export const SunatPortalHub: React.FC = () => {
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ width:42, height:42, borderRadius:10, background:'linear-gradient(135deg,#c0392b,#e74c3c)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>🏛️</div>
           <div>
-            <h1 style={{ margin:0, fontSize:16, fontWeight:900, color:C.text }}>Portal SUNAT — Acceso y Biblioteca Tributaria</h1>
+            <h1 style={{ margin:0, fontSize:16, fontWeight:900, color:C.text }}>Portal DIAN — Acceso y Biblioteca Tributaria</h1>
             <p style={{ margin:'2px 0 0', fontSize:11, color:C.muted }}>Trámites · Servicios en línea · Biblioteca completa con lectura en audio</p>
           </div>
         </div>
-        <button type="button" onClick={() => openSunat('https://www.sunat.gob.pe')} style={{
+        <button type="button" onClick={() => openSunat('https://www.dian.gov.co/')} style={{
           padding:'8px 18px', background:'linear-gradient(135deg,#c0392b,#e74c3c)',
           border:'none', borderRadius:9, color:'#fff', fontWeight:800, fontSize:12, cursor:'pointer',
           fontFamily:"'Segoe UI', Arial, sans-serif",
         }}>
-          🌐 Ir a SUNAT.gob.pe →
+          🌐 Ir a DIAN.gov.co →
         </button>
       </div>
 
@@ -323,7 +311,7 @@ export const SunatPortalHub: React.FC = () => {
         {([
           { id:'ACCESO',       label:'🔐 Acceso a Trámites'   },
           { id:'BIBLIOTECA',   label:'📚 Biblioteca Tributaria' },
-          { id:'CONSULTA_RUC', label:'🔍 Consulta RUC'         },
+          { id:'CONSULTA_NIT', label:'🔍 Consulta NIT'         },
         ] as { id:Tab; label:string }[]).map(t => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)} style={{
             padding:'10px 18px', fontSize:12, fontWeight: tab===t.id ? 800 : 500,
@@ -342,7 +330,7 @@ export const SunatPortalHub: React.FC = () => {
         {tab === 'ACCESO' && (
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-              {SUNAT_SERVICIOS.map(cat => (
+              {DIAN_SERVICIOS.map(cat => (
                 <div key={cat.categoria} style={{ background:C.bgCard, border:`1px solid ${cat.color}33`, borderTop:`3px solid ${cat.color}`, borderRadius:12, overflow:'hidden' }}>
                   <div style={{ padding:'12px 14px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:8, background:`${cat.color}08` }}>
                     <span style={{ fontSize:18 }}>{cat.icon}</span>
@@ -375,15 +363,15 @@ export const SunatPortalHub: React.FC = () => {
 
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               <div style={{ background:`${C.yellow}10`, border:`1px solid ${C.yellow}33`, borderRadius:10, padding:'12px 18px' }}>
-                <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:C.yellow }}>🔑 Requiere Clave SOL</p>
+                <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:C.yellow }}>🔑 Requiere Cuenta Muisca</p>
                 <p style={{ margin:0, fontSize:11, color:C.muted }}>
-                  Los servicios marcados con 🔑 requieren tu Clave SOL (usuario y contraseña SUNAT). Obtenerla es gratis en <strong style={{color:C.accent}}>orientacion.sunat.gob.pe</strong> con tu DNI/RUC.
+                  Los servicios marcados con 🔑 requieren tu cuenta Muisca / usuario DIAN. Consulta el portal oficial en DIAN para obtener acceso y guías.
                 </p>
               </div>
               <div style={{ background:`${C.green}10`, border:`1px solid ${C.green}33`, borderRadius:10, padding:'12px 18px' }}>
                 <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:C.green }}>🌐 Acceso público</p>
                 <p style={{ margin:0, fontSize:11, color:C.muted }}>
-                  Los marcados con 🌐 son de consulta libre. SUNAT no permite embeber su portal (bloquea iframes). Todos los links abren en pestaña nueva. URLs verificadas junio 2026.
+                  Los marcados con 🌐 son de consulta libre. La DIAN no permite embeber su portal (bloquea iframes). Todos los links abren en pestaña nueva. URLs verificadas junio 2026.
                 </p>
               </div>
             </div>
@@ -491,32 +479,32 @@ export const SunatPortalHub: React.FC = () => {
           </div>
         )}
 
-        {/* ═══ CONSULTA RUC ═══ */}
-        {tab === 'CONSULTA_RUC' && (
+        {/* ═══ CONSULTA NIT ═══ */}
+        {tab === 'CONSULTA_NIT' && (
           <div style={{ maxWidth:700 }}>
-            <h2 style={{ margin:'0 0 6px', fontSize:15, fontWeight:800, color:C.text }}>🔍 Consulta de RUC</h2>
-            <p style={{ margin:'0 0 16px', fontSize:12, color:C.muted }}>Consulta directamente en el padrón de SUNAT el estado, régimen y condición del RUC.</p>
+            <h2 style={{ margin:'0 0 6px', fontSize:15, fontWeight:800, color:C.text }}>🔍 Consulta de NIT</h2>
+            <p style={{ margin:'0 0 16px', fontSize:12, color:C.muted }}>Consulta directamente en el padrón de la DIAN el estado, régimen y condición del NIT.</p>
 
             <div style={{ display:'flex', gap:10, marginBottom:16 }}>
-              <input value={rucQuery} onChange={e => setRucQuery(e.target.value.replace(/\D/g,'').slice(0,11))}
-                placeholder="Ingresa el RUC (11 dígitos)"
+              <input value={nitQuery} onChange={e => setNitQuery(e.target.value.replace(/\D/g,'').slice(0,10))}
+                placeholder="Ingresa el NIT (hasta 10 dígitos)"
                 style={{ flex:1, padding:'10px 14px', background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:9, color:C.text, fontSize:14, outline:'none', fontFamily:"'Segoe UI', Arial, sans-serif" }} />
               <button type="button"
-                onClick={() => openSunat('https://e-consultaruc.sunat.gob.pe/')}
+                onClick={() => openSunat('https://muisca.dian.gov.co/WebRutMuisca/')}
                 style={{ padding:'10px 20px', background:`linear-gradient(135deg,${C.blue},${C.accent})`, border:'none', borderRadius:9, color:'#fff', fontWeight:800, fontSize:13, cursor:'pointer', fontFamily:"'Segoe UI', Arial, sans-serif" }}>
-                Consultar en SUNAT →
+                Consultar en DIAN →
               </button>
             </div>
 
             {/* Info sobre la consulta */}
             <div style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:12, padding:'16px 18px', marginBottom:16 }}>
-              <p style={{ margin:'0 0 10px', fontSize:13, fontWeight:700, color:C.text }}>¿Qué información entrega SUNAT al consultar un RUC?</p>
+              <p style={{ margin:'0 0 10px', fontSize:13, fontWeight:700, color:C.text }}>¿Qué información entrega la DIAN al consultar un NIT?</p>
               {[
                 { campo:'Estado del contribuyente', desc:'ACTIVO = puede emitir comprobantes válidos · BAJA = no puede operar' },
-                { campo:'Condición del domicilio', desc:'HABIDO = dirección verificada · NO HABIDO = no ubicable por SUNAT' },
-                { campo:'Régimen tributario', desc:'NRUS / RER / MYPE Tributario / Régimen General' },
+                { campo:'Condición del domicilio', desc:'HABIDO = dirección verificada · NO HABIDO = no ubicable por la DIAN' },
+                { campo:'Régimen tributario', desc:'Régimen Común / Simplificado / Simple / Especial' },
                 { campo:'Tipo de contribuyente', desc:'Persona Natural / Persona Jurídica / etc.' },
-                { campo:'Fecha de inscripción', desc:'Cuándo se registró ante SUNAT' },
+                { campo:'Fecha de inscripción', desc:'Cuándo se registró ante la DIAN' },
                 { campo:'Actividad económica', desc:'Código CIIU y descripción del giro del negocio' },
               ].map((i,j) => (
                 <div key={j} style={{ display:'flex', gap:8, padding:'7px 0', borderBottom:`1px dashed ${C.border}` }}>
@@ -531,8 +519,8 @@ export const SunatPortalHub: React.FC = () => {
               <p style={{ margin:0, fontSize:12, color:C.muted }}>
                 Antes de usar el crédito fiscal de una factura de compra, verifica que el proveedor tenga estado
                 <strong style={{ color:C.green }}> ACTIVO</strong> y condición
-                <strong style={{ color:C.green }}> HABIDO</strong> en SUNAT.
-                Si el proveedor es NO HABIDO al momento de la operación, SUNAT puede desconocer el crédito fiscal aunque el comprobante sea electrónico y válido.
+                <strong style={{ color:C.green }}> HABIDO</strong> en la DIAN.
+                Si el proveedor no está activo o no cumple requisitos, la DIAN puede desconocer el crédito fiscal aunque el comprobante sea electrónico y válido.
               </p>
             </div>
           </div>

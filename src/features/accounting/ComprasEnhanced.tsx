@@ -229,7 +229,7 @@ export const ComprasEnhanced = ({
     }
     const sinDet = docs.filter(d => d.estado !== 'OK').length;
     if (sinDet > 0) {
-      out.push({ icon: '⚡', text: `${sinDet * 3} facturas sin constancia de depósito`, detail: 'Riesgo de pérdida de crédito fiscal IGV', risk: 'medio', action: 'Ver', actionType: 'warn' });
+      out.push({ icon: '⚡', text: `${sinDet * 3} facturas sin constancia de depósito`, detail: 'Riesgo de pérdida de crédito fiscal IVA', risk: 'medio', action: 'Ver', actionType: 'warn' });
     }
     return out;
   }, [docs]);
@@ -358,7 +358,7 @@ export const ComprasEnhanced = ({
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: C.header }}>
-                      {['FECHA', 'PROVEEDOR', 'RUC', 'DOCUMENTO', 'BASE', 'IGV', 'TOTAL', 'ESTADO'].map((h, i) => (
+                      {['FECHA', 'PROVEEDOR', 'NIT', 'DOCUMENTO', 'BASE', 'IVA', 'TOTAL', 'ESTADO'].map((h, i) => (
                         <th key={i} style={{
                           padding: '8px 10px',
                           textAlign: (i >= 4 && i <= 6) ? 'right' : i === 7 ? 'center' : 'left',
@@ -395,9 +395,9 @@ export const ComprasEnhanced = ({
                         </td>
                         <td style={{ padding: '9px 10px', color: C.textMut, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{d.ruc}</td>
                         <td style={{ padding: '9px 10px', color: C.accent, fontFamily: 'Consolas, monospace', fontWeight: 700 }}>{d.documento}</td>
-                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.text, fontFamily: 'Consolas, monospace' }}>S/ {fmt(d.base)}</td>
-                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.textMut, fontFamily: 'Consolas, monospace' }}>S/ {fmt(d.igv)}</td>
-                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.green, fontFamily: 'Consolas, monospace', fontWeight: 700 }}>S/ {fmt(d.total)}</td>
+                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.text, fontFamily: 'Consolas, monospace' }}>$ {fmt(d.base)}</td>
+                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.textMut, fontFamily: 'Consolas, monospace' }}>$ {fmt(d.igv)}</td>
+                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.green, fontFamily: 'Consolas, monospace', fontWeight: 700 }}>$ {fmt(d.total)}</td>
                         <td style={{ padding: '9px 10px', textAlign: 'center' }}>
                           <DocStatusBadge status={d.estado} />
                         </td>
@@ -409,13 +409,13 @@ export const ComprasEnhanced = ({
                         TOTALES
                       </td>
                       <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 800, color: C.text, fontFamily: 'Consolas, monospace' }}>
-                        S/ {fmt(kpis.totalBase)}
+                        $ {fmt(kpis.totalBase)}
                       </td>
                       <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 800, color: C.textMut, fontFamily: 'Consolas, monospace' }}>
-                        S/ {fmt(kpis.totalIgv)}
+                        $ {fmt(kpis.totalIgv)}
                       </td>
                       <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 900, color: C.green, fontFamily: 'Consolas, monospace', fontSize: 13 }}>
-                        S/ {fmt(kpis.total)}
+                        $ {fmt(kpis.total)}
                       </td>
                       <td />
                     </tr>
@@ -515,12 +515,12 @@ export const ComprasEnhanced = ({
               }}>
                 <span style={{ fontSize: 10, color: C.textMut }}>
                   Prom. mensual <span style={{ color: C.text, fontWeight: 700 }}>
-                    S/ {fmt(trend.reduce((s, t) => s + t.v, 0) / trend.length)}
+                    $ {fmt(trend.reduce((s, t) => s + t.v, 0) / trend.length)}
                   </span>
                 </span>
                 <span style={{ fontSize: 10, color: C.textMut }}>
                   Máx. <span style={{ color: C.purple, fontWeight: 700 }}>
-                    S/ {fmt(Math.max(...trend.map(t => t.v)))}
+                    $ {fmt(Math.max(...trend.map(t => t.v)))}
                   </span>
                 </span>
               </div>

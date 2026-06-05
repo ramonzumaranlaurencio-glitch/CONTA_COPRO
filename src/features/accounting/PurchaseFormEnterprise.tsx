@@ -10,6 +10,7 @@ export type PurchaseFormData = {
   igv: string;
   expenseAccount: string;
   costCenter: string;
+  currency: string;
 };
 
 type PurchaseItem = {
@@ -66,6 +67,7 @@ type AccountingLineType =
   | 'WITHHOLDING'
   | 'DETRACTION'
   | 'PERCEPTION';
+  | 'INFO_ONLY';
 
 type ExplicitAccountLine = {
   accountCode: string;
@@ -215,16 +217,19 @@ type GeminiPurchaseResponse = {
 };
 
 const API_BASE = '/api/v1';
-const DEFAULT_COST_CENTER = 'LIM-ADM';
-const ENGINE_VERSION = 'CONTA_PRO_PURCHASE_AI_RULES_PE_2026_02';
-const AUTO_ROUNDING_TOLERANCE = 0.5;
+const DEFAULT_COST_CENTER = 'BOG-ADM';
+const ENGINE_VERSION = 'CONTA_COLPRO_PURCHASE_AI_RULES_CO_2026_01';
+const AUTO_ROUNDING_TOLERANCE = 100; // tolerance in COP
 
 const toNumber = (value: string | number | undefined | null) => {
   const parsed = Number.parseFloat(String(value ?? '0').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const money = (value: number) => value.toFixed(2);
+// COP Colombia — sin decimales, punto como separador de miles
+const money = (value: number) => Math.round(value).toString();
+const formatCOP = (value: number) =>
+  `$ ${Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const newId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -299,6 +304,7 @@ const normalizeLineType = (value?: string): AccountingLineType => {
   if (clean === 'WITHHOLDING') return 'WITHHOLDING';
   if (clean === 'DETRACTION') return 'DETRACTION';
   if (clean === 'PERCEPTION') return 'PERCEPTION';
+  if (clean === 'INFO_ONLY') return 'INFO_ONLY';
   return 'EXPENSE_OR_ASSET';
 };
 
@@ -313,6 +319,7 @@ const shouldBypassReview = (item: Pick<PurchaseItem, 'description' | 'code' | 'l
   if ((item.lineType === 'ADVANCE_PAYMENT' || isAdvanceOrCreditLine(item.description, item.code)) && normalizeAccount(item.accountCode)) {
     return true;
   }
+  if (item.lineType === 'INFO_ONLY') return true;
   return false;
 };
 
@@ -320,54 +327,54 @@ const classifyPurchaseItem = (description: string, providerName = '') => {
   const text = `${description} ${providerName}`.toUpperCase();
 
   if (isRoundingLine(description)) {
-    return { accountCode: '659101', accountName: 'Ajuste por redondeo', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Redondeo monetario del comprobante. No integra base imponible del IGV, no genera crédito fiscal y solo reconcilia el total a pagar.', aiConfidence: 0.99, aiReason: 'Línea técnica de redondeo/ajuste monetario.', requiresReview: false };
+    return { accountCode: '519099', accountName: 'Ajuste por redondeo', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Diferencia de redondeo. No genera IVA ni base gravable. Reconcilia el total impreso.', aiConfidence: 0.99, aiReason: 'Línea técnica de redondeo.', requiresReview: false };
   }
   if (isPriorDebtLine(description)) {
-    return { accountCode: '421201', accountName: 'Cuentas por pagar - deuda anterior', costCenter: '-', taxTreatment: 'Saldo/deuda anterior. No representa gasto nuevo ni genera nuevo IGV crédito fiscal. Validar que la obligación original fue registrada.', aiConfidence: 0.96, aiReason: 'Saldo anterior incluido en el recibo.', requiresReview: false };
+    return { accountCode: '280505', accountName: 'Deuda anterior servicios públicos', costCenter: '-', taxTreatment: 'Saldo anterior. No representa gasto nuevo ni genera nuevo IVA descontable.', aiConfidence: 0.96, aiReason: 'Saldo anterior incluido en el recibo.', requiresReview: false };
   }
   if (isAdvanceOrCreditLine(description)) {
-    return { accountCode: '4212', accountName: 'Compensación / pago a cuenta', costCenter: '-', taxTreatment: 'Pago a cuenta, abono o saldo a favor. No es gasto nuevo y no genera IGV.', aiConfidence: 0.96, aiReason: 'Abono, crédito o pago a cuenta.', requiresReview: false };
+    return { accountCode: '220505', accountName: 'Proveedores / pago a cuenta', costCenter: '-', taxTreatment: 'Abono o pago a cuenta. No es gasto nuevo y no genera IVA (Art. 485 ET).', aiConfidence: 0.96, aiReason: 'Abono, crédito o pago a cuenta.', requiresReview: false };
   }
   if (isLateFeeLine(description)) {
-    return { accountCode: '659101', accountName: 'Moras, recargos e intereses por servicios', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Mora, penalidad o recargo separado del servicio principal. Deducibilidad e IGV sujetos a revisión.', aiConfidence: 0.86, aiReason: 'Mora, recargo o penalidad.', requiresReview: true };
+    return { accountCode: '519020', accountName: 'Moras, recargos e intereses', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Interés de mora (Art. 1617 CC). IVA sujeto a revisión. Deducible Art. 107 ET.', aiConfidence: 0.86, aiReason: 'Mora, recargo o penalidad.', requiresReview: true };
   }
 
-  // Distribución obligatoria por tipo de gasto al centro de costo correcto (PCGE PE)
-  if (/AGUA|ALCANTARILLADO|SEDAPAL|LUZ|ELECTRICIDAD|ENEL|LUZ DEL SUR|ENERGIA|GAS|INTERNET|TELEFON|CARGO FIJO/.test(text)) {
-    return { accountCode: '636101', accountName: 'Servicios básicos', costCenter: 'LIM-ADM', taxTreatment: 'IGV crédito fiscal si cumple causalidad, comprobante válido, fehaciencia y anotación oportuna', aiConfidence: 0.95, aiReason: 'Servicio básico identificado por proveedor/descripción.', requiresReview: false };
+  // PUC Colombia — Decreto 2649/1993 — cuentas 51xxxx gastos operacionales
+  if (/AGUA|ALCANTARILLADO|TRIPLE A|AAA|EPM AGUA|LUZ|ELECTRICIDAD|CODENSA|EPM|CELSIA|ENERGIA|GAS|SURTIGAS|VANTI|INTERNET|TELEFON|CLARO|MOVISTAR|TIGO|ETB|CARGO FIJO/.test(text)) {
+    return { accountCode: '513515', accountName: 'Servicios públicos domiciliarios', costCenter: 'BOG-ADM', taxTreatment: 'IVA descontable Art. 485 ET si uso empresarial. Agua/gas residencial: IVA 0% Art. 424 ET. CREG/CRA regulados.', aiConfidence: 0.95, aiReason: 'Servicio público identificado.', requiresReview: false };
   }
   if (/ASESORIA|CONSULTORIA|CONSULTOR|SERVICIO PROFESIONAL|HONORARIO|AUDITORIA|LEGAL|CONTABLE/.test(text)) {
-    return { accountCode: '632101', accountName: 'Asesoría y consultoría', costCenter: 'LIM-ADM', taxTreatment: 'Gasto deducible sujeto a causalidad, sustento, fehaciencia y bancarización si corresponde', aiConfidence: 0.91, aiReason: 'Servicio profesional o consultoría.', requiresReview: false };
+    return { accountCode: '513550', accountName: 'Honorarios profesionales', costCenter: 'BOG-ADM', taxTreatment: 'ReteFuente 10-11% Art. 383 ET. ReteIVA 15% Art. 437-2 ET. Deducible Art. 107 ET.', aiConfidence: 0.91, aiReason: 'Honorarios o consultoría.', requiresReview: false };
   }
   if (/FLETE|TRANSPORTE|DELIVERY|COURIER|MOVILIDAD|TRASLADO|CARGA|ENVIO/.test(text)) {
-    return { accountCode: '624101', accountName: 'Transportes y fletes', costCenter: 'LOG-ALM', taxTreatment: 'Evaluar detracción si corresponde al servicio de transporte', aiConfidence: 0.9, aiReason: 'Gasto de transporte/flete.', requiresReview: false };
+    return { accountCode: '513530', accountName: 'Transporte, fletes y acarreos', costCenter: 'BOG-ALM', taxTreatment: 'ReteFuente 3.5% transporte Art. 385 ET. IVA descontable si uso empresarial.', aiConfidence: 0.9, aiReason: 'Gasto de transporte/flete.', requiresReview: false };
   }
   if (/MANTENIMIENTO|REPARACION|SOPORTE|TECNICO|SERVICIO TECNICO/.test(text)) {
-    return { accountCode: '634101', accountName: 'Mantenimiento y reparaciones', costCenter: 'LIM-ADM', taxTreatment: 'Gasto deducible si está vinculado a bienes del negocio y existe sustento', aiConfidence: 0.88, aiReason: 'Mantenimiento o reparación.', requiresReview: false };
+    return { accountCode: '513540', accountName: 'Mantenimiento y reparaciones', costCenter: 'BOG-ADM', taxTreatment: 'Gasto deducible Art. 107 ET. IVA descontable. Distinguir mejora (capitalizar) vs reparación (gasto).', aiConfidence: 0.88, aiReason: 'Mantenimiento o reparación.', requiresReview: false };
   }
   if (/UTILES|SUMINISTRO|MATERIAL|LIMPIEZA|OFICINA|PAPEL|TONER|TINTA/.test(text)) {
-    return { accountCode: '656101', accountName: 'Suministros diversos', costCenter: 'LIM-ADM', taxTreatment: 'Gasto operativo deducible si cumple causalidad y sustento', aiConfidence: 0.87, aiReason: 'Suministros de operación/oficina.', requiresReview: false };
+    return { accountCode: '513555', accountName: 'Papelería y útiles de oficina', costCenter: 'BOG-ADM', taxTreatment: 'Gasto operativo deducible Art. 107 ET. IVA descontable Art. 485 ET.', aiConfidence: 0.87, aiReason: 'Suministros de oficina.', requiresReview: false };
   }
   if (/PUBLICIDAD|MARKETING|ANUNCIO|CAMPAÑA|DISEÑO|REDES/.test(text)) {
-    return { accountCode: '637101', accountName: 'Publicidad y marketing', costCenter: 'LIM-COM', taxTreatment: 'Deducible si acredita necesidad comercial, contrato/orden y sustento documental', aiConfidence: 0.88, aiReason: 'Publicidad o marketing.', requiresReview: false };
+    return { accountCode: '513565', accountName: 'Publicidad y propaganda', costCenter: 'BOG-COM', taxTreatment: 'Deducible si acredita necesidad comercial Art. 107 ET. IVA descontable Art. 485 ET.', aiConfidence: 0.88, aiReason: 'Publicidad o marketing.', requiresReview: false };
   }
   if (/ALQUILER|ARRENDAMIENTO|RENTA|LOCAL|OFICINA/.test(text)) {
-    return { accountCode: '635101', accountName: 'Alquileres', costCenter: 'LIM-ADM', taxTreatment: 'Revisar detracción, contrato y bancarización según corresponda', aiConfidence: 0.9, aiReason: 'Alquiler/arrendamiento.', requiresReview: false };
+    return { accountCode: '513545', accountName: 'Arrendamientos', costCenter: 'BOG-ADM', taxTreatment: 'ReteFuente 3.5% Art. 385 ET. IVA 19% si arrendador es persona jurídica. Bancarización >$1M Art. 771-5 ET.', aiConfidence: 0.9, aiReason: 'Arrendamiento.', requiresReview: false };
   }
   if (/LAPTOP|COMPUTADORA|IMPRESORA|MAQUINA|EQUIPO|MOBILIARIO|ACTIVO|VEHICULO/.test(text)) {
-    return { accountCode: '336101', accountName: 'Activo fijo - equipos diversos', costCenter: 'LIM-ADM', taxTreatment: 'No enviar directo a gasto; activar y depreciar si supera política de capitalización', aiConfidence: 0.82, aiReason: 'Posible activo fijo. Requiere revisión de capitalización.', requiresReview: true };
+    return { accountCode: '152005', accountName: 'Maquinaria y equipo (activo fijo)', costCenter: 'BOG-ADM', taxTreatment: 'Capitalizar si supera política PPE (NIC 16 / Sección 17 NIIF). Depreciar Art. 137 ET.', aiConfidence: 0.82, aiReason: 'Posible activo fijo PPE.', requiresReview: true };
   }
   if (/SOFTWARE|SERVIDOR|NUBE|HOSTING|SISTEMA|LICENCIA/.test(text)) {
-    return { accountCode: '632101', accountName: 'Tecnología y sistemas', costCenter: 'TI-CORE', taxTreatment: 'Gasto TI deducible si está vinculado a la operación. Evaluar capitalización si es >1 año.', aiConfidence: 0.88, aiReason: 'Gasto de tecnología/sistemas.', requiresReview: false };
+    return { accountCode: '513525', accountName: 'Telecomunicaciones y tecnología', costCenter: 'TI-CORE', taxTreatment: 'Gasto TI deducible Art. 107 ET. Software: amortizar cuenta 160505 si >1 año.', aiConfidence: 0.88, aiReason: 'Gasto de tecnología/sistemas.', requiresReview: false };
   }
-  if (/PLANILLA|CAPACITACION|PERSONAL|RRHH/.test(text)) {
-    return { accountCode: '621101', accountName: 'Recursos humanos', costCenter: 'RRHH', taxTreatment: 'Gasto de personal deducible si está relacionado con actividades generadoras de renta.', aiConfidence: 0.87, aiReason: 'Gasto de personal/RRHH.', requiresReview: false };
+  if (/NOMINA|CAPACITACION|PERSONAL|RRHH|DOTACION/.test(text)) {
+    return { accountCode: '510506', accountName: 'Sueldos y salarios', costCenter: 'RRHH', taxTreatment: 'Gasto de personal deducible CST/Ley 100. ReteFuente Art. 383 ET si corresponde.', aiConfidence: 0.87, aiReason: 'Gasto de personal.', requiresReview: false };
   }
   if (/MERCADERIA|PRODUCTO PARA VENTA|INVENTARIO|STOCK/.test(text)) {
-    return { accountCode: '601101', accountName: 'Compras de mercaderías', costCenter: 'LOG-ALM', taxTreatment: 'Afecta inventario/kardex y costo de ventas según política', aiConfidence: 0.86, aiReason: 'Mercadería/inventario.', requiresReview: false };
+    return { accountCode: '143505', accountName: 'Mercancías en almacén (inventario)', costCenter: 'BOG-ALM', taxTreatment: 'Afecta inventario/kardex PUC 143505. Costo promedio o PEPS (Sección 13 NIIF). IVA descontable Art. 485 ET.', aiConfidence: 0.86, aiReason: 'Mercadería/inventario.', requiresReview: false };
   }
 
-  return { accountCode: '659101', accountName: 'Otros gastos de gestión', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Requiere revisión contable antes de postear', aiConfidence: 0.55, aiReason: 'No se identificó una regla confiable.', requiresReview: true };
+  return { accountCode: '519099', accountName: 'Otros gastos operacionales', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Revisar causalidad Art. 107 ET antes de postear. IVA descontable si cumple Art. 485 ET.', aiConfidence: 0.55, aiReason: 'Sin regla específica. Requiere clasificación manual.', requiresReview: true };
 };
 
 const createItem = (costCenter = DEFAULT_COST_CENTER): PurchaseItem => ({
@@ -396,7 +403,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [supplierName, setSupplierName] = useState('');
-  const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }));
+  const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
   const [isAutoIgv, setIsAutoIgv] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
   const [isReadingAi, setIsReadingAi] = useState(false);
@@ -437,17 +444,18 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   });
 
   const subtotalItems = useMemo(
-    () => items.reduce((acc, item) => acc + toNumber(item.lineSubtotal), 0),
+    () => items.reduce((acc, item) => acc + (item.lineType === 'INFO_ONLY' ? 0 : toNumber(item.lineSubtotal)), 0),
     [items],
   );
   const subtotal = toNumber(form.subtotal) > 0 ? toNumber(form.subtotal) : subtotalItems;
-  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.18 : toNumber(form.igv);
+  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.igv);
   const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + igv;
 
   const groupedLines = useMemo(() => {
     const map = new Map<string, { accountCode: string; accountName: string; costCenter: string; amount: number; taxTreatment: string }>();
     items.forEach((item) => {
       if (!item.accountCode) return;
+      if (item.lineType === 'INFO_ONLY') return;
       const costCenter = normalizeCostCenter(item.costCenter || form.costCenter);
       const key = `${normalizeAccount(item.accountCode)}|${costCenter}`;
       const current = map.get(key);
@@ -479,8 +487,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         taxTreatment: line.taxTreatment,
       })),
       {
-        accountCode: '40111',
-        accountName: 'IGV crédito fiscal',
+        accountCode: '2408',
+        accountName: 'IVA descontable (Art. 485 ET)',
         costCenter: '-',
         debit: money(igv),
         credit: '0.00',
@@ -488,7 +496,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         taxTreatment: 'Crédito fiscal condicionado a comprobante válido, causalidad, fehaciencia y anotación oportuna',
       },
       {
-        accountCode: '4212',
+        accountCode: '220505',
         accountName: 'Cuentas por pagar comerciales',
         costCenter: '-',
         debit: '0.00',
@@ -512,18 +520,18 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         requiresReview: line.accountCode === '659101' && line.lineType !== 'ROUNDING',
       });
     });
-    map.set('40111', {
-      accountCode: '40111',
-      accountName: 'IGV crédito fiscal',
-      accountClass: accountClassName('40111'),
+    map.set('2408', {
+      accountCode: '2408',
+      accountName: 'IVA descontable (Art. 485 ET)',
+      accountClass: accountClassName('2408'),
       nature: 'DEBIT',
       taxTreatment: 'Crédito fiscal condicionado a comprobante válido, fehaciencia, causalidad y anotación oportuna',
       requiresReview: false,
     });
-    map.set('4212', {
-      accountCode: '4212',
+    map.set('220505', {
+      accountCode: '220505',
       accountName: 'Cuentas por pagar comerciales',
-      accountClass: accountClassName('4212'),
+      accountClass: accountClassName('220505'),
       nature: 'CREDIT',
       taxTreatment: 'Obligación comercial por comprobante pendiente de pago',
       requiresReview: false,
@@ -549,7 +557,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     const next = { ...form, [key]: value };
 
     if (key === 'subtotal' && isAutoIgv) {
-      next.igv = money(toNumber(value) * 0.18);
+      next.igv = money(toNumber(value) * 0.19);
     }
 
     if (key === 'costCenter') {
@@ -727,6 +735,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       igv: money(toNumber(payload.igv ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
       expenseAccount: normalizeAccount(String(payload.expense_account || mappedItems[0]?.accountCode || form.expenseAccount || '659101')),
       costCenter: nextCostCenter,
+      currency: String(payload.currency || 'COP'),
     });
 
     setIsAutoIgv(false);
@@ -742,32 +751,25 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     try {
       const currentTenantId = tenantId || localStorage.getItem('tenant_id') || '11111111-1111-1111-1111-111111111111'
 
-      const tokenResponse = await fetch(`${API_BASE}/auth/dev-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant_id: currentTenantId,
-          user_id: 'erp.operator',
-          role: 'ADMIN',
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error(await tokenResponse.text());
+      let token = localStorage.getItem('access_token') || '';
+      if (!token) {
+        const _u = localStorage.getItem('login_username');
+        const _p = localStorage.getItem('login_password');
+        if (_u && _p) {
+          const _r = await fetch(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: _u, password: _p, tenant_id: currentTenantId }) });
+          if (_r.ok) { const _d = await _r.json() as { access_token?: string }; token = _d.access_token || ''; if (token) localStorage.setItem('access_token', token); }
+        }
       }
-
-      const tokenPayload = await tokenResponse.json();
-      const token = tokenPayload.access_token;
       const formData = new FormData();
       formData.append('file', file);
 
+      const geminiKey = localStorage.getItem('user_gemini_api_key') || '';
       const response = await fetch(`${API_BASE}/purchases/process-ia`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'X-Tenant-Id': currentTenantId,
+          ...(geminiKey ? { 'X-Gemini-Key': geminiKey } : {}),
         },
         body: formData,
       });
@@ -786,24 +788,26 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   };
 
   const validateRucExternally = async () => {
-    if (!/^\d{11}$/.test(form.supplierRuc)) {
+    if (!/^\d{9,12}$/.test(form.supplierRuc.replace(/[^0-9]/g, ''))) {
       setRucState('invalid');
-      setRucMessage('RUC inválido: debe tener 11 dígitos.');
+      setRucMessage('NIT inválido: debe tener entre 9 y 12 dígitos.');
       return;
     }
     setRucState('validating');
     setRucMessage('Consultando servicio externo...');
     try {
-      const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${form.supplierRuc}`);
+      const nit = form.supplierRuc.replace(/[\.\-]/g, '');
+      const response = await fetch(`https://api.datos.gov.co/resource/swrg-pj5c.json?nit=${nit}`);
       if (response.ok) {
         const data = await response.json();
-        setSupplierName(data.razonSocial || data.nombre || supplierName);
+        const nombre = data?.[0]?.nombre_contribuyente || data?.[0]?.razon_social || '';
+        if (nombre) setSupplierName(nombre);
         setRucState('valid');
-        setRucMessage('RUC validado. Razón social cargada si el servicio la devolvió.');
+        setRucMessage('NIT validado en DIAN. Razón social cargada.');
         return;
       }
       setRucState('unknown');
-      setRucMessage('SUNAT externo no disponible. Continuar con validación manual.');
+      setRucMessage('DIAN no disponible. Continuar con validación manual.');
     } catch {
       setRucState('unknown');
       setRucMessage('No se pudo validar externamente. Verifica red/CORS.');
@@ -824,7 +828,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     if (!form.serie.trim()) return 'Falta serie.';
     if (!form.number.trim()) return 'Falta número.';
     if (!issueDate.trim()) return 'Falta fecha.';
-    if (!/^\d{11}$/.test(form.supplierRuc)) return 'RUC proveedor inválido.';
+    if (!/^\d{9,12}$/.test(form.supplierRuc.replace(/[\.\-]/g, ''))) return 'NIT proveedor inválido (9-12 dígitos).';
     if (!supplierName.trim()) return 'Falta razón social proveedor.';
     if (items.length === 0) return 'Agrega al menos un item.';
     if (total <= 0) return 'Total inválido.';
@@ -833,6 +837,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     if (Math.abs(totalDebit - totalCredit) > 0.01) return `Asiento descuadrado: Debe ${money(totalDebit)} != Haber ${money(totalCredit)}.`;
 
     for (const item of items) {
+      if (item.lineType === 'INFO_ONLY') continue;
       if (!item.description.trim()) return 'Hay un item sin descripción.';
       if (!normalizeAccount(item.accountCode)) return `Item ${item.description}: falta cuenta contable.`;
       if (item.costCenter !== '-' && !normalizeCostCenter(item.costCenter)) return `Item ${item.description}: falta centro de costo.`;
@@ -865,7 +870,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     setAiLegalWarnings([]);
     setAiAccountingWarnings([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    onFormChange({ ...form, serie: '', number: '', supplierRuc: '', subtotal: '0.00', igv: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER });
+    onFormChange({ ...form, serie: '', number: '', supplierRuc: '', subtotal: '0.00', igv: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER, currency: 'COP' });
   };
 
   const handleSubmit = async () => {
@@ -880,7 +885,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       ...form,
       subtotal: money(subtotal),
       igv: money(igv),
-      expenseAccount: firstLine?.accountCode || normalizeAccount(form.expenseAccount) || '659101',
+      expenseAccount: firstLine?.accountCode || normalizeAccount(form.expenseAccount) || '519099',
       costCenter: firstLine?.costCenter || normalizeCostCenter(form.costCenter),
     };
 
@@ -1007,12 +1012,12 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       </div>
 
       <div className="pro-form-grid customer">
-        <Field label="RUC proveedor"><Input value={form.supplierRuc} onChange={(_, d) => updateField('supplierRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
+        <Field label="NIT proveedor"><Input value={form.supplierRuc} onChange={(_, d) => updateField('supplierRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
         <Field label="Razón social proveedor"><Input value={supplierName} onChange={(_, d) => setSupplierName(d.value)} /></Field>
       </div>
 
       <div className="pro-validation-row">
-        <Button appearance="secondary" onClick={validateRucExternally}>Validar RUC Externo</Button>
+        <Button appearance="secondary" onClick={validateRucExternally}>Validar NIT DIAN</Button>
         <MessageBar intent={rucState === 'valid' ? 'success' : rucState === 'invalid' ? 'error' : 'info'}><MessageBarBody>{rucMessage}</MessageBarBody></MessageBar>
       </div>
 
@@ -1029,7 +1034,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       {aiTotalReadFromDocument && (
         <MessageBar intent={aiReconciliationStatus === 'OK' ? 'success' : 'warning'}>
           <MessageBarBody>
-            Total leído del comprobante: S/ {aiTotalReadFromDocument}
+            Total leído del comprobante: $ {aiTotalReadFromDocument}
             {aiReconciliationStatus ? ` | Conciliación: ${aiReconciliationStatus}` : ''}
             {aiReconciliationDifference && aiReconciliationDifference !== '0.00' ? ` | Diferencia: ${aiReconciliationDifference}` : ''}
           </MessageBarBody>
@@ -1100,14 +1105,14 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
 
       <label className="pro-checkline">
         <input type="checkbox" checked={isAutoIgv} onChange={(e) => setIsAutoIgv(e.target.checked)} />
-        IGV auto-calculado 18%
+        IVA auto-calculado 19% (Art. 468 ET Colombia)
       </label>
 
       <div className="pro-total-banner">
         <span>Total a pagar</span>
-        <strong>S/ {money(total)}</strong>
+        <strong>$ {money(total)}</strong>
       </div>
-      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: S/ {aiTotalReadFromDocument}</Text>}
+      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {aiTotalReadFromDocument}</Text>}
 
       {status && <MessageBar intent={status.includes('No se pudo') || status.includes('Falta') || status.includes('requiere') ? 'error' : 'success'}><MessageBarBody>{status}</MessageBarBody></MessageBar>}
 

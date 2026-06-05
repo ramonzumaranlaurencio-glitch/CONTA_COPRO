@@ -26,11 +26,11 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
     subtotal: 0,
     igv: 0,
     total: 0,
-    centroCosto: 'LIM-COM',
+    centroCosto: 'BOG-COM',
   });
 
   useEffect(() => {
-    const calculatedIgv = form.subtotal * 0.18;
+    const calculatedIgv = form.subtotal * 0.19;
     setForm((prev) => ({
       ...prev,
       igv: Number(calculatedIgv.toFixed(2)),
@@ -134,13 +134,13 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
           />
         </div>
         <div className="flex justify-between items-center text-slate-500">
-          <span className="text-sm">IGV (18%)</span>
-          <span className="font-mono">S/ {form.igv.toFixed(2)}</span>
+          <span className="text-sm">IVA (19%)</span>
+          <span className="font-mono">$ {form.igv.toFixed(2)}</span>
         </div>
         <hr />
         <div className="flex justify-between items-center text-[#0078d4] font-bold text-lg">
           <span>Total Neto</span>
-          <span>S/ {form.total.toFixed(2)}</span>
+          <span>$ {form.total.toFixed(2)}</span>
         </div>
       </div>
 

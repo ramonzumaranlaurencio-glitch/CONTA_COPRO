@@ -539,7 +539,7 @@ function ItemModal({
           </p>
           <div style={row3}>
             <div>
-              <label style={labelStyle}>Costo Unitario (S/)</label>
+              <label style={labelStyle}>Costo Unitario ($)</label>
               <input style={inputStyle} type="number" step="0.01" value={form.default_cost}
                 onChange={e => set('default_cost', e.target.value)} />
             </div>
@@ -675,14 +675,11 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       if (expMs > Date.now() + 30_000) return currentToken; // aún válido (30 s de margen)
     } catch { /* token malformado → renovar */ }
     // Renovar
-    const r = await fetch(`${apiBase}/auth/dev-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: tenantId, user_id: 'erp.operator', role: 'ADMIN' }),
-    });
-    if (!r.ok) return currentToken; // si falla el refresh, retornar el original
-    const data = await r.json();
-    return String(data.access_token || currentToken);
+    const _stored = localStorage.getItem('access_token');
+    if (_stored) return _stored;
+    const _u = localStorage.getItem('login_username'); const _p = localStorage.getItem('login_password');
+    if (_u && _p) { try { const _r = await fetch(`${apiBase}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: _u, password: _p, tenant_id: tenantId }) }); if (_r.ok) { const _d = await _r.json() as { access_token?: string }; const _t = _d.access_token || ''; if (_t) { localStorage.setItem('access_token', _t); return _t; } } } catch {} }
+    return currentToken;
   }, [apiBase, tenantId]);
 
   // ── fetch data ──────────────────────────────────────────────
@@ -1109,7 +1106,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       if (!res.ok) { setExitMsg(`Error: ${await res.text()}`); return; }
       const data = await res.json();
       const reason = EXIT_REASONS.find(r => r.code === exitForm.exit_reason);
-      setExitMsg(`${reason?.icon} ${data.qty} und | S/. ${data.total_cost} | Saldo: ${data.new_balance_qty} und`);
+      setExitMsg(`${reason?.icon} ${data.qty} und | $ ${data.total_cost} | Saldo: ${data.new_balance_qty} und`);
       setExitForm(f => ({ ...f, product_id: '', qty: '1', notes: '', doc_ref: '' }));
       await loadData();
     } catch { setExitMsg('Error de conexión'); } finally { setExitLoading(false); }
@@ -1188,7 +1185,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
               {stats.total} artículos
             </span>
             <span style={{ background: '#1a3a20', color: '#3fb950', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
-              S/ {fmt(stats.totalValue)}
+              $ {fmt(stats.totalValue)}
             </span>
             {stats.alerts > 0 && (
               <span style={{ background: '#3a1a1a', color: C.accentR, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
@@ -1384,9 +1381,9 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                       <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: m.movement_type === 'ENTRY' ? C.accentG : C.accentR }}>
                         {m.movement_type === 'ENTRY' ? '+' : '-'}{fmt(m.qty, 0)}
                       </td>
-                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(m.unit_cost)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(m.unit_cost)}</td>
                       <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(m.balance_qty, 0)}</td>
-                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(m.balance_avg_cost)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(m.balance_avg_cost)}</td>
                       <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, color: C.accent }}>{m.movement_reference}</td>
                       <td style={{ ...td, fontSize: 11 }}>{m.source_document}</td>
                       <td style={{ ...td, fontSize: 11, color: C.textMut }}>{m.area}</td>
@@ -1419,7 +1416,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 4 }}>
                         <span style={{ color: C.textMut }}>Valor total:</span>
-                        <span style={{ color: C.accentG, fontFamily: 'monospace', fontWeight: 700 }}>S/ {fmt(wValue)}</span>
+                        <span style={{ color: C.accentG, fontFamily: 'monospace', fontWeight: 700 }}>$ {fmt(wValue)}</span>
                       </div>
                     </div>
                     {/* Mini breakdown por clase */}
@@ -1448,7 +1445,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
               <div style={{ color: C.textDim, fontSize: 13, padding: 20, textAlign: 'center' }}>Sin entradas registradas. Valide compras desde el panel inferior o cree movimientos manualmente.</div>
             )}
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Fecha', 'Artículo', 'Clase', 'Área', 'Cant', 'Costo U.', 'Total S/', 'Documento', 'Referencia', 'Acciones'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Fecha', 'Artículo', 'Clase', 'Área', 'Cant', 'Costo U.', 'Total $', 'Documento', 'Referencia', 'Acciones'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {movements.filter(m => m.movement_type === 'ENTRY').map((m, idx) => {
                   const it = items.find(i => i.id === m.product_id);
@@ -1459,8 +1456,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                       <td style={td}>{it && <ClassBadge cls={it.item_class} />}</td>
                       <td style={{ ...td, fontSize: 11, color: C.textMut }}>{m.area}</td>
                       <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentG }}>+{fmt(m.qty, 0)}</td>
-                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(m.unit_cost)}</td>
-                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentG }}>S/ {fmt(m.qty * m.unit_cost)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(m.unit_cost)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentG }}>$ {fmt(m.qty * m.unit_cost)}</td>
                       <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{m.source_document}</td>
                       <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, color: C.accent }}>{m.movement_reference}</td>
                       <td style={td}>
@@ -1475,7 +1472,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                 <tr style={{ background: C.bg }}>
                   <td colSpan={7} style={{ ...td, borderTop: `2px solid ${C.border}`, fontWeight: 700, color: C.textMut }}>Total entradas</td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>
-                    S/ {fmt(movements.filter(m => m.movement_type === 'ENTRY').reduce((s, m) => s + m.qty * m.unit_cost, 0))}
+                    $ {fmt(movements.filter(m => m.movement_type === 'ENTRY').reduce((s, m) => s + m.qty * m.unit_cost, 0))}
                   </td>
                   <td colSpan={2} style={{ ...td, borderTop: `2px solid ${C.border}` }} />
                 </tr>
@@ -1501,7 +1498,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                       <option value="">— Seleccionar artículo —</option>
                       {items.filter(i => i.balance_qty > 0 && i.is_active).map(i => (
                         <option key={i.id} value={i.id}>
-                          {i.token_code} · {i.name} (Disp: {fmt(i.balance_qty, 0)} {i.unit_of_measure} | Costo avg: S/ {fmt(i.balance_avg_cost)})
+                          {i.token_code} · {i.name} (Disp: {fmt(i.balance_qty, 0)} {i.unit_of_measure} | Costo avg: $ {fmt(i.balance_avg_cost)})
                         </option>
                       ))}
                     </select>
@@ -1537,8 +1534,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                 {selectedProduct && exitQty > 0 && (
                   <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 10, marginBottom: 12, fontFamily: 'monospace', fontSize: 11 }}>
                     <div style={{ color: C.textMut, marginBottom: 4, fontFamily: 'sans-serif', fontSize: 10, fontWeight: 700 }}>ASIENTO AUTOMÁTICO QUE SE GENERARÁ:</div>
-                    <div style={{ color: C.accentR }}>  DEBE  {selectedReason?.label}  S/ {fmt(estimatedValue)}</div>
-                    <div style={{ color: C.accentG }}>  HABER Inventario {selectedProduct.token_code}  S/ {fmt(estimatedValue)}</div>
+                    <div style={{ color: C.accentR }}>  DEBE  {selectedReason?.label}  $ {fmt(estimatedValue)}</div>
+                    <div style={{ color: C.accentG }}>  HABER Inventario {selectedProduct.token_code}  $ {fmt(estimatedValue)}</div>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1554,7 +1551,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
               )}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>{['Fecha', 'Código', 'Artículo', 'Clase', 'Área', 'Motivo / Nota', 'Cant', 'Costo U.', 'Valor S/', 'Documento', 'Referencia', 'Acciones'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+                  <tr>{['Fecha', 'Código', 'Artículo', 'Clase', 'Área', 'Motivo / Nota', 'Cant', 'Costo U.', 'Valor $', 'Documento', 'Referencia', 'Acciones'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {movements.filter(m => m.movement_type === 'EXIT').map((m, idx) => {
@@ -1573,8 +1570,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                           <span style={{ color: C.textMut }}>{(m.notes || '').replace(/\[[A-Z_]+\]/, '').trim()}</span>
                         </td>
                         <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentR }}>-{fmt(m.qty, 0)}</td>
-                        <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(m.unit_cost)}</td>
-                        <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentR }}>S/ {fmt(m.qty * m.unit_cost)}</td>
+                        <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(m.unit_cost)}</td>
+                        <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentR }}>$ {fmt(m.qty * m.unit_cost)}</td>
                         <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{m.source_document}</td>
                         <td style={{ ...td, fontFamily: 'monospace', fontSize: 11, color: C.accent }}>{m.movement_reference}</td>
                         <td style={td}>
@@ -1589,7 +1586,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   <tr style={{ background: C.bg }}>
                     <td colSpan={8} style={{ ...td, borderTop: `2px solid ${C.border}`, fontWeight: 700, color: C.textMut }}>Total salidas / bajas</td>
                     <td style={{ ...td, borderTop: `2px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentR }}>
-                      S/ {fmt(movements.filter(m => m.movement_type === 'EXIT').reduce((s, m) => s + m.qty * m.unit_cost, 0))}
+                      $ {fmt(movements.filter(m => m.movement_type === 'EXIT').reduce((s, m) => s + m.qty * m.unit_cost, 0))}
                     </td>
                     <td colSpan={3} style={{ ...td, borderTop: `2px solid ${C.border}` }} />
                   </tr>
@@ -1683,7 +1680,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
               {[
                 { label: 'Total artículos', value: String(items.length), color: C.accent },
-                { label: 'Valor total S/', value: `S/ ${fmt(items.reduce((s, i) => s + i.balance_value, 0))}`, color: C.accentG },
+                { label: 'Valor total $', value: `$ ${fmt(items.reduce((s, i) => s + i.balance_value, 0))}`, color: C.accentG },
                 { label: 'Total entradas', value: String(movements.filter(m => m.movement_type === 'ENTRY').length), color: C.accentG },
                 { label: 'Total salidas',  value: String(movements.filter(m => m.movement_type === 'EXIT').length), color: C.accentR },
               ].map(m => (
@@ -1696,7 +1693,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
             {/* Valorización por clase */}
             <h4 style={{ color: C.textMut, fontSize: 12, marginBottom: 8 }}>Valorización por Clase</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-              <thead><tr>{['Clase', 'Artículos', 'Qty Total', 'Valor S/', '% del Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Clase', 'Artículos', 'Qty Total', 'Valor $', '% del Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {CLASSES.map((cls, idx) => {
                   const cItems = items.filter(i => i.item_class === cls);
@@ -1709,7 +1706,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                       <td style={td}><ClassBadge cls={cls} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>{cItems.length}</td>
                       <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cItems.reduce((s, i) => s + i.balance_qty, 0), 0)}</td>
-                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: CLASS_COLOR[cls] }}>S/ {fmt(val)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: CLASS_COLOR[cls] }}>$ {fmt(val)}</td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
                           <div style={{ width: 60, height: 6, borderRadius: 3, background: C.border }}>
@@ -1764,7 +1761,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   {/* Totales */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
                     {[
-                      { label: 'Valor total inventario', value: `S/ ${fmt(acctData.grand_total_value)}`, color: C.accentG },
+                      { label: 'Valor total inventario', value: `$ ${fmt(acctData.grand_total_value)}`, color: C.accentG },
                       { label: 'Cuentas PCGE activas',   value: String(acctData.accounts_count),         color: C.accent },
                       { label: 'Artículos totales',      value: String(acctData.by_account?.reduce((s: number, a: any) => s + a.products_count, 0) || 0), color: C.textMut },
                     ].map(m => (
@@ -1788,7 +1785,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                         <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 10, color: C.textMut }}>Valor</div>
-                            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>S/ {fmt(acc.total_value)}</div>
+                            <div style={{ fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>$ {fmt(acc.total_value)}</div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 10, color: C.textMut }}>Entradas</div>
@@ -1811,7 +1808,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: C.bg }}>
-                              {['Token Code', 'Artículo', 'Clase', 'Stock', 'Costo Avg', 'Valor S/', 'Entradas', 'Salidas', 'Rotación', 'Estado'].map(h => (
+                              {['Token Code', 'Artículo', 'Clase', 'Stock', 'Costo Avg', 'Valor $', 'Entradas', 'Salidas', 'Rotación', 'Estado'].map(h => (
                                 <th key={h} style={{ ...th, fontSize: 10 }}>{h}</th>
                               ))}
                             </tr>
@@ -1823,8 +1820,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                                 <td style={{ ...td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</td>
                                 <td style={td}><ClassBadge cls={item.item_class as ItemClass} /></td>
                                 <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{fmt(item.balance_qty, 0)} {item.unit}</td>
-                                <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(item.avg_cost)}</td>
-                                <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>S/ {fmt(item.balance_value)}</td>
+                                <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(item.avg_cost)}</td>
+                                <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>$ {fmt(item.balance_value)}</td>
                                 <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', color: C.accentG }}>▲ {fmt(item.entries_qty, 0)}</td>
                                 <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', color: C.accentR }}>▼ {fmt(item.exits_qty, 0)}</td>
                                 <td style={{ ...td, textAlign: 'center' }}>
@@ -1846,7 +1843,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                           <tfoot>
                             <tr style={{ background: C.bg }}>
                               <td colSpan={5} style={{ ...td, borderTop: `1px solid ${C.border}`, fontWeight: 700, color: C.textMut, fontSize: 11 }}>Subtotal cuenta {acc.account_code}</td>
-                              <td style={{ ...td, borderTop: `1px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>S/ {fmt(acc.total_value)}</td>
+                              <td style={{ ...td, borderTop: `1px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentG }}>$ {fmt(acc.total_value)}</td>
                               <td style={{ ...td, borderTop: `1px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', color: C.accentG }}>{fmt(acc.total_entries_qty, 0)}</td>
                               <td style={{ ...td, borderTop: `1px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', color: C.accentR }}>{fmt(acc.total_exits_qty, 0)}</td>
                               <td colSpan={2} style={{ ...td, borderTop: `1px solid ${C.border}` }} />
@@ -2332,7 +2329,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
               <thead>
                 <tr>
                   <th style={th}><input type="checkbox" onChange={e => setDispatchItems(prev => prev.map(d => ({ ...d, checked: e.target.checked })))} /></th>
-                  {['Código', 'Artículo', 'Clase', 'Unid', 'Disp.', 'Cant. Despacho', 'Costo U.', 'Total S/', 'Destino'].map(h => <th key={h} style={th}>{h}</th>)}
+                  {['Código', 'Artículo', 'Clase', 'Unid', 'Disp.', 'Cant. Despacho', 'Costo U.', 'Total $', 'Destino'].map(h => <th key={h} style={th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -2350,8 +2347,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                         value={d.qty_to_dispatch || ''}
                         onChange={e => setDispatchItems(prev => prev.map(x => x.id === d.id ? { ...x, qty_to_dispatch: Math.min(parseFloat(e.target.value) || 0, x.qty_available), checked: true } : x))} />
                     </td>
-                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(d.unit_cost)}</td>
-                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentR }}>S/ {fmt(d.qty_to_dispatch * d.unit_cost)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(d.unit_cost)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentR }}>$ {fmt(d.qty_to_dispatch * d.unit_cost)}</td>
                     <td style={{ ...td, fontSize: 11 }}>
                       <input style={{ ...inputStyle, fontSize: 11, padding: '3px 6px' }}
                         value={d.destination} onChange={e => setDispatchItems(prev => prev.map(x => x.id === d.id ? { ...x, destination: e.target.value } : x))}
@@ -2366,7 +2363,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                     {dispatchItems.filter(d => d.checked && d.qty_to_dispatch > 0).length} artículos seleccionados
                   </td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: C.accentR }}>
-                    S/ {fmt(dispatchItems.filter(d => d.checked).reduce((s, d) => s + d.qty_to_dispatch * d.unit_cost, 0))}
+                    $ {fmt(dispatchItems.filter(d => d.checked).reduce((s, d) => s + d.qty_to_dispatch * d.unit_cost, 0))}
                   </td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}` }} />
                 </tr>
@@ -2610,7 +2607,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   <th style={th}>Unid</th>
                   <th style={th}>Stock</th>
                   <th style={th}>Costo Prom</th>
-                  <th style={th}>Valor S/</th>
+                  <th style={th}>Valor $</th>
                   <th style={th}>Acciones</th>
                 </tr>
               </thead>
@@ -2678,7 +2675,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   </td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}` }} />
                   <td style={{ ...td, borderTop: `2px solid ${C.border}`, textAlign: 'right', fontWeight: 800, fontSize: 13, color: C.accentG, fontFamily: 'monospace' }}>
-                    S/ {fmt(stats.totalValue)}
+                    $ {fmt(stats.totalValue)}
                   </td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}` }} />
                 </tr>
@@ -2700,7 +2697,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                 <TokenBadge type={selectedItem.token_type} />
                 <span style={{ fontSize: 11, color: C.textMut }}>
                   Stock: <strong style={{ color: C.accentG }}>{fmt(selectedItem.balance_qty, 0)} {selectedItem.unit_of_measure}</strong>
-                  &nbsp;· Valor: <strong style={{ color: C.accentG }}>S/ {fmt(selectedItem.balance_value)}</strong>
+                  &nbsp;· Valor: <strong style={{ color: C.accentG }}>$ {fmt(selectedItem.balance_value)}</strong>
                 </span>
               </div>
             )}
@@ -2760,7 +2757,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   </div>
                   <div style={{ display: 'flex', gap: 12, fontSize: 10, color: C.textDim, marginTop: 2 }}>
                     <span>Área: <span style={{ color: C.textMut }}>{m.area || '—'}</span></span>
-                    <span>Costo: S/ {fmt(m.unit_cost)}</span>
+                    <span>Costo: $ {fmt(m.unit_cost)}</span>
                     <span>Saldo: {fmt(m.balance_qty, 0)}</span>
                   </div>
                   {m.notes && (
@@ -2787,7 +2784,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                     <div key={cls} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 20, height: 10, borderRadius: 2, background: CLASS_COLOR[cls], flexShrink: 0 }} />
                       <span style={{ fontSize: 10, color: C.textMut, flex: 1 }}>{CLASS_LABEL[cls]}</span>
-                      <span style={{ fontSize: 10, fontFamily: 'monospace', color: C.text }}>S/ {fmt(val)}</span>
+                      <span style={{ fontSize: 10, fontFamily: 'monospace', color: C.text }}>$ {fmt(val)}</span>
                       <div style={{ width: 60, height: 4, borderRadius: 2, background: C.border, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${pct}%`, background: CLASS_COLOR[cls] }} />
                       </div>
@@ -2819,7 +2816,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           {pendingChecked.length > 0 && (
             <>
               <span style={{ fontSize: 11, color: C.textMut }}>
-                {pendingChecked.length} seleccionados · S/ {fmt(pendingTotal)}
+                {pendingChecked.length} seleccionados · $ {fmt(pendingTotal)}
               </span>
               <button style={btn('success')} onClick={e => { e.stopPropagation(); handleValidatePurchases(); }}>
                 ✓ Ingresar al Almacén ({pendingChecked.length})
@@ -2862,7 +2859,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   <th style={th}>Costo U.</th>
                   <th style={th}>Proveedor RUC</th>
                   <th style={th}>Fecha</th>
-                  <th style={th}>Total S/</th>
+                  <th style={th}>Total $</th>
                 </tr>
               </thead>
               <tbody>
@@ -2910,14 +2907,14 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                     </td>
                     <td style={{ ...td, fontSize: 11, color: C.textMut }}>{AREA_PREFIX[p.area]}</td>
                     <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{fmt(p.qty, 0)}</td>
-                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>S/ {fmt(p.unit_cost)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>$ {fmt(p.unit_cost)}</td>
                     <td style={{ ...td, fontSize: 11 }}>
                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }} title={p.supplier_name}>{p.supplier_name}</div>
                       {p.supplier_ruc && <div style={{ fontSize: 9, fontFamily: 'monospace', color: C.textDim }}>{p.supplier_ruc}</div>}
                     </td>
                     <td style={{ ...td, fontSize: 11, color: C.textDim }}>{fmtDate(p.doc_date)}</td>
                     <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: C.accentG }}>
-                      S/ {fmt(p.total)}
+                      $ {fmt(p.total)}
                     </td>
                   </tr>
                   );
@@ -2929,7 +2926,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                     {pendingPurchases.length} compras pendientes · {pendingChecked.length} seleccionadas
                   </td>
                   <td style={{ ...td, borderTop: `2px solid ${C.border}`, textAlign: 'right', fontWeight: 800, color: C.accentY, fontFamily: 'monospace' }}>
-                    S/ {fmt(pendingPurchases.reduce((s, p) => s + p.total, 0))}
+                    $ {fmt(pendingPurchases.reduce((s, p) => s + p.total, 0))}
                   </td>
                 </tr>
               </tfoot>
