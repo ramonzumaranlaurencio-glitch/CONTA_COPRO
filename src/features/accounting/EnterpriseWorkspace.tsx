@@ -335,6 +335,7 @@ export const EnterpriseWorkspace = ({ userRole = 'ADMIN', userPlan = 'PREMIUM' }
   const [railExpanded, setRailExpanded] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelType>(null);
   const [statusMessage, setStatusMessage] = useState('Inicializando CONTA_COLPRO Enterprise Colombia...');
+  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [aiMessage, setAiMessage] = useState('Motor IA en espera');
   const [copilotQuestion, setCopilotQuestion] = useState('Detecta riesgos DIAN y diferencias materiales del período activo.');
   const [isRunningAi, setIsRunningAi] = useState(false);
@@ -1180,6 +1181,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
       const postedMessage = `Compra ${formSource.serie}-${formSource.number} posteada con cuentas y centros de costo.`;
       setStatusMessage(postedMessage);
+      setSuccessToast(`✓ Compra ${formSource.serie}-${formSource.number} guardada en el Libro Diario.`);
+      setTimeout(() => setSuccessToast(null), 5000);
       setToken(purchaseToken);
 
       // La compra ya fue posteada. Si falla refrescar el Libro Diario,
@@ -2099,6 +2102,20 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           year={DEFAULT_PERIOD.year}
         />
       </AccountDetailPanel>
+
+      {/* Toast de confirmación de guardado — flota sobre el panel de compras */}
+      {successToast && (
+        <div style={{
+          position: 'fixed', bottom: 36, right: 36, zIndex: 99999,
+          background: '#16a34a', color: '#fff',
+          padding: '16px 28px', borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+          fontSize: 15, fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          {successToast}
+        </div>
+      )}
     </div>
  );
  };
