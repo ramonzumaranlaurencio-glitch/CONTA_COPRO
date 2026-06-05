@@ -228,6 +228,9 @@ const toNumber = (value: string | number | undefined | null) => {
 
 // COP Colombia — sin decimales, punto como separador de miles
 const money = (value: number) => Math.round(value).toString();
+// Solo para mostrar al usuario — NO usar como valor de input editable
+const displayMoney = (value: number) =>
+  Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const formatCOP = (value: number) =>
   `$ ${Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -857,7 +860,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const clearFormLabels = () => {
     setItems([]);
     setSupplierName('');
-    setIssueDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }));
+    setIssueDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
     setStatus('');
     setModifyReason('');
     setModifyDetail('');
@@ -1089,8 +1092,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
                 <td>{line.accountCode}</td>
                 <td>{line.accountName}</td>
                 <td>{line.costCenter}</td>
-                <td style={{ textAlign: 'right' }}>{line.debit}</td>
-                <td style={{ textAlign: 'right' }}>{line.credit}</td>
+                <td style={{ textAlign: 'right' }}>{toNumber(line.debit) ? displayMoney(toNumber(line.debit)) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{toNumber(line.credit) ? displayMoney(toNumber(line.credit)) : ''}</td>
               </tr>
             ))}
           </tbody>
@@ -1100,8 +1103,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       <div className="pro-form-grid four">
         <Field label="Cuenta fallback"><Input value={form.expenseAccount} onChange={(_, d) => updateField('expenseAccount', d.value)} /></Field>
         <Field label="Centro costo general"><Input value={form.costCenter} onChange={(_, d) => updateField('costCenter', d.value)} /></Field>
-        <Field label="Subtotal"><Input value={money(subtotal)} disabled /></Field>
-        <Field label="IGV"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
+        <Field label="Subtotal"><Input value={displayMoney(subtotal)} disabled /></Field>
+        <Field label="IVA (19%)"><Input value={isAutoIgv ? displayMoney(igv) : money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
       </div>
 
       <label className="pro-checkline">
@@ -1111,9 +1114,9 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
 
       <div className="pro-total-banner">
         <span>Total a pagar</span>
-        <strong>$ {money(total)}</strong>
+        <strong>$ {displayMoney(total)}</strong>
       </div>
-      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {aiTotalReadFromDocument}</Text>}
+      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {displayMoney(toNumber(aiTotalReadFromDocument))}</Text>}
 
       {status && <MessageBar intent={status.includes('No se pudo') || status.includes('Falta') || status.includes('requiere') ? 'error' : 'success'}><MessageBarBody>{status}</MessageBarBody></MessageBar>}
 

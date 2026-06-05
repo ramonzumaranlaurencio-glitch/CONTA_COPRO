@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import mimetypes
 import re
 from decimal import Decimal, ROUND_HALF_UP
@@ -2031,6 +2032,11 @@ def _build_client(user_key: str | None = None):
 def _parse_ai_json(text: str) -> dict:
     """Parsea JSON de la IA; si está truncado, intenta repararlo cerrando estructuras abiertas."""
     text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    # Si hay texto antes del JSON (Gemini sin response_mime_type puede añadir prosa)
+    if not text.startswith("{"):
+        brace_idx = text.find("{")
+        if brace_idx >= 0:
+            text = text[brace_idx:]
     try:
         result = json.loads(text)
         return result if isinstance(result, dict) else {}
@@ -2073,7 +2079,7 @@ async def _analyze_document_text(
     file_bytes: bytes,
     mime_type: str,
 ) -> str:
-    """Llama analyze_document y devuelve el texto. Fallback automático a Claude si Gemini da 429."""
+    """Llama analyze_document y devuelve el texto. Fallback a Claude ante cualquier error de Gemini."""
     try:
         resp = await client.analyze_document(
             instruction=instruction,
@@ -2081,11 +2087,12 @@ async def _analyze_document_text(
             mime_type=mime_type,
         )
         return client.response_text(resp)
-    except GeminiQuotaError:
+    except (GeminiQuotaError, RuntimeError) as gemini_exc:
+        logging.warning("Gemini fallo (%s), intentando Claude como respaldo.", gemini_exc)
         if not settings.claude_api_key:
             raise HTTPException(
-                status_code=503,
-                detail="Cuota Gemini excedida y no hay clave Claude configurada como respaldo.",
+                status_code=502,
+                detail=f"Error Gemini: {gemini_exc}. Configura CLAUDE_API_KEY como respaldo.",
             )
         fallback = ClaudeClient(
             api_key=settings.claude_api_key,
@@ -2258,6 +2265,8 @@ async def process_purchase_with_gemini(
     except HTTPException:
         raise
     except json.JSONDecodeError as exc:
+        logging.exception("process-ia: JSON invalido de la IA")
         raise HTTPException(status_code=502, detail=f"IA devolvio JSON invalido: {str(exc)}") from exc
     except Exception as exc:
+        logging.exception("process-ia: error inesperado")
         raise HTTPException(status_code=502, detail=f"Error IA: {str(exc)}") from exc
