@@ -838,20 +838,21 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       setRucMessage('Identificador inválido. Debe tener entre 9 y 12 dígitos.');
       return;
     }
-    if (clean.length === 11) {
+    if (clean.length >= 9) {
       setRucState('validating');
-      setRucMessage('Consultando servicio externo...');
+      setRucMessage('Consultando DIAN...');
       try {
-        const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${clean}`);
+        const response = await fetch(`https://api.datos.gov.co/resource/swrg-pj5c.json?nit=${clean}`);
         if (response.ok) {
           const data = await response.json();
-          setCustomerName(data.razonSocial || data.nombre || customerName);
+          const nombre = data?.[0]?.nombre_contribuyente || data?.[0]?.razon_social || '';
+          if (nombre) setCustomerName(nombre);
           setRucState('valid');
-          setRucMessage('RUC validado. Razón social cargada si el servicio la devolvió.');
+          setRucMessage('NIT/CC validado en DIAN. Razón social cargada.');
           return;
         }
         setRucState('unknown');
-        setRucMessage('SUNAT externo no disponible. Continuar con validación manual.');
+        setRucMessage('DIAN no disponible. Continuar con validación manual.');
       } catch {
         setRucState('unknown');
         setRucMessage('No se pudo validar externamente. Verifica red/CORS.');
@@ -893,7 +894,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       if (!guide.llegadaUbigeo.trim()) return 'Guía: falta ubigeo de llegada.';
 
       if (guide.modalidadTransporte.toUpperCase() === 'PUBLICO') {
-        if (!/^\d{11}$/.test(guide.transportistaRuc)) return 'Guía: RUC transportista inválido.';
+        if (!/^\d{9,10}$/.test(guide.transportistaRuc.replace(/\D/g, ''))) return 'Guía: NIT transportista inválido (9-10 dígitos).';
         if (!guide.transportistaRazonSocial.trim()) return 'Guía: falta razón social del transportista.';
       } else {
         if (!/^\d{8}$/.test(guide.conductorDni)) return 'Guía: DNI conductor inválido.';
@@ -1090,17 +1091,17 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
           {selectedFileName && <span style={{ fontSize: 12, color: '#334155' }}>{selectedFileName}</span>}
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
-          Gemini analiza la factura de venta, extrae cliente, RUC, detalle, cuentas 70xx, CxC, IGV débito fiscal, guía y criterios tributarios.
+          Gemini analiza la factura de venta, extrae cliente, NIT, detalle, cuentas de ingresos, CxC, IVA débito fiscal, remisión y criterios tributarios DIAN.
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-        <Field label="RUC cliente"><Input value={form.customerRuc} onChange={(_, d) => updateField('customerRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
+        <Field label="NIT/CC cliente"><Input value={form.customerRuc} onChange={(_, d) => updateField('customerRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
         <Field label="Razón social cliente"><Input value={customerName} onChange={(_, d) => setCustomerName(d.value)} /></Field>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-        <Button appearance="secondary" onClick={validateRucExternally}>Validar RUC Externo</Button>
+        <Button appearance="secondary" onClick={validateRucExternally}>Validar NIT DIAN</Button>
         <MessageBar intent={rucState === 'valid' ? 'success' : rucState === 'invalid' ? 'error' : 'info'}><MessageBarBody>{rucMessage}</MessageBarBody></MessageBar>
       </div>
 
@@ -1251,8 +1252,8 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr', gap: 10, marginTop: 12 }}>
-            <Field label="RUC transportista">
-              <Input value={guide.transportistaRuc} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRuc: d.value.replace(/\D/g, '').slice(0, 11) }))} />
+            <Field label="NIT transportista">
+              <Input value={guide.transportistaRuc} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRuc: d.value.replace(/\D/g, '').slice(0, 10) }))} />
             </Field>
             <Field label="Razón social transportista">
               <Input value={guide.transportistaRazonSocial} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRazonSocial: d.value }))} />

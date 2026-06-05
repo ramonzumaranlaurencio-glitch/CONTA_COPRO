@@ -209,7 +209,7 @@ const statusLabel = (status?: string) => {
   if (value === 'POSTED') return 'POSTEADO';
   if (value === 'PENDING') return 'PENDIENTE';
   if (value === 'REVIEW') return 'REVISION';
-  if (value === 'SUNAT') return 'SUNAT';
+  if (value === 'SUNAT') return 'DIAN';
 
   return value || 'PENDIENTE';
 };
@@ -1635,7 +1635,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                     {selectedRow.documentSeries && selectedRow.documentNumber && (
                       <p><strong>Documento:</strong> {selectedRow.documentSeries}-{selectedRow.documentNumber}</p>
                     )}
-                    {selectedRow.partnerRuc && <p><strong>RUC:</strong> {selectedRow.partnerRuc}</p>}
+                    {selectedRow.partnerRuc && <p><strong>NIT:</strong> {selectedRow.partnerRuc}</p>}
 
                     <div className="forensic-section">
                       <strong>Integridad criptografica</strong>
@@ -1962,7 +1962,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         };
 
         const handleAdd = () => {
-          if (!nRuc.trim() || nRuc.trim().length < 11) { setNErr('RUC inválido'); return; }
+          if (!nRuc.trim() || nRuc.replace(/\D/g, '').length < 9) { setNErr('NIT inválido (mínimo 9 dígitos)'); return; }
           if (!nNombre.trim()) { setNErr('Ingresa la razón social'); return; }
           addCompany({ id:`tenant-${Date.now()}`, ruc:nRuc.trim(), businessName:nNombre.trim(), rubro: nRubro as any, rubros:[nRubro as any] });
           setNRuc(''); setNNombre(''); setNRubro('CO'); setNErr('');
@@ -1997,7 +1997,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                         onClick={() => { setCompany(c.id); setActivePanel(null); }}>
                         <div>
                           <div style={{ color: isActive ? '#38bdf8' : '#e8f0fe', fontWeight:700, fontSize:13 }}>{c.businessName}</div>
-                          <div style={{ color:'#4d7a9e', fontSize:11, marginTop:2 }}>RUC {c.ruc} · {c.rubro}</div>
+                          <div style={{ color:'#4d7a9e', fontSize:11, marginTop:2 }}>NIT {c.ruc} · {c.rubro}</div>
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           {isActive && <span style={{ background:'rgba(56,189,248,0.2)', color:'#38bdf8', fontSize:10, fontWeight:800, padding:'2px 10px', borderRadius:20 }}>ACTIVA</span>}
@@ -2017,8 +2017,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                 <p style={{ margin:'0 0 10px', color:'#38bdf8', fontSize:12, fontWeight:700 }}>+ Agregar empresa</p>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                   <div>
-                    <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>RUC</label>
-                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="20XXXXXXXXX" maxLength={12} style={inp2} />
+                    <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>NIT</label>
+                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="900000000-1" maxLength={12} style={inp2} />
                   </div>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>Razón social</label>

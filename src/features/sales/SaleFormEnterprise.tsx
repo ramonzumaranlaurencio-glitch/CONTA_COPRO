@@ -16,7 +16,7 @@ type RucState = {
 export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
   const { postEntry, validateRUC } = useAccounting();
   const [loading, setLoading] = useState(false);
-  const [rucState, setRucState] = useState<RucState>({ intent: 'info', message: 'Pendiente de validacion SUNAT.' });
+  const [rucState, setRucState] = useState<RucState>({ intent: 'info', message: 'Pendiente de validación DIAN.' });
   const [showSuccess, setShowSuccess] = useState(false);
   const [form, setForm] = useState({
     serie: 'F001',
@@ -96,7 +96,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
       </div>
 
       <section>
-        <label className="text-xs font-bold text-slate-600 uppercase">RUC / Cliente</label>
+        <label className="text-xs font-bold text-slate-600 uppercase">NIT / CC Cliente</label>
         <div className="flex gap-2">
           <input
             className="flex-1 border-b-2 border-slate-300 p-2 focus:border-[#0078d4] outline-none"
@@ -105,7 +105,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
             onChange={(event) => setForm({ ...form, ruc: event.target.value })}
             onBlur={(event) => runRucValidation(event.target.value)}
           />
-          <button type="button" className="btn-fluent-secondary" onClick={() => runRucValidation(form.ruc)}>Validar SUNAT</button>
+          <button type="button" className="btn-fluent-secondary" onClick={() => runRucValidation(form.ruc)}>Validar DIAN</button>
         </div>
       </section>
 
