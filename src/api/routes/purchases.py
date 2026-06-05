@@ -1058,8 +1058,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     supplier_name = _norm_text(data.get("supplier_name"))
     supplier_ruc = _only_digits(data.get("supplier_ruc"))
     if supplier_ruc and not _is_valid_nit(supplier_ruc):
-        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
-        supplier_ruc = ""
+        warnings.append(f"NIT proveedor a verificar — no pasa modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
     if not supplier_ruc:
@@ -1129,7 +1128,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "iva_credit": _norm_text(raw.get("iva_credit")) or local["iva_credit"],
             "requires_bancarization": bool(raw.get("requires_bancarization", False)),
             "requires_retefuente_review": bool(raw.get("requires_retefuente_review", False)),
-            "requires_support": bool(raw.get("requires_support", local.get("requires_support", False))),
+            "requires_support": bool(local.get("requires_support", False)) if local.get("ai_confidence", 0) >= 0.85 else bool(raw.get("requires_support", local.get("requires_support", False))),
             "ai_reason": _norm_text(raw.get("ai_reason")) or local["ai_reason"],
             "ai_confidence": float(raw.get("ai_confidence") or local["ai_confidence"]),
             # Campos extra COMPRA_ALMACEN
@@ -1428,7 +1427,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     data.update({
         "document_type": data.get("document_type") or "RECIBO_SERVICIO",
         "serie": _norm_text(data.get("serie")),
-        "number": _norm_text(data.get("number")),
+        "number": _norm_text(data.get("number") or data.get("invoice_number")),
         "issue_date": _norm_text(data.get("issue_date")),
         "due_date": _norm_text(data.get("due_date")),
         "period": _norm_text(data.get("period")),
@@ -1436,6 +1435,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         "supplier_name": supplier_name,
         "currency": _norm_text(data.get("currency")) or "COP",
         "subtotal": _money_str(subtotal),
+        "igv": _money_str(igv),
         "iva": _money_str(igv),
         "non_taxed_amount": _money_str(data.get("non_taxed_amount")),
         "exempt_amount": _money_str(data.get("exempt_amount")),
