@@ -1058,7 +1058,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     supplier_name = _norm_text(data.get("supplier_name"))
     supplier_ruc = _only_digits(data.get("supplier_ruc"))
     if supplier_ruc and not _is_valid_nit(supplier_ruc):
-        warnings.append(f"NIT proveedor a verificar — no pasa modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
+        warnings.append(f"NIT proveedor a verificar (no pasa modulo 11 DIAN): {supplier_ruc}. Verifique en el RUT de la DIAN.")
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
     if not supplier_ruc:
