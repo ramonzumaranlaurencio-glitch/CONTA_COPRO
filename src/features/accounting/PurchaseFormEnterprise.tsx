@@ -66,7 +66,7 @@ type AccountingLineType =
   | 'LATE_FEE'
   | 'WITHHOLDING'
   | 'DETRACTION'
-  | 'PERCEPTION';
+  | 'PERCEPTION'
   | 'INFO_ONLY';
 
 type ExplicitAccountLine = {
