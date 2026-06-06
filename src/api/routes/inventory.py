@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+import logging
+from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from src.api.dependencies import get_current_context
 from src.api.routes.ledger import build_hash_service, build_uow_factory
@@ -1215,6 +1218,123 @@ class ValidatePurchaseItemPayload(BaseModel):
     catalog_nat: str | None = None       # Ej: EP
     catalog_rub: str | None = None       # Ej: GE
     catalog_tk: str | None = None        # P | T | F
+    catalog_match: bool = False          # True = encontrado en catálogo
+    gasto_account: str | None = None     # Cuenta de gasto (6xxx)
+    post_journal: bool = True
+    year: int | None = None
+    month: int | None = None
+
+
+@router.post("/validate-purchase-items")
+async def validate_purchase_items(
+    payload: ValidatePurchaseItemPayload,
+    request: Request,
+    ctx=Depends(get_current_context),
+):
+    """
+    Accepts a single line item from a purchase invoice/guide.
+    
+    Flow:
+    1. Locate or create the Product (by SKU or name)
+    2. Create a KardexMovement (ENTRY) linking back to source_doc (purchase document)
+    3. Return success with movement details
+    
+    The inventory system tracks which items have been accepted by marking them
+    in KardexMovement.source_document = "{entry_id}-L{idx}"
+    """
+    tenant_id = ctx["tenant_id"]
+    
+    try:
+        async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
+            from src.domain.models.inventory import Product, Warehouse, KardexMovement
+            from sqlalchemy import select, func
+            
+            # 1. Get or create the Warehouse
+            warehouse_result = await uow.session.execute(
+                select(Warehouse).where(
+                    Warehouse.tenant_id == tenant_id,
+                    Warehouse.id == payload.warehouse_id
+                )
+            )
+            warehouse = warehouse_result.scalar_one_or_none()
+            if not warehouse:
+                raise HTTPException(status_code=404, detail="Almacén no encontrado")
+            
+            # 2. Get or create the Product
+            product = None
+            if payload.product_id:
+                # Look up by ID
+                prod_result = await uow.session.execute(
+                    select(Product).where(Product.id == payload.product_id)
+                )
+                product = prod_result.scalar_one_or_none()
+            
+            if not product and payload.sku:
+                # Look up by SKU
+                sku_result = await uow.session.execute(
+                    select(Product).where(
+                        Product.tenant_id == tenant_id,
+                        Product.sku == payload.sku
+                    )
+                )
+                product = sku_result.scalar_one_or_none()
+            
+            if not product:
+                # Create new product
+                new_sku = payload.sku or f"AUTO-{payload.product_name[:20]}"
+                product = Product(
+                    id=str(uuid4()),
+                    tenant_id=tenant_id,
+                    sku=new_sku,
+                    name=payload.product_name,
+                    unit_of_measure=payload.unit,
+                    default_cost=Decimal(str(payload.unit_cost)),
+                    default_sales_account="7011",
+                    default_cost_account=payload.account_code or "2011",
+                    item_class=payload.item_class,
+                    area=payload.area,
+                    is_active=True,
+                    created_at=datetime.utcnow(),
+                )
+                uow.session.add(product)
+                await uow.session.flush()
+            
+            # 3. Create KardexMovement
+            movement = KardexMovement(
+                id=str(uuid4()),
+                tenant_id=tenant_id,
+                warehouse_id=payload.warehouse_id,
+                product_id=str(product.id),
+                movement_type="ENTRY",  # Purchase entry
+                qty=Decimal(str(payload.qty)),
+                unit_cost=Decimal(str(payload.unit_cost)),
+                balance_qty=Decimal(str(payload.qty)),  # Will be updated by kardex service
+                balance_avg_cost=Decimal(str(payload.unit_cost)),
+                movement_reference=f"Purchase: {payload.source_module}",
+                source_document=payload.source_doc,  # e.g., "{entry_id}-L{idx}"
+                area=payload.area,
+                validated_by=ctx.get("user_id"),
+                notes=f"From purchase entry {payload.entry_id}. IA confidence: {payload.unit_cost}%",
+                created_at=datetime.utcnow(),
+            )
+            uow.session.add(movement)
+            await uow.session.commit()
+            
+            return {
+                "status": "ACCEPTED",
+                "movement_id": str(movement.id),
+                "product_id": str(product.id),
+                "source_doc": payload.source_doc,
+                "qty": str(payload.qty),
+                "unit_cost": str(payload.unit_cost),
+                "total": str(Decimal(str(payload.qty)) * Decimal(str(payload.unit_cost))),
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error validating purchase item: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error al validar ítem: {exc}") from exc
     catalog_match: bool = False          # True = encontrado en catálogo
     gasto_account: str | None = None     # Cuenta de gasto (6xxx)
     post_journal: bool = True

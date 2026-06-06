@@ -541,8 +541,11 @@ async def list_journal(
                             "cost_center": line.cost_center,
                             "debit": str(line.debit),
                             "credit": str(line.credit),
-                            "debe_mn": str(getattr(line, "debe_mn", line.debit) or line.debit),
-                            "haber_mn": str(getattr(line, "haber_mn", line.credit) or line.credit),
+                            # Explicitly calculate debe_mn and haber_mn in local currency (COP)
+                            # debe_mn = debit * tipo_cambio (convert to local currency)
+                            # haber_mn = credit * tipo_cambio
+                            "debe_mn": str((line.debit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
+                            "haber_mn": str((line.credit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
                             "tipo_cambio": str(getattr(line, "tipo_cambio", "1.0000") or "1.0000"),
                             "periodo_fiscal": getattr(line, "periodo_fiscal", None),
                             "modulo_origen": getattr(line, "modulo_origen", None),
