@@ -13,6 +13,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import selectinload
 from src.infrastructure.repositories.ledger_repository import LedgerRepository
+from src.infrastructure.events.event_types import EventTopic, build_event_payload
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,8 @@ class LedgerPostingService:
         self.hash_service = hash_service
         self.expert_guard = ExpertAccountingGuard(
             SunatRealtimeVerifier(
-                ruc_lookup_url=settings.sunat_ruc_lookup_url,
-                cpe_lookup_url=settings.sunat_cpe_lookup_url,
+                nit_lookup_url=settings.sunat_ruc_lookup_url,
+                cufe_validation_url=settings.sunat_cpe_lookup_url,
                 token=settings.sunat_lookup_token,
                 timeout_seconds=settings.sunat_realtime_timeout_seconds,
             ),
@@ -166,10 +167,8 @@ class LedgerPostingService:
 
     def _statement_for_account(self, code: str) -> str:
         first = self._normalize_code(code, "0")[:1]
-        if first in {"1", "2", "3", "4", "5"}:
         if first in {"1", "2", "3"}:
             return "BALANCE"
-        if first in {"6", "7", "8", "9"}:
         if first in {"4", "5", "6", "7"}:
             return "PROFIT_LOSS"
         return "UNCLASSIFIED"
@@ -179,7 +178,6 @@ class LedgerPostingService:
         return "CREDIT" if first in {"2", "3", "4", "5", "7"} else "DEBIT"
 
     def _requires_cost_center(self, code: str) -> bool:
-        return self._normalize_code(code, "0")[:1] in {"6", "9"}
         # En Colombia (PUC), los Gastos (5) y Costos (6) requieren Centro de Costo
         return self._normalize_code(code, "0")[:1] in {"5", "6"}
 
@@ -316,7 +314,7 @@ class LedgerPostingService:
         payable_balance = (total + percepcion - retencion - detraccion).quantize(Decimal("0.01"))
         company_id = purchase_data.get("company_id")
         supplier_ruc = purchase_data.get("supplier_ruc")
-        doc_type = purchase_data.get("doc_type", "01")
+        doc_type = purchase_data.get("doc_type", "01")  # Default document type
         serie = str(purchase_data.get("serie") or "").strip().upper()
         number = str(purchase_data.get("number") or "").strip()
         # Fecha de registro = entry_date (hoy, cuando se ingresa el documento)
@@ -463,7 +461,7 @@ class LedgerPostingService:
                     "project_code": raw.get("project_code"),
                 })
         else:
-                lines = [
+            lines = [
                 {
                     "account_code": self._normalize_code(purchase_data.get("expense_account") or settings.default_expense_account),
                     "account_name": "Compras y gastos",
@@ -567,40 +565,59 @@ class LedgerPostingService:
 
         # Alerta de anotación tardía: comprobante de período anterior registrado hoy
         late_registration_alert: str | None = None
+        months_diff = 0
         if invoice_issue_date and document_date:
             months_diff = (document_date.year - invoice_issue_date.year) * 12 + (document_date.month - invoice_issue_date.month)
             if months_diff > 0:
-                late_registration_alert = (
-                    f"ANOTACION TARDIA: Comprobante emitido el {invoice_issue_date.isoformat()} "
-                    f"registrado en período {document_date.strftime('%Y-%m')} "
-                    f"({months_diff} mes(es) de diferencia). "
-                    f"Verificar anotación oportuna para crédito fiscal IGV (máx. 12 meses) "
-                    f"y deducibilidad del gasto en el período correcto."
+                late_registration_alert = True
+                logger.warning(
+                    "CONTA_PRO late_registration tenant=%s serie=%s-%s issue=%s entry=%s diff_months=%d",
+                    tenant_id,
+                    serie,
+                    number,
+                    invoice_issue_date,
+                    document_date,
+                    months_diff,
                 )
-                logger.warning("CONTA_PRO late_registration tenant=%s serie=%s-%s issue=%s entry=%s diff_months=%d",
-                    tenant_id, serie, number, invoice_issue_date, document_date, months_diff)
+
+        # Build concise financial metadata (short, machine-friendly) to avoid
+        # storing large human-readable texts coming from OCR/AI.
+        items = purchase_data.get("line_items") or purchase_data.get("items") or []
+        processed_items = []
+        for it in items:
+            desc = str(it.get("description") or "")
+            req_support = any(k in desc.lower() for k in ("requiere sustento", "requiere sustento adicional", "requiere sustento"))
+            processed_items.append({
+                "id": it.get("id") or it.get("code"),
+                "code": it.get("code"),
+                "is_inventory": bool(it.get("is_inventory")),
+                "requires_support": req_support,
+            })
+
+        rounding_difference = (total - (subtotal + igv)).quantize(Decimal("0.01"))
+        reconciliation_status = "OK" if abs(rounding_difference) <= Decimal("0.50") else "REQUIRES_REVIEW"
+
+        nit_valid = None
+        try:
+            ruc = str(supplier_ruc or "").strip()
+            nit_valid = True if (ruc.isdigit() and 9 <= len(ruc) <= 12) else False
+        except Exception:
+            nit_valid = None
 
         financial_metadata = self._json_safe({
-            "supplier_ruc": supplier_ruc,
+            "supplier_ruc": supplier_ruc if nit_valid else None,
             "supplier_name": purchase_data.get("supplier_name"),
-            "sire_ready": True,
-            "late_registration_alert": late_registration_alert,
+            "nit_validation": ("VALID" if nit_valid else ("INVALID" if nit_valid is False else "UNKNOWN")),
+            "late_registration": bool(late_registration_alert),
+            "late_registration_months": months_diff,
             "detraccion_amount": str(detraccion),
             "percepcion_amount": str(percepcion),
             "retencion_amount": str(retencion),
-            "line_items": purchase_data.get("line_items") or purchase_data.get("items") or [],
-            "account_lines": [
-                {
-                    "account_code": line.get("account_code"),
-                    "account_name": line.get("account_name"),
-                    "cost_center": line.get("cost_center"),
-                    "debit": str(line.get("debit")),
-                    "credit": str(line.get("credit")),
-                }
-                for line in lines
-            ],
+            "items": processed_items,
             "accounts_to_upsert": account_upserts,
             "cost_centers_to_upsert": cost_center_upserts,
+            "rounding_difference": str(rounding_difference),
+            "reconciliation_status": reconciliation_status,
             "audit_metadata": purchase_data.get("audit_metadata") or {},
         })
 
@@ -631,18 +648,20 @@ class LedgerPostingService:
                 "metadata_json": financial_metadata,
             },
             "outbox_events": [
-                {
-                    "topic": "accounting.purchase.posted",
-                    "aggregate_type": "FinancialDocument",
-                    "payload": {
+                build_event_payload(
+                    topic=EventTopic.PURCHASE_INVOICE_POSTED,
+                    aggregate_type="FinancialDocument",
+                    aggregate_id=purchase_data.get("purchase_id") or f"{serie}-{number}",
+                    payload={
                         "purchase_id": str(purchase_data.get("purchase_id")),
                         "serie": serie,
                         "number": number,
                         "supplier_ruc": supplier_ruc,
                         "total": str(total),
                         "trace_id": purchase_data.get("trace_id"),
+                        "line_items": purchase_data.get("line_items") or purchase_data.get("items") or [],
                     },
-                }
+                )
             ],
         })
 
