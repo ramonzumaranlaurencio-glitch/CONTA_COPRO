@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from uuid import UUID, uuid4
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
 import base64
@@ -21,7 +21,7 @@ from src.application.dto.ledger import InvoicePostRequest, JournalEntryListItem,
 from src.application.services.ledger_posting_service import LedgerPostingService
 from src.application.services.integrity_scanner import LedgerIntegrityScanner
 from src.application.services.expert_accounting_guard import ExpertAccountingGuard
-from src.application.services.sunat_realtime_verifier import SunatRealtimeVerifier
+from src.application.services.dian_realtime_verifier import DianRealtimeVerifier
 from src.config import settings
 from src.domain.models.accounting import AccountingPeriod, AuditLog, FinancialDocument, JournalEntry, OutboxEvent
 from src.domain.exceptions import ContaProException, ExpertValidationException
@@ -252,14 +252,14 @@ def _document_to_old_payload(document: FinancialDocument) -> dict:
 
 def _guard() -> ExpertAccountingGuard:
     return ExpertAccountingGuard(
-        SunatRealtimeVerifier(
-            ruc_lookup_url=settings.sunat_ruc_lookup_url,
-            cpe_lookup_url=settings.sunat_cpe_lookup_url,
-            token=settings.sunat_lookup_token,
-            timeout_seconds=settings.sunat_realtime_timeout_seconds,
+        DianRealtimeVerifier(
+            nit_lookup_url=settings.dian_nit_lookup_url,
+            documento_lookup_url=settings.dian_documento_lookup_url,
+            token=settings.dian_lookup_token,
+            timeout_seconds=settings.dian_realtime_timeout_seconds,
         ),
-        sunat_enabled=settings.sunat_realtime_guard_enabled,
-        block_on_unavailable=settings.sunat_guard_block_on_unavailable,
+        dian_enabled=settings.dian_realtime_guard_enabled,
+        block_on_unavailable=settings.dian_guard_block_on_unavailable,
     )
 
 
@@ -268,6 +268,25 @@ def _parse_int_safe(value: str) -> int | None:
         return int(value)
     except Exception:
         return None
+
+
+def _to_decimal(value, default: Decimal = Decimal("1.0000")) -> Decimal:
+    """Safely convert various types to Decimal, with a default fallback.
+
+    Accepts Decimal, str, int, float or None. Returns a Decimal quantized
+    to 4 decimal places for exchange rates.
+    """
+    try:
+        if value is None:
+            return default
+        if isinstance(value, Decimal):
+            return value
+        if isinstance(value, (int,)):
+            return Decimal(value)
+        # For floats or strings, create Decimal via str to avoid binary float issues
+        return Decimal(str(value))
+    except Exception:
+        return default
 
 
 def _next_guide_number(existing_numbers: list[str]) -> str:
@@ -349,7 +368,7 @@ def _build_guide_pdf_bytes(document: FinancialDocument) -> bytes:
     story.append(detail_table)
 
     story.append(Spacer(1, 4 * mm))
-    story.append(Paragraph("Representacion impresa de la Guia de Remision Remitente (SUNAT)", styles["Italic"]))
+    story.append(Paragraph("Representación impresa de la Guía de Remisión Remitente (DIAN Colombia)", styles["Italic"]))
 
     pdf.build(story)
     return buffer.getvalue()
@@ -494,13 +513,17 @@ async def list_journal(
             )
 
             if year is not None and month is not None:
-                start_date = date(year, month, 1)
-                end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
-                stmt = stmt.where(JournalEntry.entry_date >= start_date, JournalEntry.entry_date < end_date)
+                # Use full datetime range [start, first_of_next_month) to avoid
+                # excluding last-day entries due to timestamp time components.
+                start_dt = datetime(year, month, 1, 0, 0, 0)
+                next_month_year = year + (1 if month == 12 else 0)
+                next_month = 1 if month == 12 else month + 1
+                end_dt = datetime(next_month_year, next_month, 1, 0, 0, 0)
+                stmt = stmt.where(JournalEntry.entry_date >= start_dt, JournalEntry.entry_date < end_dt)
             elif year is not None:
-                start_date = date(year, 1, 1)
-                end_date = date(year + 1, 1, 1)
-                stmt = stmt.where(JournalEntry.entry_date >= start_date, JournalEntry.entry_date < end_date)
+                start_dt = datetime(year, 1, 1, 0, 0, 0)
+                end_dt = datetime(year + 1, 1, 1, 0, 0, 0)
+                stmt = stmt.where(JournalEntry.entry_date >= start_dt, JournalEntry.entry_date < end_dt)
 
             result = await uow.session.execute(stmt)
             entries = result.scalars().unique().all()
@@ -532,7 +555,7 @@ async def list_journal(
                     estado_asiento=getattr(entry, "estado_asiento", "VALIDADO"),
                     validar_status=getattr(entry, "validar_status", "OK"),
                     tipo_asiento_id=int(getattr(entry, "tipo_asiento_id", 1) or 1),
-                    lines=[
+                    lines=(lambda _entry, _lines: [
                         {
                             "id": str(line.id),
                             "linea_idx": getattr(line, "linea_idx", None),
@@ -541,12 +564,20 @@ async def list_journal(
                             "cost_center": line.cost_center,
                             "debit": str(line.debit),
                             "credit": str(line.credit),
+<<<<<<< HEAD
                             # Explicitly calculate debe_mn and haber_mn in local currency (COP)
                             # debe_mn = debit * tipo_cambio (convert to local currency)
                             # haber_mn = credit * tipo_cambio
                             "debe_mn": str((line.debit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
                             "haber_mn": str((line.credit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
                             "tipo_cambio": str(getattr(line, "tipo_cambio", "1.0000") or "1.0000"),
+=======
+                            # Compute tipo_cambio using line.tipo_cambio -> entry.tipo_cambio -> default 1.0000
+                            # Then calculate debe_mn/haber_mn as Decimal and quantize to 2 decimals.
+                            "debe_mn": (lambda _ld, _lc: str((_ld * _lc).quantize(Decimal("0.01"))))(Decimal(line.debit or Decimal("0.00")), _to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000"))),
+                            "haber_mn": (lambda _lc2, _lc3: str((_lc2 * _lc3).quantize(Decimal("0.01"))))(Decimal(line.credit or Decimal("0.00")), _to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000"))),
+                            "tipo_cambio": str(_to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000")).quantize(Decimal("0.0001"))),
+>>>>>>> 26a39a5bf (Actualizacion Colombia)
                             "periodo_fiscal": getattr(line, "periodo_fiscal", None),
                             "modulo_origen": getattr(line, "modulo_origen", None),
                             "partner_ruc": line.partner_ruc,
@@ -560,8 +591,8 @@ async def list_journal(
                             "estado_asiento": getattr(line, "estado_asiento", "VALIDADO"),
                             "validar_status": getattr(line, "validar_status", "OK"),
                         }
-                        for line in lines
-                    ],
+                        for line in _lines
+                    ])(entry, lines),
                 )
             )
         return response
@@ -617,7 +648,7 @@ async def lookup_financial_document(
                 "tax_amount": str(document.tax_amount),
                 "total_amount": str(document.total_amount),
                 "balance_amount": str(document.balance_amount),
-                "sunat_status": document.sunat_status,
+                "dian_status": document.dian_status,
                 "cdr_status": document.cdr_status,
                 "metadata_json": metadata,
                 "partner_ruc": metadata.get("customer_ruc") or metadata.get("supplier_ruc"),
@@ -706,7 +737,7 @@ async def validate_document_modification(payload: DocumentModificationRequest, c
             uow.session.add(
                 OutboxEvent(
                     tenant_id=ctx["tenant_id"],
-                    topic="sunat.credit_note.draft",
+                    topic="dian.credit_note.draft",
                     aggregate_type="FinancialDocument",
                     aggregate_id=str(document.id),
                     payload={

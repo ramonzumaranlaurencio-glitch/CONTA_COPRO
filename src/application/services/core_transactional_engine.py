@@ -71,8 +71,8 @@ class SalesOrchestrator:
             "glosa": f"VENTA IA: {vision_data['serie_numero']}",
             "items": [
                 {"account": "1212", "debit": vision_data["total"], "credit": 0},
-                {"account": "4011", "debit": 0, "credit": vision_data["total"] * Decimal("0.1525")},
-                {"account": "7011", "debit": 0, "credit": vision_data["total"] / Decimal("1.18")},
+                {"account": "4011", "debit": 0, "credit": vision_data["total"] - vision_data["total"] / Decimal("1.19")},
+                {"account": "7011", "debit": 0, "credit": vision_data["total"] / Decimal("1.19")},
             ],
         })
 

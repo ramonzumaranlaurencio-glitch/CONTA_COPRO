@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -9,7 +10,7 @@ from pydantic import BaseModel, Field
 import httpx
 from sqlalchemy import select
 
-from src.api.dependencies import require_roles
+from src.api.dependencies import require_roles, require_feature_dependency
 from src.api.routes.ledger import build_hash_service, build_uow_factory
 from src.infrastructure.adapters.ai.vision_provider import get_vision_client, is_vision_available
 from src.application.services.hr_ai_service import (
@@ -30,7 +31,11 @@ from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.repositories.ledger_repository import LedgerRepository
 from src.infrastructure.unit_of_work import UnitOfWork
 
-router = APIRouter(prefix="/hr", tags=["RRHH IA"])
+router = APIRouter(
+    prefix="/hr",
+    tags=["RRHH IA"],
+    dependencies=[Depends(require_feature_dependency("payroll"))],
+)
 
 
 class WorkerCreatePayload(BaseModel):
@@ -123,24 +128,39 @@ def _summarize_requirements(requirements: list[dict]) -> dict:
 
 @router.get("/legal-library")
 async def legal_library(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
-    return {"tenant_id": ctx["tenant_id"], "documents": LABOR_LEGAL_LIBRARY}
+    unique_documents: list[dict[str, Any]] = []
+    seen_sources: set[str] = set()
+    for item in LABOR_LEGAL_LIBRARY:
+        source_key = item.get("source_id") or item.get("url")
+        if source_key in seen_sources:
+            continue
+        seen_sources.add(source_key)
+        unique_documents.append(item)
+    return {"tenant_id": ctx["tenant_id"], "documents": unique_documents}
 
 
 @router.post("/legal-library/seed")
 async def seed_legal_library(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "CONTROLLER"))):
-    documents = [
-        LegalDocumentInput(
-            source_id=item["source_id"],
-            title=item["title"],
-            content=(
-                f"{item['title']}. Fuente oficial/referencial: {item['url']}. "
-                "Usar como contexto legal laboral colombiano para seleccion, contratacion, nomina, "
-                "jornada (CST), SST (Ley 1562/2012), seguridad social (Ley 100/1993), parafiscales (Ley 21/1982), "
-                "PILA (UGPP), ReteFuente (ET Art. 383), proteccion datos (Ley 1581/2012)."
-            ),
-            metadata={"url": item["url"], "domain": "laboral_peru"},
+    seen_sources: set[str] = set()
+    documents: list[LegalDocumentInput] = []
+    for item in LABOR_LEGAL_LIBRARY:
+        source_key = item.get("source_id") or item.get("url")
+        if source_key in seen_sources:
+            continue
+        seen_sources.add(source_key)
+        documents.append(
+            LegalDocumentInput(
+                source_id=item["source_id"],
+                title=item["title"],
+                content=(
+                    f"{item['title']}. Fuente oficial/referencial: {item['url']}. "
+                    "Usar como contexto legal laboral colombiano para seleccion, contratacion, nomina, "
+                    "jornada (CST), SST (Ley 1562/2012), seguridad social (Ley 100/1993), parafiscales (Ley 21/1982), "
+                    "PILA (UGPP), ReteFuente (ET Art. 383), proteccion datos (Ley 1581/2012)."
+                ),
+                metadata={"url": item["url"], "domain": "laboral_colombia"},
+            )
         )
-        for item in LABOR_LEGAL_LIBRARY
     ]
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         service = LegalRagService(
@@ -179,7 +199,7 @@ async def upload_legal_library_documents(
                 source_id=source_id[:120],
                 title=upload.filename or f"Documento legal {index}",
                 content=text,
-                metadata={"uploaded": True, "filename": upload.filename, "domain": "laboral_peru"},
+                metadata={"uploaded": True, "filename": upload.filename, "domain": "laboral_colombia"},
             )
         )
 
@@ -318,34 +338,34 @@ async def validate_identity(payload: IdentityValidationPayload, ctx=Depends(requ
     normalized_given = f"{payload.nombres} {payload.apellidos}".strip().lower()
     warnings: list[str] = []
     checks = {
-        "dni_format_ok": len(payload.dni) == 8,
+        "cedula_format_ok": len(payload.dni) >= 5 and len(payload.dni) <= 12,
         "name_matches_input": bool(normalized_given),
-        "reniec_checked": False,
+        "dian_checked": False,
         "antecedentes_checked": False,
         "critical_legal_alert": False,
     }
 
     # Optional external lookups when endpoints are configured.
     async with httpx.AsyncClient(timeout=8.0) as client:
-        if settings.sunat_ruc_lookup_url:
+        if settings.dian_rut_lookup_url:
             try:
-                reniec_resp = await client.get(settings.sunat_ruc_lookup_url, params={"dni": payload.dni})
-                checks["reniec_checked"] = reniec_resp.status_code < 400
-                if reniec_resp.status_code < 400:
-                    reniec_data = reniec_resp.json() if "application/json" in reniec_resp.headers.get("content-type", "") else {}
-                    remote_name = str(reniec_data.get("nombre") or reniec_data.get("razon_social") or "").strip().lower()
+                dian_resp = await client.get(settings.dian_rut_lookup_url, params={"cedula": payload.dni})
+                checks["dian_checked"] = dian_resp.status_code < 400
+                if dian_resp.status_code < 400:
+                    dian_data = dian_resp.json() if "application/json" in dian_resp.headers.get("content-type", "") else {}
+                    remote_name = str(dian_data.get("nombre") or dian_data.get("razon_social") or "").strip().lower()
                     if remote_name and normalized_given and remote_name not in normalized_given and normalized_given not in remote_name:
-                        warnings.append("Alerta: nombre ingresado no coincide con padron externo.")
+                        warnings.append("Alerta: nombre ingresado no coincide con padron DIAN.")
                 else:
-                    warnings.append("No se pudo validar RENIEC/SUNAT en linea.")
+                    warnings.append("No se pudo validar DIAN/RUT en linea.")
             except Exception:
-                warnings.append("Servicio RENIEC/SUNAT no disponible, validar manualmente.")
+                warnings.append("Servicio DIAN/RUT no disponible, validar manualmente.")
         else:
-            warnings.append("Endpoint RENIEC/SUNAT no configurado; validacion automatica parcial.")
+            warnings.append("Endpoint DIAN/RUT no configurado; validacion automatica parcial.")
 
-        if settings.sunat_cpe_lookup_url:
+        if settings.dian_antecedentes_lookup_url:
             try:
-                antecedentes_resp = await client.get(settings.sunat_cpe_lookup_url, params={"dni": payload.dni})
+                antecedentes_resp = await client.get(settings.dian_antecedentes_lookup_url, params={"cedula": payload.dni})
                 checks["antecedentes_checked"] = antecedentes_resp.status_code < 400
                 if antecedentes_resp.status_code < 400:
                     raw = antecedentes_resp.text.lower()

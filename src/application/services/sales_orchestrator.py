@@ -34,8 +34,8 @@ class SalesOrchestrator:
         if total <= 0:
             raise ValueError("No se pudo identificar el monto total de la factura")
 
-        igv = (total * Decimal("0.1525")).quantize(Decimal("0.01"))
-        subtotal = (total / Decimal("1.18")).quantize(Decimal("0.01"))
+        subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"))
+        igv = (total - subtotal).quantize(Decimal("0.01"))
 
         asiento = {
             "tenant_id": tenant_id,

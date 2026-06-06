@@ -399,6 +399,9 @@ class SunatSubmission(Base):
     raw_response: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
+
+DianSubmission = SunatSubmission
+
 class IntegrationConnector(Base):
     __tablename__ = "integration_connectors"
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)

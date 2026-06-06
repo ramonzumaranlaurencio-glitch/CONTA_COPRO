@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
 from src.api.dependencies import get_current_context
+=======
+from src.api.dependencies import get_current_context, require_feature_dependency
+>>>>>>> 26a39a5bf (Actualizacion Colombia)
 from src.api.routes.ledger import build_hash_service, build_uow_factory
 from src.application.services.inventory_service import InventoryService
 from src.application.services.ledger_posting_service import LedgerPostingService
@@ -18,7 +22,11 @@ from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.repositories.inventory_repository import InventoryRepository
 from src.infrastructure.unit_of_work import UnitOfWork
 
-router = APIRouter(prefix="/inventory", tags=["Inventory"])
+router = APIRouter(
+    prefix="/inventory",
+    tags=["Inventory"],
+    dependencies=[Depends(require_feature_dependency("inventory"))],
+)
 
 # Prefijos por clase de artículo
 CLASS_CODES: dict[str, str] = {
@@ -346,8 +354,10 @@ async def list_balances(ctx=Depends(get_current_context)):
             b = row["balance"]
             p = row["product"]
             w = row["warehouse"]
-            balance_qty = float(b.balance_qty)
-            avg_cost = float(b.balance_avg_cost)
+            # Preserve numeric precision: use Decimal and return monetary values as strings
+            bal_qty = Decimal(str(b.balance_qty)) if getattr(b, "balance_qty", None) is not None else Decimal("0")
+            avg_cost = Decimal(str(b.balance_avg_cost)) if getattr(b, "balance_avg_cost", None) is not None else Decimal("0")
+            balance_value = (bal_qty * avg_cost).quantize(Decimal("0.01"))
             result.append({
                 "balance_id": str(b.id),
                 "id": str(p.id),
@@ -369,9 +379,9 @@ async def list_balances(ctx=Depends(get_current_context)):
                 "specs": p.specs,
                 "location": p.location,
                 "is_active": p.is_active,
-                "balance_qty": balance_qty,
-                "balance_avg_cost": avg_cost,
-                "balance_value": round(balance_qty * avg_cost, 2),
+                "balance_qty": str(bal_qty),
+                "balance_avg_cost": str(avg_cost.quantize(Decimal("0.01"))),
+                "balance_value": str(balance_value),
                 "updated_at": b.updated_at.isoformat() if b.updated_at else None,
             })
         return result
@@ -822,13 +832,13 @@ async def reset_products(ctx=Depends(get_current_context)):
 
 
 # =========================================================================
-# REPORTE POR CUENTA PCGE — ROTACIÓN Y VALOR
+# REPORTE POR CUENTA PUC — ROTACIÓN Y VALOR
 # =========================================================================
 
 @router.get("/report/by-account")
 async def report_by_account(ctx=Depends(get_current_context)):
     """
-    Reporte de inventario agrupado por cuenta PCGE.
+    Reporte de inventario agrupado por cuenta PUC (Plan Único de Cuentas Colombia).
     Muestra: valor total, qty, entradas, salidas, rotación, costo promedio.
     Permite ver exactamente cuánto hay en 252, 201, 241, etc.
     """
@@ -889,7 +899,7 @@ async def report_by_account(ctx=Depends(get_current_context)):
             if cta not in accounts:
                 accounts[cta] = {
                     "account_code":      cta,
-                    "account_name":      _pcge_account_name(cta),
+                    "account_name":      _puc_account_name(cta),
                     "products_count":    0,
                     "total_qty":         0.0,
                     "total_value":       0.0,
@@ -966,7 +976,8 @@ def _puc_account_name(code: str) -> str:
 
 
 # Alias para compatibilidad con código existente
-_pcge_account_name = _puc_account_name
+
+_puc_account_name = _puc_account_name  # Consolidado: solo nomenclatura PUC colombiano
 
 
 # =========================================================================
@@ -996,18 +1007,14 @@ def _infer_item_class(item: dict) -> str:
     if any(k in desc for k in _TOOL_KEYWORDS):
         return "HERRAMIENTAS"
 
-    # Por cuenta PCGE
-    if code.startswith("33") or code.startswith("34"):
+    # Por cuenta PUC Colombia
+    if code.startswith("15"):
         return "ACTIVO_FIJO"
-    if code.startswith("2523") or code.startswith("253"):
+    if code.startswith("1455") or code.startswith("1460"):
         return "INSUMOS"
-    if code.startswith("2522") or code.startswith("252") or code.startswith("2521") or code.startswith("251"):
-        return "INSUMOS"
-    if code.startswith("2411") or code.startswith("2412") or code.startswith("241") or code.startswith("242"):
+    if code.startswith("1435") or code.startswith("1405"):
         return "MATERIA_PRIMA"
-    if code.startswith("20") or code.startswith("21") or code.startswith("22"):
-        return "MERCADERIA"
-    if code.startswith("60") or code.startswith("61"):
+    if code.startswith("1430") or code.startswith("1410"):
         return "MERCADERIA"
 
     # Por descripcion (resto)
@@ -1124,9 +1131,9 @@ async def get_pending_purchases(
                 acc_prefix_raw = acc_code_raw.split("-")[0] if "-" in acc_code_raw else acc_code_raw
                 acc_prefix     = acc_prefix_raw[:2] if len(acc_prefix_raw) >= 2 else ""
 
-                # Detectar si es bien físico de inventario por cuenta PCGE:
-                # 20-26 = existencias, 33-35 = activo fijo capitalizable
-                _INVENTORY_PREFIXES = {"20","21","22","23","24","25","26","33","34","35"}
+                # Detectar si es bien físico de inventario por cuenta PUC Colombia:
+                # 14 = inventarios, 15 = propiedad planta y equipo
+                _INVENTORY_PREFIXES = {"14", "15"}
                 is_inventory_by_account = acc_prefix in _INVENTORY_PREFIXES
                 is_inventory_flag = bool(item.get("is_inventory", False))
                 is_inv = is_inventory_flag or is_inventory_by_account or line_type == "INVENTORY_PURCHASE"
@@ -1225,12 +1232,8 @@ class ValidatePurchaseItemPayload(BaseModel):
     month: int | None = None
 
 
-@router.post("/validate-purchase-items")
-async def validate_purchase_items(
-    payload: ValidatePurchaseItemPayload,
-    request: Request,
-    ctx=Depends(get_current_context),
-):
+@router.post("/validate-purchase-item")
+async def validate_purchase_item(payload: ValidatePurchaseItemPayload, request: Request, ctx=Depends(get_current_context)):
     """
     Accepts a single line item from a purchase invoice/guide.
     
@@ -1351,128 +1354,133 @@ async def validate_purchase_items(
     qty  = D(str(payload.qty))
     cost = D(str(payload.unit_cost))
 
-    async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
-        repo = InventoryRepository(uow.session)
+    try:
+        async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as uow:
+            repo = InventoryRepository(uow.session)
 
-        # ── Buscar o crear producto (por empresa + catalog_code) ─────────────
-        product_id = payload.product_id
-        if not product_id:
-            # 1. Intentar encontrar por catalog_code y company_id (multi-empresa)
-            existing = None
-            if payload.catalog_code:
-                existing = await repo.find_product_by_token_code(
-                    payload.tenant_id, payload.catalog_code, payload.company_id
-                )
-            if existing:
-                product_id = str(existing.id)
-            else:
-                # 2. No existe → crear con código estructurado del catálogo
-                # account_code es la subcuenta PCGE completa (ej: "2522")
-                # cta es solo los primeros 3 dígitos para el token del almacén (ej: "252")
-                cta   = (payload.account_code or "252")[:3]   # base para token almacén
-                nat   = payload.catalog_nat or infer_nat_from_description(payload.product_name, cta)
-                rub   = payload.catalog_rub or "GE"
-                tk    = payload.catalog_tk  or infer_tk_from_description(payload.product_name, nat)
-                item_cls = payload.item_class or item_class_from_nat(nat)
-
-                if payload.catalog_code and "9999" not in payload.catalog_code:
-                    # Código definitivo del catálogo — usarlo directamente
-                    token_code = payload.catalog_code
+            # ── Buscar o crear producto (por empresa + catalog_code) ─────────────
+            product_id = payload.product_id
+            if not product_id:
+                existing = None
+                if payload.catalog_code:
+                    existing = await repo.find_product_by_token_code(
+                        payload.tenant_id, payload.catalog_code, payload.company_id
+                    )
+                if existing:
+                    product_id = str(existing.id)
                 else:
-                    # Código provisional → asignar secuencia real por empresa
-                    seq = await repo.count_products_by_class_area(
-                        payload.tenant_id, item_cls, payload.area,
+                    # account_code es la subcuenta PUC completa (ej: "2522")
+                    # cta es solo los primeros 3 dígitos para el token del almacén (ej: "252")
+                    cta   = (payload.account_code or "252")[:3]
+                    nat   = payload.catalog_nat or infer_nat_from_description(payload.product_name, cta)
+                    rub   = payload.catalog_rub or "GE"
+                    tk    = payload.catalog_tk  or infer_tk_from_description(payload.product_name, nat)
+                    item_cls = payload.item_class or item_class_from_nat(nat)
+
+                    if payload.catalog_code and "9999" not in payload.catalog_code:
+                        token_code = payload.catalog_code
+                    else:
+                        seq = await repo.count_products_by_class_area(
+                            payload.tenant_id, item_cls, payload.area,
+                            company_id=payload.company_id,
+                        ) + 1
+                        token_code = build_structured_code(cta, nat, rub, seq, tk)
+
+                    token_type_map = {"P": "PERMANENTE", "T": "TEMPORAL", "F": "FUNGIBLE"}
+                    token_type = token_type_map.get(tk, "PERMANENTE")
+
+                    product = await repo.create_product(
+                        tenant_id=payload.tenant_id,
                         company_id=payload.company_id,
-                    ) + 1
-                    token_code = build_structured_code(cta, nat, rub, seq, tk)
+                        sku=token_code,
+                        name=payload.product_name,
+                        unit_of_measure=payload.unit,
+                        default_cost=cost,
+                        item_class=item_cls,
+                        token_type=token_type,
+                        token_code=token_code,
+                        area=payload.area,
+                    )
+                    product_id = str(product.id)
 
-                token_type_map = {"P": "PERMANENTE", "T": "TEMPORAL", "F": "FUNGIBLE"}
-                token_type = token_type_map.get(tk, "PERMANENTE")
-
-                product = await repo.create_product(
-                    tenant_id=payload.tenant_id,
-                    company_id=payload.company_id,
-                    sku=token_code,   # SKU = token_code con secuencia real — único por producto
-                    name=payload.product_name,
-                    unit_of_measure=payload.unit,
-                    default_cost=cost,
-                    default_sales_account="704101",
-                    default_cost_account=payload.account_code or "2522",  # subcuenta PCGE completa
-                    item_class=item_cls,
-                    token_type=token_type,
-                    token_code=token_code,
-                    area=payload.area,
-                )
-                product_id = str(product.id)
-
-        # Registrar movimiento
-        service = InventoryService(repo)
-        ref = f"ENT-VAL-{payload.source_doc}-{payload.entry_id[:8]}"
-        try:
-            result = await service.register_movement(
-                tenant_id=payload.tenant_id,
-                product_id=product_id,
-                warehouse_id=payload.warehouse_id,
-                movement_type="ENTRY",
-                qty=qty,
-                unit_cost=cost,
-                movement_reference=ref,
-                source_document=payload.source_doc,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        await uow.commit()
-
-    response: dict = {**result.__dict__, "product_id": product_id}
-
-    # Asiento contable — solo cuando NO viene de COMPRAS
-    # Bajo NIC 2 Sistema Permanente: COMPRAS ya debitó la cuenta de inventario (252x/251x)
-    # al registrar la factura. Validar en almacén es solo control físico (kardex).
-    # Crear un asiento adicional aquí duplicaría la deuda con el proveedor (4212).
-    _PURCHASING_MODULES = {"PURCHASING", "COMPRAS", "PURCHASES", "GUIA_REMISION"}
-    _from_purchase = payload.source_module.upper() in _PURCHASING_MODULES
-
-    if payload.post_journal and not _from_purchase:
-        from sqlalchemy import select as _sel, func as _func
-        from src.domain.models.accounting import JournalEntry as _JE
-        total_cost = (qty * cost).quantize(D("0.01"))
-        cur_date   = date.today()
-        # source_id único por línea de compra → misma factura+línea = mismo asiento
-        journal_source_id = f"INV-{payload.source_doc}"
-        # Verificar si ya existe asiento para esta línea (idempotencia)
-        async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as _uow:
-            exists = (await _uow.session.execute(
-                _sel(_func.count()).where(
-                    _JE.tenant_id == payload.tenant_id,
-                    _JE.source_module == "INVENTORY",
-                    _JE.source_id == journal_source_id,
-                )
-            )).scalar()
-        if not exists:
-            posting = {
-                "tenant_id": payload.tenant_id,
-                "year":  payload.year  or cur_date.year,
-                "month": payload.month or cur_date.month,
-                "entry_date": cur_date,
-                "description": f"Ingreso inventario desde compra {payload.source_doc}",
-                "source_module": "INVENTORY",
-                "source_id": journal_source_id,
-                "currency": "COP",
-                "user_id": _safe_user_uuid(ctx.get("user_id")),
-                "trace_id": ctx["trace_id"],
-                "ip_address": request.client.host if request.client else None,
-                "user_agent": request.headers.get("user-agent"),
-                "lines": [
-                    {"account_code": payload.account_code or "2011", "account_name": "Inventarios",
-                     "debit": total_cost, "credit": D("0.00"), "cost_center": payload.cost_center},
-                    {"account_code": "4212", "account_name": "Cuentas por pagar comerciales",
-                     "debit": D("0.00"), "credit": total_cost},
-                ],
-            }
+            service = InventoryService(repo)
+            ref = f"ENT-VAL-{payload.source_doc}-{payload.entry_id[:8]}"
             try:
-                entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting)
-                response["journal_entry_id"] = str(entry.id)
-            except Exception:
-                pass
+                result = await service.register_movement(
+                    tenant_id=payload.tenant_id,
+                    product_id=product_id,
+                    warehouse_id=payload.warehouse_id,
+                    movement_type="ENTRY",
+                    qty=qty,
+                    unit_cost=cost,
+                    movement_reference=ref,
+                    source_document=payload.source_doc,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            await uow.commit()
 
-    return response
+        response: dict = {
+            "status": "ACCEPTED",
+            "movement_id": str(result.movement_id),
+            "product_id": product_id,
+            "source_doc": payload.source_doc,
+            "qty": str(qty),
+            "unit_cost": str(cost),
+            "total": str((qty * cost).quantize(D("0.01")))
+        }
+
+        # Asiento contable — solo cuando NO viene de COMPRAS
+        # Bajo NIC 2 Sistema Permanente: COMPRAS ya debitó la cuenta de inventario (252x/251x)
+        # al registrar la factura. Validar en almacén es solo control físico (kardex).
+        # Crear un asiento adicional aquí duplicaría la deuda con el proveedor (4212).
+        _PURCHASING_MODULES = {"PURCHASING", "COMPRAS", "PURCHASES", "GUIA_REMISION"}
+        if payload.source_module.upper() not in _PURCHASING_MODULES:
+            from sqlalchemy import select as _sel, func as _func
+            from src.domain.models.accounting import JournalEntry as _JE
+            total_cost = (qty * cost).quantize(D("0.01"))
+            cur_date   = date.today()
+            # source_id único por línea de compra → misma factura+línea = mismo asiento
+            journal_source_id = f"INV-{payload.source_doc}"
+            async with UnitOfWork(AsyncSessionLocal, payload.tenant_id) as _uow:
+                exists = (await _uow.session.execute(
+                    _sel(_func.count()).where(
+                        _JE.tenant_id == payload.tenant_id,
+                        _JE.source_module == "INVENTORY",
+                        _JE.source_id == journal_source_id,
+                    )
+                )).scalar()
+
+            if not exists:
+                posting = {
+                    "tenant_id": payload.tenant_id,
+                    "year":  payload.year  or cur_date.year,
+                    "month": payload.month or cur_date.month,
+                    "entry_date": cur_date,
+                    "description": f"Ingreso inventario desde compra {payload.source_doc}",
+                    "source_module": "INVENTORY",
+                    "source_id": journal_source_id,
+                    "currency": "COP",
+                    "user_id": _safe_user_uuid(ctx.get("user_id")),
+                    "trace_id": ctx["trace_id"],
+                    "ip_address": request.client.host if request.client else None,
+                    "user_agent": request.headers.get("user-agent"),
+                    "lines": [
+                        {"account_code": payload.account_code or "1430", "account_name": "Inventarios",
+                         "debit": total_cost, "credit": D("0.00"), "cost_center": payload.cost_center},
+                        {"account_code": "2205", "account_name": "Proveedores nacionales",
+                         "debit": D("0.00"), "credit": total_cost},
+                    ],
+                }
+                try:
+                    entry = await LedgerPostingService(build_uow_factory(), build_hash_service()).post_journal(posting)
+                    response["journal_entry_id"] = str(entry.id)
+                except Exception:
+                    pass
+
+        return response
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error validating purchase item: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error al validar ítem: {exc}") from exc

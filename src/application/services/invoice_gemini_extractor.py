@@ -166,7 +166,7 @@ Devuelve exclusivamente JSON valido con esta forma:
         igv = self._money(data.get("igv") or data.get("tax_amount"))
         total = self._money(data.get("total") or data.get("total_amount"))
         if total and not subtotal and not igv:
-            subtotal = (total / Decimal("1.18")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             igv = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         elif subtotal and not igv and total:
             igv = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

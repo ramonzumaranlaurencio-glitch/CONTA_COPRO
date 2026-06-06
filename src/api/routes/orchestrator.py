@@ -53,8 +53,8 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
 
     today = date.today()
     serie, number = _split_serie_number(payload.payload.serie)
-    subtotal = (total / Decimal("1.18")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    igv = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    iva = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     created_products: list[dict] = []
     if payload.create_missing_products:
@@ -75,7 +75,7 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
             "number": number,
             "customer_nit": payload.payload.ruc,
             "subtotal": subtotal,
-            "iva": igv,
+            "iva": iva,
             "total": total,
             "currency": "COP",
             "cost_center": "BOG-COM",
@@ -123,12 +123,12 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
         "tenant_id": payload.tenant_id,
         "synced": True,
         "invoice": {
-            "ruc": payload.payload.ruc,
+            "nit": payload.payload.ruc,
             "serie": serie,
             "number": number,
             "total": str(total),
             "subtotal": str(subtotal),
-            "igv": str(igv),
+            "iva": str(iva),
         },
         "products": {
             "auto_create_enabled": payload.create_missing_products,

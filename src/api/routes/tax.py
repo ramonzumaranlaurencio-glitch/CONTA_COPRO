@@ -2,16 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 
-from src.api.dependencies import get_current_context
+from src.api.dependencies import get_current_context, require_feature_dependency
 from src.application.services.tax_compliance_service import TaxComplianceService
 from src.config import settings
-from src.domain.models.accounting import DeadLetterEvent, FinancialDocument, OutboxEvent, SunatSubmission
+from src.domain.models.accounting import DeadLetterEvent, FinancialDocument, OutboxEvent, DianSubmission
 from src.infrastructure.db.session import AsyncSessionLocal
-from src.infrastructure.adapters.sunat.ple_generator import PleGenerator
-from src.infrastructure.adapters.sunat.sire_generator import SireGenerator
+from src.infrastructure.adapters.dian.invoice_generator import InvoiceGenerator
+from src.infrastructure.adapters.dian.radian_submission import RadianSubmissionService
 from src.infrastructure.unit_of_work import UnitOfWork
 
-router = APIRouter(prefix="/tax", tags=["DIAN Colombia Enterprise"])
+router = APIRouter(
+    prefix="/tax",
+    tags=["DIAN Colombia Enterprise"],
+    dependencies=[Depends(require_feature_dependency("dian"))],
+)
 
 
 class XmlPayload(BaseModel):
@@ -23,25 +27,25 @@ class CdrPayload(BaseModel):
     cdr_base64_or_xml: str
 
 
-class SirePayload(BaseModel):
-    company_ruc: str
+class RadianSubmissionPayload(BaseModel):
+    company_nit: str
     period: str
     operations: list[dict]
 
 
-class PleDailyPayload(BaseModel):
-    company_ruc: str
+class DianRegistroPayload(BaseModel):
+    company_nit: str
     period: str
     entries: list[dict]
 
 
-class PleLedgerPayload(BaseModel):
-    company_ruc: str
+class DianAuditLogPayload(BaseModel):
+    company_nit: str
     period: str
     lines: list[dict]
 
 
-class SunatSubmissionCreatePayload(BaseModel):
+class DianSubmissionCreatePayload(BaseModel):
     financial_document_id: str | None = None
     submission_type: str = "INVOICE"
     endpoint_type: str = "DIAN"
@@ -49,15 +53,15 @@ class SunatSubmissionCreatePayload(BaseModel):
     xml_hash: str | None = None
 
 
-class SunatCdrUpdatePayload(BaseModel):
+class DianResponseUpdatePayload(BaseModel):
     status: str
-    cdr_code: str | None = None
-    cdr_description: str | None = None
+    cud_code: str | None = None
+    response_description: str | None = None
     raw_response: dict | None = None
 
 
 def tax_service() -> TaxComplianceService:
-    return TaxComplianceService(settings.sunat_xsd_dir)
+    return TaxComplianceService(settings.dian_xsd_dir)
 
 
 @router.get("/capabilities")
@@ -68,8 +72,8 @@ async def capabilities(ctx=Depends(get_current_context)):
 @router.post("/ubl/invoice")
 async def build_invoice_ubl(payload: dict, ctx=Depends(get_current_context)):
     payload["tenant_id"] = ctx["tenant_id"]
-    if settings.sunat_ruc and "sunat_ruc" not in payload:
-        payload["sunat_ruc"] = settings.sunat_ruc
+    if settings.dian_nit and "dian_nit" not in payload:
+        payload["dian_nit"] = settings.dian_nit
     return tax_service().build_invoice_xml(payload)
 
 
@@ -95,40 +99,44 @@ async def parse_cdr(payload: CdrPayload, ctx=Depends(get_current_context)):
     return {"tenant_id": ctx["tenant_id"], **tax_service().parse_cdr(payload.cdr_base64_or_xml)}
 
 
-@router.post("/sire/rvie")
-async def generate_sire_rvie(payload: SirePayload, ctx=Depends(get_current_context)):
-    content = SireGenerator().generate_rvie_txt(payload.company_ruc, payload.period, payload.operations)
+@router.post("/radian/registro")
+async def generate_radian_registro(payload: RadianSubmissionPayload, ctx=Depends(get_current_context)):
+    """Genera registro electrónico para RADIAN (Resolución de la DIAN)."""
+    service = RadianSubmissionService()
+    content = service.generate_registro_txt(payload.company_nit, payload.period, payload.operations)
     return {
         "tenant_id": ctx["tenant_id"],
-        "filename": f"LE{payload.company_ruc}{payload.period}0014040011111.zip",
+        "filename": f"RADIAN_{payload.company_nit}_{payload.period}.zip",
         "content_base64": __import__("base64").b64encode(content).decode("ascii"),
     }
 
 
-@router.post("/ple/daily-book")
-async def generate_ple_daily_book(payload: PleDailyPayload, ctx=Depends(get_current_context)):
-    content = PleGenerator().generate_daily_book(payload.company_ruc, payload.period, payload.entries)
+@router.post("/audit-log/diario", dependencies=[Depends(require_feature_dependency("audit"))])
+async def generate_audit_log_diario(payload: DianRegistroPayload, ctx=Depends(get_current_context)):
+    """Genera libro diario para auditoría DIAN."""
+    content = InvoiceGenerator().generate_audit_log_diario(payload.company_nit, payload.period, payload.entries)
     return {
         "tenant_id": ctx["tenant_id"],
-        "filename": f"LE{payload.company_ruc}{payload.period}00050100001111.zip",
+        "filename": f"DIARIO_{payload.company_nit}_{payload.period}.txt",
         "content_base64": __import__("base64").b64encode(content).decode("ascii"),
     }
 
 
-@router.post("/ple/general-ledger")
-async def generate_ple_general_ledger(payload: PleLedgerPayload, ctx=Depends(get_current_context)):
-    content = PleGenerator().generate_general_ledger(payload.company_ruc, payload.period, payload.lines)
+@router.post("/audit-log/mayor", dependencies=[Depends(require_feature_dependency("audit"))])
+async def generate_audit_log_mayor(payload: DianAuditLogPayload, ctx=Depends(get_current_context)):
+    """Genera libro mayor para auditoría DIAN."""
+    content = InvoiceGenerator().generate_audit_log_mayor(payload.company_nit, payload.period, payload.lines)
     return {
         "tenant_id": ctx["tenant_id"],
-        "filename": f"LE{payload.company_ruc}{payload.period}00060100001111.zip",
+        "filename": f"MAYOR_{payload.company_nit}_{payload.period}.txt",
         "content_base64": __import__("base64").b64encode(content).decode("ascii"),
     }
 
 
 @router.post("/submissions")
-async def create_submission(payload: SunatSubmissionCreatePayload, ctx=Depends(get_current_context)):
+async def create_submission(payload: DianSubmissionCreatePayload, ctx=Depends(get_current_context)):
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
-        submission = SunatSubmission(
+        submission = DianSubmission(
             tenant_id=ctx["tenant_id"],
             financial_document_id=payload.financial_document_id,
             submission_type=payload.submission_type,
@@ -150,7 +158,7 @@ async def create_submission(payload: SunatSubmissionCreatePayload, ctx=Depends(g
             )
             document = result.scalar_one_or_none()
             if document:
-                document.sunat_status = "QUEUED"
+                document.dian_status = "QUEUED"
 
         await uow.commit()
         return {"id": str(submission.id), "status": submission.status}
@@ -162,9 +170,9 @@ async def list_submissions(limit: int = 200, ctx=Depends(get_current_context)):
 
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         result = await uow.session.execute(
-            select(SunatSubmission)
-            .where(SunatSubmission.tenant_id == ctx["tenant_id"])
-            .order_by(SunatSubmission.created_at.desc())
+            select(DianSubmission)
+            .where(DianSubmission.tenant_id == ctx["tenant_id"])
+            .order_by(DianSubmission.created_at.desc())
             .limit(limit)
         )
         rows = list(result.scalars().all())
@@ -176,23 +184,23 @@ async def list_submissions(limit: int = 200, ctx=Depends(get_current_context)):
                 "endpoint_type": row.endpoint_type,
                 "status": row.status,
                 "ticket": row.ticket,
-                "cdr_code": row.cdr_code,
-                "cdr_description": row.cdr_description,
+                "cud_code": row.cud_code,
+                "response_description": row.response_description,
                 "created_at": row.created_at.isoformat(),
             }
             for row in rows
         ]
 
 
-@router.post("/submissions/{submission_id}/cdr")
-async def update_submission_cdr(submission_id: str, payload: SunatCdrUpdatePayload, ctx=Depends(get_current_context)):
+@router.post("/submissions/{submission_id}/response")
+async def update_submission_response(submission_id: str, payload: DianResponseUpdatePayload, ctx=Depends(get_current_context)):
     from sqlalchemy import select
 
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         result = await uow.session.execute(
-            select(SunatSubmission).where(
-                SunatSubmission.tenant_id == ctx["tenant_id"],
-                SunatSubmission.id == submission_id,
+            select(DianSubmission).where(
+                DianSubmission.tenant_id == ctx["tenant_id"],
+                DianSubmission.id == submission_id,
             )
         )
         submission = result.scalar_one_or_none()
@@ -200,8 +208,8 @@ async def update_submission_cdr(submission_id: str, payload: SunatCdrUpdatePaylo
             raise HTTPException(status_code=404, detail="Submission no encontrado")
 
         submission.status = payload.status
-        submission.cdr_code = payload.cdr_code
-        submission.cdr_description = payload.cdr_description
+        submission.cud_code = payload.cud_code
+        submission.response_description = payload.response_description
         submission.raw_response = payload.raw_response
 
         if submission.financial_document_id:
@@ -213,21 +221,21 @@ async def update_submission_cdr(submission_id: str, payload: SunatCdrUpdatePaylo
             )
             document = doc_result.scalar_one_or_none()
             if document:
-                document.cdr_status = payload.status
-                document.cdr_description = payload.cdr_description
-                document.sunat_status = "ACCEPTED" if payload.status.upper() == "ACCEPTED" else "REJECTED"
+                document.dian_response_status = payload.status
+                document.dian_response_description = payload.response_description
+                document.dian_status = "ACCEPTED" if payload.status.upper() == "ACCEPTED" else "REJECTED"
 
         await uow.commit()
-        return {"id": str(submission.id), "status": submission.status, "cdr_code": submission.cdr_code}
+        return {"id": str(submission.id), "status": submission.status, "cud_code": submission.cud_code}
 
 
 @router.post("/submissions/{submission_id}/retry")
 async def retry_submission(submission_id: str, ctx=Depends(get_current_context)):
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         result = await uow.session.execute(
-            select(SunatSubmission).where(
-                SunatSubmission.tenant_id == ctx["tenant_id"],
-                SunatSubmission.id == submission_id,
+            select(DianSubmission).where(
+                DianSubmission.tenant_id == ctx["tenant_id"],
+                DianSubmission.id == submission_id,
             )
         )
         submission = result.scalar_one_or_none()
@@ -237,8 +245,8 @@ async def retry_submission(submission_id: str, ctx=Depends(get_current_context))
         submission.status = "RETRYING"
         outbox = OutboxEvent(
             tenant_id=ctx["tenant_id"],
-            topic="sunat.submission.retry",
-            aggregate_type="sunat_submission",
+            topic="dian.submission.retry",
+            aggregate_type="dian_submission",
             aggregate_id=str(submission.id),
             payload={"submission_id": str(submission.id), "endpoint_type": submission.endpoint_type},
             status="PENDING",
@@ -255,9 +263,9 @@ async def retry_submission(submission_id: str, ctx=Depends(get_current_context))
 async def reprocess_submission(submission_id: str, ctx=Depends(get_current_context)):
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         result = await uow.session.execute(
-            select(SunatSubmission).where(
-                SunatSubmission.tenant_id == ctx["tenant_id"],
-                SunatSubmission.id == submission_id,
+            select(DianSubmission).where(
+                DianSubmission.tenant_id == ctx["tenant_id"],
+                DianSubmission.id == submission_id,
             )
         )
         submission = result.scalar_one_or_none()
@@ -277,9 +285,9 @@ async def queue_status(ctx=Depends(get_current_context)):
             .group_by(OutboxEvent.status)
         )
         submission_result = await uow.session.execute(
-            select(SunatSubmission.status, func.count(SunatSubmission.id))
-            .where(SunatSubmission.tenant_id == ctx["tenant_id"])
-            .group_by(SunatSubmission.status)
+            select(DianSubmission.status, func.count(DianSubmission.id))
+            .where(DianSubmission.tenant_id == ctx["tenant_id"])
+            .group_by(DianSubmission.status)
         )
         dlq_result = await uow.session.execute(
             select(func.count(DeadLetterEvent.id)).where(DeadLetterEvent.tenant_id == ctx["tenant_id"])
