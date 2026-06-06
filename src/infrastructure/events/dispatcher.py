@@ -173,3 +173,42 @@ def register_default_handlers(dispatcher: EventDispatcher) -> None:
         topic = getattr(EventTopic, attr)
         if isinstance(topic, str):
             dispatcher.register(topic, _default_log_handler)
+    # --- default inventory handler for posted purchases -----------------
+    async def _purchase_posted_handler(event):
+        try:
+            # import inside handler to avoid import cycles at startup
+            from src.infrastructure.db.session import AsyncSessionLocal
+            from src.application.services.core_transactional_engine import InventoryEngine, SimpleInventoryRepository
+
+            payload = event.payload or {}
+            # normalize payload shape: build_event_payload nests data under payload['data']
+            data = payload.get("data") or payload.get("payload") or payload
+            purchase = data.get("data") or data
+            line_items = purchase.get("line_items") or []
+            if not line_items:
+                return
+            async with AsyncSessionLocal() as session:
+                repo = SimpleInventoryRepository(session)
+                engine = InventoryEngine()
+                for item in line_items:
+                    if not item or not item.get("is_inventory"):
+                        continue
+                    product_id = item.get("product_id") or item.get("id") or item.get("code")
+                    qty = item.get("quantity") or item.get("qty") or item.get("amount") or 0
+                    unit_cost = item.get("unit_price") or item.get("unit_cost") or item.get("line_unit_price") or 0
+                    warehouse = item.get("warehouse_id") or "ALMACEN_PRINCIPAL"
+                    if not product_id or float(qty) == 0:
+                        continue
+                    await engine.register_movement(db=type("DB", (), {"inventory": repo})(), tenant_id=event.tenant_id, data={
+                        "product_id": str(product_id),
+                        "type": "ENTRY",
+                        "qty": qty,
+                        "unit_cost": unit_cost,
+                        "warehouse_id": warehouse,
+                        "movement_reference": purchase.get("serie") or purchase.get("reference") or "",
+                        "source_document": f"{purchase.get('serie') or ''}-{purchase.get('number') or ''}",
+                    })
+        except Exception:
+            logger.exception("purchase outbox handler failed for event=%s", getattr(event, "id", None))
+
+    dispatcher.register(EventTopic.PURCHASE_INVOICE_POSTED, _purchase_posted_handler)

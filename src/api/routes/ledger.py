@@ -519,8 +519,8 @@ async def list_journal(
                     description=entry.description,
                     source_module=entry.source_module,
                     currency=entry.currency,
-                    total_debit=str((entry.total_debit or Decimal("0")) * (getattr(entry, "tipo_cambio", None) or Decimal("1.0000"))),
-                    total_credit=str((entry.total_credit or Decimal("0")) * (getattr(entry, "tipo_cambio", None) or Decimal("1.0000"))),
+                    total_debit=str(entry.total_debit),
+                    total_credit=str(entry.total_credit),
                     row_hash=entry.row_hash,
                     previous_hash=entry.previous_hash,
                     sunat_status=getattr(entry, "status", "POSTED"),
@@ -539,8 +539,11 @@ async def list_journal(
                             "account_code": line.account_code,
                             "account_name": line.account_name,
                             "cost_center": line.cost_center,
-                            "debit": str((line.debit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
-                            "credit": str((line.credit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
+                            "debit": str(line.debit),
+                            "credit": str(line.credit),
+                            # Explicitly calculate debe_mn and haber_mn in local currency (COP)
+                            # debe_mn = debit * tipo_cambio (convert to local currency)
+                            # haber_mn = credit * tipo_cambio
                             "debe_mn": str((line.debit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
                             "haber_mn": str((line.credit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
                             "tipo_cambio": str(getattr(line, "tipo_cambio", "1.0000") or "1.0000"),
