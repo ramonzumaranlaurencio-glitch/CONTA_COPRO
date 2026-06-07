@@ -1,5 +1,5 @@
 /* CONTA_PRO: convertido desde PurchaseFormEnterprise.tsx para ventas.
-   Asiento base: Debe 1212 CxC, Haber 70xx ingresos, Haber 40111 IGV debito fiscal.
+   Asiento base Colombia: Debe 130505 Clientes, Haber 4135 ingresos, Haber 240805 IVA generado.
 */
 import React, { useMemo, useRef, useState } from 'react';
 import { Button, Field, Input, MessageBar, MessageBarBody, Text } from '@fluentui/react-components';
@@ -275,10 +275,10 @@ const AUTO_ROUNDING_TOLERANCE = 100; // tolerance in COP
 
 const RECEIVABLE_ACCOUNT = '1212';
 const RECEIVABLE_NAME = 'Cuentas por cobrar comerciales';
-const SALES_IGV_ACCOUNT = '40111';
-const SALES_IGV_NAME = 'IGV débito fiscal';
-const DEFAULT_SERVICE_REVENUE_ACCOUNT = '704101';
-const DEFAULT_GOODS_REVENUE_ACCOUNT = '701101';
+const SALES_IVA_ACCOUNT = '240805';
+const SALES_IVA_NAME = 'IVA generado';
+const DEFAULT_SERVICE_REVENUE_ACCOUNT = '4135';
+const DEFAULT_GOODS_REVENUE_ACCOUNT = '4135';
 const ROUNDING_INCOME_ACCOUNT = '429595';
 const ROUNDING_EXPENSE_ACCOUNT = '539595';
 
@@ -334,7 +334,7 @@ const normalizeCostCenter = (value?: string) => {
 const shouldUseCostCenter = (accountCode: string) => {
   const first = normalizeAccount(accountCode).charAt(0);
   // Ventas: se permite centro/profit center en ingresos clase 7 y analitica clase 9.
-  // No se fuerza centro de costo en CxC 1212 ni IGV 40111.
+  // No se fuerza centro de costo en CxC ni IVA.
   return first === '6' || first === '7' || first === '9';
 };
 
@@ -403,10 +403,10 @@ const classifySaleItem = (description: string, customerName = '') => {
     return { accountCode: DEFAULT_GOODS_REVENUE_ACCOUNT, accountName: 'Venta de mercaderías', taxTreatment: 'Ingreso por venta de bienes. Debe amarrar a kardex y costo de ventas si aplica.', aiConfidence: 0.92, aiReason: 'Venta de bienes/mercaderías identificada.', requiresReview: false };
   }
   if (/SERVICIO|MANTENIMIENTO|SOPORTE|CONSULTORIA|CONSULTORÍA|ASESORIA|ASESORÍA|HONORARIO|SUSCRIPCION|SUSCRIPCIÓN/.test(text)) {
-    return { accountCode: DEFAULT_SERVICE_REVENUE_ACCOUNT, accountName: 'Prestación de servicios', taxTreatment: 'Ingreso por prestación de servicios gravado con IGV si corresponde; reconocer según devengo.', aiConfidence: 0.94, aiReason: 'Venta de servicios identificada.', requiresReview: false };
+    return { accountCode: DEFAULT_SERVICE_REVENUE_ACCOUNT, accountName: 'Prestación de servicios', taxTreatment: 'Ingreso por prestación de servicios gravado con IVA si corresponde; reconocer según devengo.', aiConfidence: 0.94, aiReason: 'Venta de servicios identificada.', requiresReview: false };
   }
   if (/ALQUILER|ARRENDAMIENTO|RENTA/.test(text)) {
-    return { accountCode: '704102', accountName: 'Ingresos por alquileres / arrendamientos', taxTreatment: 'Ingreso por arrendamiento. Revisar contrato, devengo, IGV y detracción si corresponde.', aiConfidence: 0.90, aiReason: 'Arrendamiento/alquiler detectado.', requiresReview: false };
+    return { accountCode: '4220', accountName: 'Ingresos por arrendamientos', taxTreatment: 'Ingreso por arrendamiento. Revisar contrato, devengo, IVA y retenciones si corresponde.', aiConfidence: 0.90, aiReason: 'Arrendamiento/alquiler detectado.', requiresReview: false };
   }
   if (/INTERES|INTERÉS|MORA|PENALIDAD|RECARGO/.test(text)) {
     return { accountCode: '772101', accountName: 'Ingresos financieros / intereses', taxTreatment: 'Interés, mora o penalidad. Revisar afectación tributaria y sustento contractual.', aiConfidence: 0.84, aiReason: 'Interés/mora/penalidad detectada.', requiresReview: true };
@@ -534,13 +534,13 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         taxTreatment: line.taxTreatment,
       })),
       {
-        accountCode: SALES_IGV_ACCOUNT,
-        accountName: SALES_IGV_NAME,
+        accountCode: SALES_IVA_ACCOUNT,
+        accountName: SALES_IVA_NAME,
         costCenter: '-',
         debit: '0.00',
         credit: money(igv),
         lineType: 'TAX' as SaleLineType,
-        taxTreatment: 'IGV débito fiscal por venta. Se reconoce como tributo por pagar.',
+        taxTreatment: 'IVA generado por venta. Se reconoce como impuesto por pagar.',
       },
     ].filter((line) => toNumber(line.debit) !== 0 || toNumber(line.credit) !== 0);
   }, [explicitAccountLines, groupedLines, igv, total]);
@@ -558,12 +558,12 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         requiresReview: line.accountCode === ROUNDING_EXPENSE_ACCOUNT && line.lineType !== 'ROUNDING',
       });
     });
-    map.set(SALES_IGV_ACCOUNT, {
-      accountCode: SALES_IGV_ACCOUNT,
-      accountName: SALES_IGV_NAME,
-      accountClass: accountClassName(SALES_IGV_ACCOUNT),
+    map.set(SALES_IVA_ACCOUNT, {
+      accountCode: SALES_IVA_ACCOUNT,
+      accountName: SALES_IVA_NAME,
+      accountClass: accountClassName(SALES_IVA_ACCOUNT),
       nature: 'CREDIT',
-      taxTreatment: 'IGV débito fiscal por venta. Se reconoce como tributo por pagar.',
+      taxTreatment: 'IVA generado por venta. Se reconoce como impuesto por pagar.',
       requiresReview: false,
     });
     map.set(RECEIVABLE_ACCOUNT, {
@@ -897,7 +897,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         if (!/^\d{9,10}$/.test(guide.transportistaRuc.replace(/\D/g, ''))) return 'Guía: NIT transportista inválido (9-10 dígitos).';
         if (!guide.transportistaRazonSocial.trim()) return 'Guía: falta razón social del transportista.';
       } else {
-        if (!/^\d{8}$/.test(guide.conductorDni)) return 'Guía: DNI conductor inválido.';
+        if (!/^\d{5,12}$/.test(guide.conductorDni)) return 'Guía: cédula conductor inválida (5-12 dígitos).';
         if (!guide.conductorLicencia.trim()) return 'Guía: falta licencia del conductor.';
         if (!guide.placaVehiculo.trim()) return 'Guía: falta placa del vehículo.';
       }
@@ -1040,7 +1040,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       await onSubmit(submitPayload);
 
       setStatus(
-        'Venta posteada. Se actualizó registro de ventas, CxC, IGV débito fiscal y asiento contable.'
+        'Venta posteada. Se actualizó registro de ventas, CxC, IVA generado y asiento contable.'
       );
 
       // NO limpiar todavía hasta confirmar que todo funciona bien
@@ -1258,8 +1258,8 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
             <Field label="Razón social transportista">
               <Input value={guide.transportistaRazonSocial} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRazonSocial: d.value }))} />
             </Field>
-            <Field label="DNI conductor">
-              <Input value={guide.conductorDni} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorDni: d.value.replace(/\D/g, '').slice(0, 8) }))} />
+            <Field label="Cedula conductor">
+              <Input value={guide.conductorDni} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorDni: d.value.replace(/\D/g, '').slice(0, 12) }))} />
             </Field>
             <Field label="Licencia conductor">
               <Input value={guide.conductorLicencia} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorLicencia: d.value.toUpperCase() }))} />

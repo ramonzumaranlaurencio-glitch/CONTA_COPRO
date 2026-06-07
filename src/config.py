@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     dian_nit_lookup_url: str | None = None
     dian_muisca_endpoint: str | None = None
     dian_cufe_validation_url: str | None = None
+    dian_documento_lookup_url: str | None = None
+    dian_lookup_token: str | None = None
     dian_nit: str | None = None
     dian_user: str | None = None
     dian_password: str | None = None

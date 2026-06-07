@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 from src.application.services.expert_accounting_guard import ExpertAccountingGuard
-from src.application.services.sunat_realtime_verifier import SunatRealtimeVerifier
+from src.application.services.dian_realtime_verifier import DianRealtimeVerifier
 from src.config import settings
 from src.domain.exceptions import PeriodLockedException, TenantRequiredException, UnbalancedEntryException
 from src.domain.models.accounting import AccountingPeriod, AuditLog, FinancialDocument, JournalEntry, JournalLine, OutboxEvent
@@ -30,14 +30,14 @@ class LedgerPostingService:
         self.uow_factory = uow_factory
         self.hash_service = hash_service
         self.expert_guard = ExpertAccountingGuard(
-            SunatRealtimeVerifier(
-                nit_lookup_url=settings.sunat_ruc_lookup_url,
-                cufe_validation_url=settings.sunat_cpe_lookup_url,
-                token=settings.sunat_lookup_token,
-                timeout_seconds=settings.sunat_realtime_timeout_seconds,
+            DianRealtimeVerifier(
+                nit_lookup_url=settings.dian_nit_lookup_url,
+                cufe_validation_url=settings.dian_cufe_validation_url,
+                token=settings.dian_lookup_token or settings.sunat_lookup_token,
+                timeout_seconds=settings.dian_realtime_timeout_seconds,
             ),
-            sunat_enabled=settings.sunat_realtime_guard_enabled,
-            block_on_unavailable=settings.sunat_guard_block_on_unavailable,
+            dian_enabled=settings.dian_realtime_guard_enabled,
+            block_on_unavailable=settings.dian_guard_block_on_unavailable,
         )
 
     def _run_expert_guard(self, payload: dict) -> None:
@@ -146,10 +146,10 @@ class LedgerPostingService:
                 line.tercero_num = line.partner_ruc
                 if not line.tercero_tipo_doc:
                     # Map partner identifier length to document type
-                    #  - 8 digits -> DNI (tipo 1)
-                    #  - >=9 digits -> RUC/NIT-like (tipo 6)
+                    #  - 5-8 digits -> cedula (tipo 1)
+                    #  - >=9 digits -> NIT-like (tipo 6)
                     pr_len = len(line.partner_ruc or "")
-                    if pr_len == 8:
+                    if 5 <= pr_len <= 8:
                         line.tercero_tipo_doc = "1"
                     elif pr_len >= 9:
                         line.tercero_tipo_doc = "6"
@@ -644,7 +644,7 @@ class LedgerPostingService:
                 "detraccion_amount": detraccion,
                 "percepcion_amount": percepcion,
                 "retencion_amount": retencion,
-                "sunat_status": "PENDING",
+                "dian_status": "PENDING",
                 "metadata_json": financial_metadata,
             },
             "outbox_events": [
@@ -726,8 +726,8 @@ class LedgerPostingService:
                 "number": invoice_data.get("number"),
                 "entry_date": invoice_data.get("entry_date"),
                 "total": total,
-                "company_ruc": invoice_data.get("company_ruc") or settings.sunat_ruc,
-                "sunat_validation": invoice_data.get("sunat_validation"),
+                "company_nit": invoice_data.get("company_nit") or settings.dian_nit,
+                "dian_validation": invoice_data.get("dian_validation"),
                 "lines": [
                     {
                         "account_code": line.account_code,
@@ -786,7 +786,7 @@ class LedgerPostingService:
                 percepcion_amount=percepcion,
                 retencion_amount=retencion,
                 journal_entry_id=entry.id,
-                sunat_status="PENDING",
+                dian_status="PENDING",
                 xml_hash=invoice_data.get("xml_hash"),
                 metadata_json=self._json_safe({
                     "customer_ruc": invoice_data.get("customer_ruc"),
@@ -806,7 +806,7 @@ class LedgerPostingService:
                 actor_user_id=self._actor_uuid(invoice_data.get("user_id")), ip_address=invoice_data.get("ip_address"), user_agent=invoice_data.get("user_agent")
             ))
             await repo.add_outbox(OutboxEvent(
-                tenant_id=tenant_id, topic="sunat.invoice.post", aggregate_type="JournalEntry", aggregate_id=str(entry.id),
+                tenant_id=tenant_id, topic=EventTopic.SALES_INVOICE_POSTED, aggregate_type="JournalEntry", aggregate_id=str(entry.id),
                 payload=self._json_safe({"invoice": invoice_data, "journal_entry_id": str(entry.id), "financial_document_id": str(document.id), "trace_id": invoice_data["trace_id"]}),
                 status="PENDING", attempts=0, max_attempts=3
             ))

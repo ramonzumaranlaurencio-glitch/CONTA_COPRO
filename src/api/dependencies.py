@@ -71,8 +71,6 @@ def require_roles(*allowed_roles: str):
             return ctx  # acceso total sin restricción
         if allowed_roles and role not in allowed_roles:
             raise HTTPException(status_code=403, detail=f"Rol '{role}' no tiene acceso. Requerido: {list(allowed_roles)}")
-<<<<<<< HEAD
-=======
         return ctx
     return checker
 
@@ -80,7 +78,6 @@ def require_roles(*allowed_roles: str):
 def require_feature_dependency(feature: str):
     async def checker(ctx: dict = Depends(get_current_context)) -> dict:
         require_feature(ctx, feature)
->>>>>>> 26a39a5bf (Actualizacion Colombia)
         return ctx
     return checker
 

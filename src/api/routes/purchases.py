@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import mimetypes
 import re
 from decimal import Decimal, ROUND_HALF_UP
@@ -257,7 +256,7 @@ PUC_RULE_LIBRARY = [
 ]
 
 # Alias para compatibilidad con código que referencie PCGE_RULE_LIBRARY
-PCGE_RULE_LIBRARY = PUC_RULE_LIBRARY  # PUC = Plan Único de Cuentas (Colombia); PCGE es Perú (deprecado)
+PCGE_RULE_LIBRARY = PUC_RULE_LIBRARY
 
 # Mapa rapido cuenta inventario PUC → clase de articulo (para auto-crear en almacen)
 INVENTARIO_ACCOUNT_CLASS: dict[str, str] = {
@@ -592,7 +591,7 @@ def _classify_local(description: str, supplier_name: str = "", fallback_cost_cen
         }
 
     text = f"{description} {supplier_name}".lower()
-    for rule in PUC_RULE_LIBRARY:
+    for rule in PCGE_RULE_LIBRARY:
         if any(keyword.lower() in text for keyword in rule["keywords"]):
             cc = rule.get("default_cost_center") or fallback_cost_center
             is_inv = bool(rule.get("is_inventory", False))
@@ -650,7 +649,7 @@ def _cost_center_meta(code: str) -> dict[str, str]:
 
 
 def _json_schema_instruction() -> str:
-    puc_rules = json.dumps(PUC_RULE_LIBRARY, ensure_ascii=False)
+    pcge_rules = json.dumps(PCGE_RULE_LIBRARY, ensure_ascii=False)
     cc_rules = json.dumps(COST_CENTER_LIBRARY, ensure_ascii=False)
     legal_rules = json.dumps(LEGAL_TAX_REVIEW_LIBRARY, ensure_ascii=False)
 
@@ -739,7 +738,7 @@ LECTURA PIXEL POR PIXEL Y ROLES DE DATOS:
 5. En recibos de servicios publicos, distingue: empresa emisora, titular/cliente, suministro, codigo de pago, medidor y recibo.
 
 BIBLIOTECA PUC COLOMBIA/CRITERIOS BASE:
-{puc_rules}
+{pcge_rules}
 
 BIBLIOTECA CENTROS DE COSTO:
 {cc_rules}
@@ -865,10 +864,6 @@ def _is_iva_item(item: dict[str, Any]) -> bool:
     return any(token in desc for token in ["IVA", "I.V.A", "IMPUESTO AL VALOR", "IMP VALOR AGREGADO"])
 
 
-# Alias para compatibilidad con código existente
-_is_igv_item = _is_iva_item
-
-
 def _is_fake_ocr_adjustment(item: dict[str, Any]) -> bool:
     desc = _desc_upper(item)
     return any(token in desc for token in [
@@ -924,7 +919,7 @@ def _clean_public_receipt_items_and_amounts(
     data: dict[str, Any],
     items: list[dict[str, Any]],
     subtotal: Decimal,
-    iva: Decimal,
+    igv: Decimal,
     total_read: Decimal,
     warnings: list[str],
     tax_warnings: list[str],
@@ -940,7 +935,7 @@ def _clean_public_receipt_items_and_amounts(
     explicit_rounding = _has_explicit_rounding_items(items)
 
     for item in items:
-        if _is_igv_item(item):
+        if _is_iva_item(item):
             reconciliation_notes.append(f"IVA eliminado del detalle y tratado solo como impuesto: {item.get('description')}.")
             continue
         if explicit_rounding and _is_fake_ocr_adjustment(item):
@@ -973,22 +968,12 @@ def _clean_public_receipt_items_and_amounts(
         data["subtotal"] = _money_str(subtotal)
 
     if subtotal > 0:
-<<<<<<< HEAD
         expected_igv = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if igv == 0 or abs(igv - expected_igv) <= Decimal("1.10"):
             if igv != expected_igv:
                 ocr_warnings.append(f"IVA corregido de {igv} a {expected_igv} usando SUB TOTAL visible {subtotal}.")
             igv = expected_igv
             data["igv"] = _money_str(igv)
-=======
-        expected_iva = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if iva == 0 or abs(iva - expected_iva) <= Decimal("1.10"):
-            if iva != expected_iva:
-                ocr_warnings.append(f"IVA corregido de {iva} a {expected_iva} usando SUB TOTAL visible {subtotal}.")
-            iva = expected_iva
-            data["iva"] = _money_str(iva)
-            data["igv"] = _money_str(iva)
->>>>>>> 26a39a5bf (Actualizacion Colombia)
 
     # Aplicar reglas de todos los organismos reguladores
     all_regulated_rules = (
@@ -1012,7 +997,7 @@ def _clean_public_receipt_items_and_amounts(
         item["account_name"] = matched_rule["account_name"]
         item["taxable"] = bool(matched_rule["taxable"])
         if not matched_rule["taxable"]:
-            item["iva_amount"] = "0.00"
+            item["igv_amount"] = "0.00"
         item["requires_support"] = False
         item["requires_bancarization"] = False
         item["requires_retefuente_review"] = False
@@ -1028,7 +1013,7 @@ def _clean_public_receipt_items_and_amounts(
 
     if diff_items:
         current_diff = sum((_item_amount_value(item) for item in diff_items), Decimal("0.00")).quantize(Decimal("0.01"))
-        expected_diff = (total_read - subtotal - iva - saldo - aporte).quantize(Decimal("0.01"))
+        expected_diff = (total_read - subtotal - igv - saldo - aporte).quantize(Decimal("0.01"))
         if abs(current_diff - expected_diff) <= Decimal("2.00"):
             if current_diff != expected_diff:
                 ocr_warnings.append(f"Diferencia de redondeo corregida de {current_diff} a {expected_diff} usando TOTAL impreso.")
@@ -1054,7 +1039,7 @@ def _clean_public_receipt_items_and_amounts(
     accounting_warnings[:] = [w for w in accounting_warnings if _keep_warning(w)]
 
     reconciliation_notes.append("RECIBO_PUBLICO_FLEXIBLE: se respetan montos impresos, subcuentas y centro de costo de gastos.")
-    return items, subtotal, iva
+    return items, subtotal, igv
 
 
 def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
@@ -1069,12 +1054,8 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     supplier_name = _norm_text(data.get("supplier_name"))
     supplier_ruc = _only_digits(data.get("supplier_ruc"))
     if supplier_ruc and not _is_valid_nit(supplier_ruc):
-<<<<<<< HEAD
-        warnings.append(f"NIT proveedor a verificar (no pasa modulo 11 DIAN): {supplier_ruc}. Verifique en el RUT de la DIAN.")
-=======
         warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
         supplier_ruc = ""
->>>>>>> 26a39a5bf (Actualizacion Colombia)
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
     if not supplier_ruc:
@@ -1095,13 +1076,13 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
 
         line_subtotal = _money(raw.get("line_subtotal") or raw.get("subtotal") or raw.get("unit_price"))
         total_line = _money(raw.get("total_line") or line_subtotal)
-        iva_amount = _money(raw.get("iva_amount") or raw.get("igv_amount"))
+        igv_amount = _money(raw.get("igv_amount"))
 
         if kind in {"ROUNDING", "PRIOR_BALANCE", "ADVANCE_PAYMENT", "LATE_FEE"}:
             account_code = local["account_code"]
             account_name = local["account_name"]
             cost_center = local["cost_center"]
-            iva_amount = Decimal("0.00")
+            igv_amount = Decimal("0.00")
             raw["taxable"] = False
             raw["iva_credit"] = local["iva_credit"]
             raw["requires_support"] = local["requires_support"]
@@ -1131,7 +1112,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "unit_price": _money_str(raw.get("unit_price") or line_subtotal),
             "line_subtotal": _money_str(line_subtotal),
             "taxable": bool(raw.get("taxable", True)),
-            "iva_amount": _money_str(iva_amount),
+            "igv_amount": _money_str(igv_amount),
             "total_line": _money_str(total_line),
             "line_type": resolved_kind,
             "account_code": account_code,
@@ -1144,7 +1125,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "iva_credit": _norm_text(raw.get("iva_credit")) or local["iva_credit"],
             "requires_bancarization": bool(raw.get("requires_bancarization", False)),
             "requires_retefuente_review": bool(raw.get("requires_retefuente_review", False)),
-            "requires_support": bool(local.get("requires_support", False)) if local.get("ai_confidence", 0) >= 0.85 else bool(raw.get("requires_support", local.get("requires_support", False))),
+            "requires_support": bool(raw.get("requires_support", local.get("requires_support", False))),
             "ai_reason": _norm_text(raw.get("ai_reason")) or local["ai_reason"],
             "ai_confidence": float(raw.get("ai_confidence") or local["ai_confidence"]),
             # Campos extra COMPRA_ALMACEN
@@ -1155,21 +1136,15 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         items.append(item)
 
     subtotal = _money(data.get("printed_subtotal") or data.get("subtotal") or sum(_money(item["line_subtotal"]) for item in items if item.get("line_type") in {"EXPENSE_OR_ASSET", "INVENTORY_PURCHASE"}))
-    iva = _money(
-        data.get("printed_iva")
-        or data.get("iva")
-        or data.get("printed_igv")
-        or data.get("igv")
-        or sum(_money(item.get("iva_amount")) for item in items)
-    )
-    total_read = _money(data.get("printed_total") or data.get("total_read_from_document") or data.get("total") or subtotal + iva)
+    igv = _money(data.get("printed_igv") or data.get("igv") or sum(_money(item.get("igv_amount")) for item in items))
+    total_read = _money(data.get("printed_total") or data.get("total_read_from_document") or data.get("total") or subtotal + igv)
     total = total_read
 
-    items, subtotal, iva = _clean_public_receipt_items_and_amounts(
+    items, subtotal, igv = _clean_public_receipt_items_and_amounts(
         data,
         items,
         subtotal,
-        iva,
+        igv,
         total_read,
         warnings,
         tax_warnings,
@@ -1209,11 +1184,11 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             # Si el catálogo dice que una pala es "252" (suministro), se usa 252
             # aunque la IA de Gemini haya devuelto "333x" (activo fijo).
             # La IA es buena leyendo texto/montos, pero el catálogo tiene las
-            # reglas PUC correctas por tipo de bien.
+            # reglas PCGE correctas por tipo de bien.
             cat_cta = match["cta"]   # ej: "252" para herramientas manuales
             ai_cta  = acc[:3] if acc else ""
             # Solo respetar la cuenta de la IA si es compatible con el catálogo
-            # (misma familia PUC: ambas 25x, ambas 33x, etc.)
+            # (misma familia PCGE: ambas 25x, ambas 33x, etc.)
             if ai_cta and ai_cta == cat_cta:
                 # IA y catálogo coinciden en familia → preservar subcuenta IA si es más específica
                 item["account_code"] = acc if len(acc) >= len(cat_cta) else cat_cta
@@ -1226,7 +1201,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         else:
             # No está en catálogo → construir código provisional para almacén
             # account_code (contable) y catalog_code (almacén) son campos separados
-            cta = acc if len(acc) >= 3 else "252"   # mantener subcuenta PUC completa
+            cta = acc if len(acc) >= 3 else "252"   # mantener subcuenta PCGE completa
             cta3 = cta[:3]                           # solo primeros 3 dígitos para el token
             nat = infer_nat_from_description(desc, cta3)
             tk  = infer_tk_from_description(desc, nat)
@@ -1257,7 +1232,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "unit_price": _money_str(subtotal),
             "line_subtotal": _money_str(subtotal),
             "taxable": True,
-            "iva_amount": _money_str(iva),
+            "igv_amount": _money_str(igv),
             "total_line": _money_str(subtotal),
             "line_type": "EXPENSE_OR_ASSET",
             "account_code": local["account_code"],
@@ -1355,12 +1330,12 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "audit_note": "",
         })
 
-    if iva != 0:
+    if igv != 0:
         account_lines.append({
             "account_code": IVA_DESCONTABLE_ACCOUNT,
             "account_name": "IVA descontable",
             "cost_center": "-",
-            "debit": _money_str(iva),
+            "debit": _money_str(igv),
             "credit": "0.00",
             "line_type": "TAX",
             "tax_treatment": "IVA descontable Art. 485 ET. Sujeto a validacion CUFE, NIT activo DIAN, causalidad y anotacion oportuna en registro de compras.",
@@ -1424,7 +1399,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     is_public_receipt = _is_public_regulated_receipt(data, items)
     if is_public_receipt and reconciliation_difference == 0:
         accounting_warnings = [w for w in accounting_warnings if "Asiento no cuadrado" in str(w)]
-        requires_review = bool([w for w in warnings if "No se pudo leer RUC" in str(w) or "No se pudo leer razon social" in str(w)])
+        requires_review = bool([w for w in warnings if "No se pudo leer NIT" in str(w) or "No se pudo leer razon social" in str(w)])
     else:
         requires_review = bool(accounting_warnings or [w for w in warnings if "No se pudo leer" in w] or data.get("requires_visual_review"))
 
@@ -1449,7 +1424,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     data.update({
         "document_type": data.get("document_type") or "RECIBO_SERVICIO",
         "serie": _norm_text(data.get("serie")),
-        "number": _norm_text(data.get("number") or data.get("invoice_number")),
+        "number": _norm_text(data.get("number")),
         "issue_date": _norm_text(data.get("issue_date")),
         "due_date": _norm_text(data.get("due_date")),
         "period": _norm_text(data.get("period")),
@@ -1457,12 +1432,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         "supplier_name": supplier_name,
         "currency": _norm_text(data.get("currency")) or "COP",
         "subtotal": _money_str(subtotal),
-<<<<<<< HEAD
-        "igv": _money_str(igv),
         "iva": _money_str(igv),
-=======
-        "iva": _money_str(iva),
->>>>>>> 26a39a5bf (Actualizacion Colombia)
         "non_taxed_amount": _money_str(data.get("non_taxed_amount")),
         "exempt_amount": _money_str(data.get("exempt_amount")),
         "other_charges": _money_str(data.get("other_charges")),
@@ -1947,11 +1917,7 @@ Para CADA linea/producto visible en el documento extraer:
   • quantity      : cantidad numerica exacta (ej: "12", "2.5", "100")
   • unit_price    : precio unitario SIN IVA exacto
   • line_subtotal : subtotal = quantity × unit_price SIN IVA
-<<<<<<< HEAD
   • igv_amount    : IVA de la linea (0 si excluido o exento)
-=======
-  • iva_amount    : IVA de la linea (0 si excluido o exento)
->>>>>>> 26a39a5bf (Actualizacion Colombia)
   • total_line    : total con IVA de la linea
   • lot_number    : numero de lote/batch si aparece (o "")
   • expiry_date   : fecha de vencimiento si aparece en YYYY-MM-DD (o "")
@@ -2061,14 +2027,6 @@ def _build_client(user_key: str | None = None):
 def _parse_ai_json(text: str) -> dict:
     """Parsea JSON de la IA; si está truncado, intenta repararlo cerrando estructuras abiertas."""
     text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-<<<<<<< HEAD
-    # Si hay texto antes del JSON (Gemini sin response_mime_type puede añadir prosa)
-    if not text.startswith("{"):
-        brace_idx = text.find("{")
-        if brace_idx >= 0:
-            text = text[brace_idx:]
-=======
->>>>>>> 26a39a5bf (Actualizacion Colombia)
     try:
         result = json.loads(text)
         return result if isinstance(result, dict) else {}
@@ -2111,11 +2069,7 @@ async def _analyze_document_text(
     file_bytes: bytes,
     mime_type: str,
 ) -> str:
-<<<<<<< HEAD
-    """Llama analyze_document y devuelve el texto. Fallback a Claude ante cualquier error de Gemini."""
-=======
     """Llama analyze_document y devuelve el texto. Fallback automático a Claude si Gemini da 429."""
->>>>>>> 26a39a5bf (Actualizacion Colombia)
     try:
         resp = await client.analyze_document(
             instruction=instruction,
@@ -2123,20 +2077,11 @@ async def _analyze_document_text(
             mime_type=mime_type,
         )
         return client.response_text(resp)
-<<<<<<< HEAD
-    except (GeminiQuotaError, RuntimeError) as gemini_exc:
-        logging.warning("Gemini fallo (%s), intentando Claude como respaldo.", gemini_exc)
-        if not settings.claude_api_key:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Error Gemini: {gemini_exc}. Configura CLAUDE_API_KEY como respaldo.",
-=======
     except GeminiQuotaError:
         if not settings.claude_api_key:
             raise HTTPException(
                 status_code=503,
                 detail="Cuota Gemini excedida y no hay clave Claude configurada como respaldo.",
->>>>>>> 26a39a5bf (Actualizacion Colombia)
             )
         fallback = ClaudeClient(
             api_key=settings.claude_api_key,
@@ -2198,11 +2143,7 @@ SALDO ANTERIOR / DEUDA ANTERIOR (EN CUALQUIER RECIBO DE SERVICIO PUBLICO):
 
 REGLAS PUC COLOMBIA PARA TODOS LOS RECIBOS:
 - Cada fila del recibo = un item separado en el JSON. PROHIBIDO agrupar.
-<<<<<<< HEAD
 - El IVA (19% Art. 468 ET) va SOLO en cuenta 2408 como campo "igv" del JSON, nunca como item.
-=======
-- El IVA (19% Art. 468 ET) va SOLO en cuenta 2408 como campo "iva" del JSON, nunca como item.
->>>>>>> 26a39a5bf (Actualizacion Colombia)
 - IVA en Colombia = 19%. Algunos servicios publicos: 0% (agua, alcantarillado, aseo, gas domiciliario residencial).
 - Si no lees el importe exacto, pon el importe mas cercano visible y marca requires_visual_review=true.
 - Los cargos regulados CREG/CRA/CRC (contribucion solidaridad, alumbrado publico, FONTIC) NO generan IVA.
@@ -2249,11 +2190,7 @@ REGLA NIT: Devuelve SOLO los primeros 9 digitos del NIT (sin el digito de verifi
 REGLA DESCUENTOS: Si hay descuentos, rebajas o notas debito en el comprobante → incluirlos como item con unit_price negativo y line_subtotal negativo. Ejemplo: "Descuento comercial -$100.000" → item separado con total_line="-100000.00".
 
 Devuelve SOLO este JSON valido sin markdown ni texto extra. Copia la estructura exacta, un objeto por item visible:
-<<<<<<< HEAD
 {{"supplier_name":"","supplier_ruc":"","invoice_number":"","serie":"","issue_date":"","due_date":null,"currency":"COP","subtotal":"0.00","igv":"0.00","total":"0.00","payment_method":"CREDITO","cost_center":null,"items":[{{"code":"","description":"","unit":"UND","quantity":1,"unit_price":"0.00","line_subtotal":"0.00","igv_amount":"0.00","total_line":"0.00","account_code":"","account_name":"","cost_center":null,"tax_treatment":"GRAVADO_19","taxable":true,"is_inventory":false,"line_type":"EXPENSE_OR_ASSET","requires_support":false,"ai_confidence":0.95,"ai_reason":"cuenta PUC asignada porque..."}}],"warnings":[],"audit_metadata":{{"accounting_warnings":[],"tax_warnings":[],"ocr_warnings":[],"reconciliation_notes":[]}}}}
-=======
-{{"supplier_name":"","supplier_ruc":"","invoice_number":"","serie":"","issue_date":"","due_date":null,"currency":"COP","subtotal":"0.00","iva":"0.00","total":"0.00","payment_method":"CREDITO","cost_center":null,"items":[{{"code":"","description":"","unit":"UND","quantity":1,"unit_price":"0.00","line_subtotal":"0.00","iva_amount":"0.00","total_line":"0.00","account_code":"","account_name":"","cost_center":null,"tax_treatment":"GRAVADO_19","taxable":true,"is_inventory":false,"line_type":"EXPENSE_OR_ASSET","requires_support":false,"ai_confidence":0.95,"ai_reason":"cuenta PUC asignada porque..."}}],"warnings":[],"audit_metadata":{{"accounting_warnings":[],"tax_warnings":[],"ocr_warnings":[],"reconciliation_notes":[]}}}}
->>>>>>> 26a39a5bf (Actualizacion Colombia)
 """
 
 
@@ -2317,13 +2254,6 @@ async def process_purchase_with_gemini(
     except HTTPException:
         raise
     except json.JSONDecodeError as exc:
-<<<<<<< HEAD
-        logging.exception("process-ia: JSON invalido de la IA")
         raise HTTPException(status_code=502, detail=f"IA devolvio JSON invalido: {str(exc)}") from exc
     except Exception as exc:
-        logging.exception("process-ia: error inesperado")
-=======
-        raise HTTPException(status_code=502, detail=f"IA devolvio JSON invalido: {str(exc)}") from exc
-    except Exception as exc:
->>>>>>> 26a39a5bf (Actualizacion Colombia)
         raise HTTPException(status_code=502, detail=f"Error IA: {str(exc)}") from exc

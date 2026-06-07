@@ -5,11 +5,8 @@ from decimal import Decimal
 
 from src.ai.expert_system_prompt import SYSTEM_ROLE_PROMPT, VALIDATION_FILTER_PROMPT
 from src.application.dto.expert_accounting import ValidationCheck, ValidationReport
-from src.application.services.sunat_realtime_verifier import (
-    SunatDocumentReference,
-    SunatRealtimeResult,
-    normalize_document_status,
-    normalize_sunat_text,
+from src.application.services.dian_realtime_verifier import (
+    DianRealtimeVerifier,
 )
 from src.domain.exceptions import ExpertValidationException
 from src.config import settings
@@ -21,11 +18,11 @@ INSUFFICIENT_JUSTIFICATIONS = {"ERROR", "ERRROR", "CAMBIO", "MODIFICAR", "ANULAR
 class ExpertAccountingGuard:
     """Pre-save validation guard for automatic accounting entries."""
 
-    def __init__(self, sunat_verifier=None, *, sunat_enabled: bool = True, block_on_unavailable: bool = False) -> None:
+    def __init__(self, dian_verifier=None, *, dian_enabled: bool = True, block_on_unavailable: bool = False) -> None:
         self.system_prompt = SYSTEM_ROLE_PROMPT
         self.validation_prompt = VALIDATION_FILTER_PROMPT
-        self.sunat_verifier = sunat_verifier
-        self.sunat_enabled = sunat_enabled
+        self.dian_verifier = dian_verifier
+        self.dian_enabled = dian_enabled
         self.block_on_unavailable = block_on_unavailable
 
     def validate_before_save(self, payload: dict) -> ValidationReport:
@@ -68,7 +65,7 @@ class ExpertAccountingGuard:
                 detail="Documento con contraparte identificada" if deductible_or_supported else "Falta RUC de contraparte para sustento tributario",
             ),
         ]
-        checks.extend(self._sunat_checks(payload, is_purchase_or_sale=is_purchase_or_sale, partner_ruc=partner_ruc))
+        checks.extend(self._dian_checks(payload, is_purchase_or_sale=is_purchase_or_sale, partner_ruc=partner_ruc))
 
         blocking = [check.detail for check in checks if not check.passed]
         return ValidationReport(accepted=not blocking, checks=checks, blocking_reasons=blocking)
@@ -150,7 +147,7 @@ class ExpertAccountingGuard:
 
         if old_ruc and new_ruc and old_ruc != new_ruc:
             validation_payload = {"source_module": "BILLING", "customer_ruc": new_ruc}
-            sunat_checks = self._sunat_checks(validation_payload, is_purchase_or_sale=True, partner_ruc=new_ruc)
+            sunat_checks = self._dian_checks(validation_payload, is_purchase_or_sale=True, partner_ruc=new_ruc)
             checks.extend(sunat_checks)
             for check in sunat_checks:
                 if not check.passed:
@@ -174,16 +171,16 @@ class ExpertAccountingGuard:
             "credit_note_draft": credit_note_draft,
         }
 
-    def _sunat_checks(self, payload: dict, *, is_purchase_or_sale: bool, partner_ruc: str | None) -> list[ValidationCheck]:
-        if not self.sunat_enabled or not is_purchase_or_sale:
+    def _dian_checks(self, payload: dict, *, is_purchase_or_sale: bool, partner_ruc: str | None) -> list[ValidationCheck]:
+        if not self.dian_enabled or not is_purchase_or_sale:
             return []
 
         if not partner_ruc:
             return [
                 ValidationCheck(
-                    code="SUNAT_RUC_PRESENT",
+                    code="DIAN_NIT_PRESENT",
                     passed=False,
-                    detail="Falta RUC para verificacion SUNAT en tiempo real",
+                    detail="Falta NIT para verificacion DIAN en tiempo real",
                 )
             ]
 
@@ -211,7 +208,7 @@ class ExpertAccountingGuard:
                     )
                 ]
 
-        validation = self._get_sunat_validation(payload, partner_ruc)
+        validation = self._get_dian_validation(payload, partner_ruc)
         status = normalize_sunat_text(validation.get("taxpayer_status") or validation.get("estado"))
         condition = normalize_sunat_text(validation.get("taxpayer_condition") or validation.get("condicion"))
         document_status = normalize_document_status(
@@ -223,12 +220,12 @@ class ExpertAccountingGuard:
         unavailable_passed = not unavailable or not self.block_on_unavailable
         checks = [
             ValidationCheck(
-                code="SUNAT_REALTIME_AVAILABLE",
+                code="DIAN_REALTIME_AVAILABLE",
                 passed=unavailable_passed,
                 detail=(
-                    f"Verificacion SUNAT fuente={source}"
+                    f"Verificacion DIAN fuente={source}"
                     if unavailable_passed
-                    else "SUNAT no disponible/configurado para verificacion obligatoria"
+                    else "DIAN no disponible/configurado para verificacion obligatoria"
                 ),
             )
         ]
@@ -236,18 +233,18 @@ class ExpertAccountingGuard:
         if status:
             checks.append(
                 ValidationCheck(
-                    code="SUNAT_RUC_ACTIVE",
+                    code="DIAN_NIT_ACTIVE",
                     passed=status == "ACTIVO",
-                    detail=f"RUC {partner_ruc} estado SUNAT={status}",
+                    detail=f"NIT {partner_ruc} estado DIAN={status}",
                 )
             )
 
         if condition:
             checks.append(
                 ValidationCheck(
-                    code="SUNAT_RUC_HABIDO",
+                    code="DIAN_NIT_STATUS",
                     passed=condition != "NO HABIDO",
-                    detail=f"RUC {partner_ruc} condicion SUNAT={condition}",
+                    detail=f"NIT {partner_ruc} condicion DIAN={condition}",
                 )
             )
 
@@ -255,24 +252,22 @@ class ExpertAccountingGuard:
             invalid_document_statuses = {"ANULADO", "ANULADA", "BAJA", "RECHAZADO", "NO EXISTE", "NO AUTORIZADO"}
             checks.append(
                 ValidationCheck(
-                    code="SUNAT_DOCUMENT_ACTIVE",
+                    code="DIAN_DOCUMENT_ACTIVE",
                     passed=document_status not in invalid_document_statuses,
-                    detail=f"Comprobante estado SUNAT={document_status}",
+                    detail=f"Comprobante estado DIAN={document_status}",
                 )
             )
 
         return checks
 
-    def _get_sunat_validation(self, payload: dict, partner_ruc: str) -> dict:
-        provided = payload.get("sunat_validation")
+    def _get_dian_validation(self, payload: dict, partner_ruc: str) -> dict:
+        provided = payload.get("dian_validation")
         if provided:
-            if isinstance(provided, SunatRealtimeResult):
-                return provided.as_dict()
             if isinstance(provided, dict):
                 return provided
 
-        if not self.sunat_verifier:
-            return {"ruc": partner_ruc, "source": "not_configured", "warnings": ["Verificador SUNAT no configurado."]}
+        if not self.dian_verifier:
+            return {"nit": partner_ruc, "source": "not_configured", "warnings": ["Verificador DIAN no configurado."]}
 
         document = SunatDocumentReference.from_payload(payload)
         result = self.sunat_verifier.verify(partner_ruc, document)

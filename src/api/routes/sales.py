@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from src.api.dependencies import get_current_context
 from src.application.services.invoice_gemini_extractor import InvoiceGeminiExtractor
-from src.application.services.sunat_realtime_verifier import SunatRealtimeVerifier
+from src.application.services.dian_realtime_verifier import DianRealtimeVerifier
 from src.config import settings
 from src.infrastructure.adapters.ai.vision_provider import get_vision_client, is_vision_available
 
@@ -14,13 +14,13 @@ router = APIRouter(prefix="/sales", tags=["Sales IA"])
 def _build_extractor() -> InvoiceGeminiExtractor:
     return InvoiceGeminiExtractor(
         get_vision_client(),
-        SunatRealtimeVerifier(
-            ruc_lookup_url=settings.sunat_ruc_lookup_url,
-            cpe_lookup_url=settings.sunat_cpe_lookup_url,
+        DianRealtimeVerifier(
+            nit_lookup_url=settings.dian_nit_lookup_url,
+            cufe_validation_url=settings.dian_cufe_validation_url,
             token=settings.sunat_lookup_token,
-            timeout_seconds=settings.sunat_realtime_timeout_seconds,
+            timeout_seconds=settings.dian_realtime_timeout_seconds,
         ),
-        company_ruc=settings.sunat_ruc,
+        company_nit=settings.dian_nit,
     )
 
 

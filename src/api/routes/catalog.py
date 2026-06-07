@@ -41,24 +41,6 @@ RUBROS: dict[str, str] = {
 }
 
 PUC_INVENTARIO: dict[str, str] = {
-<<<<<<< HEAD
-    "201": "Mercaderías manufacturadas",
-    "202": "Mercaderías no manufacturadas",
-    "211": "Productos terminados",
-    "231": "Productos en proceso",
-    "241": "Materias primas manufactureras",
-    "242": "Materias primas no manufactureras",
-    "251": "Materiales auxiliares",
-    "252": "Suministros",
-    "253": "Repuestos",
-    "261": "Envases",
-    "262": "Embalajes",
-    "333": "Maquinaria y equipo de explotación",
-    "334": "Unidades de transporte",
-    "335": "Muebles y enseres",
-    "336": "Equipos diversos",
-    "337": "Herramientas y utensilios",
-=======
     "1405": "Materias primas",
     "1410": "Productos en proceso",
     "1430": "Productos terminados",
@@ -69,7 +51,6 @@ PUC_INVENTARIO: dict[str, str] = {
     "1524": "Equipo de oficina",
     "1528": "Equipo de computo y comunicacion",
     "1540": "Flota y equipo de transporte",
->>>>>>> 26a39a5bf (Actualizacion Colombia)
 }
 
 PUC_GASTO: dict[str, str] = {

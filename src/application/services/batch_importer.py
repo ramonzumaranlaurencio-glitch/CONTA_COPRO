@@ -14,13 +14,17 @@ class BatchAccountingImporter:
 
     async def calculate_lines(self, data: dict) -> list[dict]:
         subtotal = data.get("subtotal", 0)
-        igv = data.get("igv", 0)
-        total = data.get("total", subtotal + igv)
+        iva = data.get("iva", data.get("igv", 0))  # Support both IVA (Colombian) and IGV (legacy)
+        total = data.get("total", subtotal + iva)
 
+        # Colombian chart of accounts
+        # 6135 = Compras de material, suministros e insumos
+        # 2408 = IVA por pagar (descontable)
+        # 2705 = Cuentas por pagar proveedores
         return [
-            {"account": "6011", "debit": subtotal, "credit": 0},
-            {"account": "4011", "debit": igv, "credit": 0},
-            {"account": "4212", "debit": 0, "credit": total},
+            {"account": "6135", "debit": subtotal, "credit": 0},
+            {"account": "2408", "debit": iva, "credit": 0},
+            {"account": "2705", "debit": 0, "credit": total},
         ]
 
     async def process_folder(self, uow_factory, xml_files: list[str]):

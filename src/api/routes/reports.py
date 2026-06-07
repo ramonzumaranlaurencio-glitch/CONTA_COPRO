@@ -12,7 +12,7 @@ from src.api.dependencies import get_current_context
 from src.application.services.books_service import BooksService
 from src.application.services.financial_reporting_service import FinancialReportingService
 from src.application.services.report_export_service import ReportExportService
-from src.domain.models.accounting import SunatSubmission
+from src.domain.models.accounting import DianSubmission
 from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.unit_of_work import UnitOfWork
 
@@ -236,7 +236,7 @@ async def books_submit_sunat(package_id: str, ctx=Depends(get_current_context)):
         raise HTTPException(status_code=404, detail="Package not found")
 
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
-        submission = SunatSubmission(
+        submission = DianSubmission(
             tenant_id=ctx["tenant_id"],
             submission_type="BOOKS_PACKAGE",
             endpoint_type="DIAN",

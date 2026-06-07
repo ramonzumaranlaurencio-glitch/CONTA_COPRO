@@ -127,7 +127,7 @@ const emptyForm: WorkerForm = {
   estudios_realizados: '',
   cargo_postulado: '',
   sueldo_pactado: '0',  // COP (sin centavos para nómina colombiana)
-  pension_system: 'AFP_PORVENIR',
+  pension_system: 'RPM_COLPENSIONES',  // Default to Colombian public pension system
   habilidades_clave: '',
   tipo_contrato: 'INDEFINIDO',
   tipo_salario: 'ORDINARIO',
@@ -560,7 +560,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
           estudios_realizados: String(item.estudios_realizados ?? ''),
           cargo_postulado: String(item.cargo_postulado ?? ''),
           sueldo_pactado: String(item.sueldo_pactado ?? '0'),
-          pension_system: String(item.pension_system ?? 'AFP_PORVENIR'),
+          pension_system: String(item.pension_system ?? 'RPM_COLPENSIONES'),
           habilidades_clave: Array.isArray(item.habilidades_clave) ? (item.habilidades_clave as string[]).join(', ') : String(item.habilidades_clave ?? ''),
           tipo_contrato: String(item.tipo_contrato ?? 'INDEFINIDO'),
           tipo_salario: String(item.tipo_salario ?? 'ORDINARIO'),
@@ -677,7 +677,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
         estudios_realizados: String(worker.estudios_realizados || ''),
         cargo_postulado: String(worker.cargo_postulado || worker.profesion || ''),
         sueldo_pactado: String(worker.sueldo_pactado || '0.00'),
-        pension_system: String(worker.pension_system || prev.pension_system || 'AFP'),
+        pension_system: String(worker.pension_system || prev.pension_system || 'RPM_COLPENSIONES'),
         habilidades_clave: Array.isArray(worker.habilidades_clave) ? worker.habilidades_clave.join(', ') : '',
         // Auto-calculados Colombia — Ley 100/1993
         ...(autoAfpEmpleado !== null ? { afp_empleado: autoAfpEmpleado } : {}),

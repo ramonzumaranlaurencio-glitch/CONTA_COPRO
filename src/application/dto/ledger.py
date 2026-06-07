@@ -52,14 +52,12 @@ class InvoicePostRequest(BaseModel):
     entry_date: date | None = None
     due_date: date | None = None
     subtotal: Decimal
-    igv: Decimal
+    iva: Decimal
     total: Decimal
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    detraccion_amount: Decimal = Decimal("0.00")
-    percepcion_amount: Decimal = Decimal("0.00")
-    retencion_amount: Decimal = Decimal("0.00")
+    retencion_amount: Decimal = Decimal("0.00")  # Only Colombian retention (no detraccion or percepcion)
     cost_center: str | None = None
     revenue_account: str = "7011"
     audit_metadata: dict | None = None
@@ -86,7 +84,7 @@ class PurchasePostRequest(BaseModel):
     entry_date: date | None = None
     due_date: date | None = None
     subtotal: Decimal
-    igv: Decimal
+    iva: Decimal
     total: Decimal
     items: list[dict] = Field(default_factory=list)
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)

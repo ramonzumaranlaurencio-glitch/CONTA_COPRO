@@ -6,11 +6,7 @@ import json
 import re
 from typing import Any, Literal
 
-from src.application.services.sunat_realtime_verifier import (
-    SunatDocumentReference,
-    SunatRealtimeVerifier,
-    normalize_sunat_text,
-)
+from src.application.services.dian_realtime_verifier import DianRealtimeVerifier
 from src.infrastructure.adapters.ai.gemini import GeminiClient
 
 
@@ -18,18 +14,18 @@ Direction = Literal["purchase", "sale"]
 
 
 class InvoiceGeminiExtractor:
-    """Extracts Peruvian invoice fields from images/PDFs using Gemini vision."""
+    """Extracts Colombian invoice fields from images/PDFs using Gemini vision."""
 
     def __init__(
         self,
         gemini_client: GeminiClient,
-        sunat_verifier: SunatRealtimeVerifier,
+        dian_verifier: DianRealtimeVerifier,
         *,
-        company_ruc: str | None = None,
+        company_nit: str | None = None,
     ) -> None:
         self.gemini_client = gemini_client
-        self.sunat_verifier = sunat_verifier
-        self.company_ruc = company_ruc
+        self.dian_verifier = dian_verifier
+        self.company_nit = company_nit
 
     async def extract(
         self,
@@ -55,9 +51,9 @@ class InvoiceGeminiExtractor:
         content = GeminiClient.response_text(response)
         extracted = self._parse_json(content)
         normalized = self._normalize(extracted, direction)
-        sunat_validation = self._verify_sunat(normalized)
-        normalized["sunat_validation"] = sunat_validation
-        normalized["compliance"] = self._compliance_status(sunat_validation)
+        dian_validation = self._verify_dian(normalized)
+        normalized["dian_validation"] = dian_validation
+        normalized["compliance"] = self._compliance_status(dian_validation)
         normalized["provider"] = "gemini"
         normalized["model"] = self.gemini_client.model
         normalized["checked_at"] = datetime.now(UTC).isoformat()
@@ -67,34 +63,34 @@ class InvoiceGeminiExtractor:
         partner_role = "proveedor/emisor" if direction == "purchase" else "cliente/receptor"
         fields = ", ".join(target_fields or self._default_target_fields(direction))
         return f"""
-Eres el motor OCR fiscal de CONTA_PRO Enterprise para Peru.
+Eres el motor OCR fiscal de CONTA_PRO Enterprise para Colombia.
 Lee la imagen PIXEL POR PIXEL y por layout visual. Analiza cada pixel del archivo adjunto. Puede ser JPG, PNG, WEBP o PDF.
 Extrae solo datos visibles del comprobante. No inventes datos; si no estas seguro usa null y baja la confianza.
 
-Contexto del flujo: {direction}. El RUC partner debe ser el RUC del {partner_role}.
+Contexto del flujo: {direction}. El NIT o cedula partner debe ser el documento del {partner_role}.
 Campos que se van a llenar en el formulario actual: {fields}.
 Archivo: {filename or "sin_nombre"} ({mime_type}).
 
 Devuelve exclusivamente JSON valido con esta forma:
 {{
-  "document_type": "factura|boleta|nota_credito|nota_debito|otro",
+  "document_type": "factura|nota_credito|nota_debito|documento_soporte|otro",
   "serie": "F001",
   "number": "12345",
   "serie_numero": "F001-12345",
   "issue_date": "YYYY-MM-DD",
-  "supplier_ruc": "20123456789",
+  "supplier_nit": "901234567-8",
   "supplier_name": "RAZON SOCIAL EMISOR",
-  "customer_ruc": "20987654321",
+  "customer_nit": "901234567-8",
   "customer_name": "RAZON SOCIAL RECEPTOR",
-  "partner_ruc": "RUC usado por el flujo",
-  "currency": "PEN|USD",
+  "partner_nit": "NIT usado por el flujo",
+  "currency": "COP|USD",
   "subtotal": "0.00",
-  "igv": "0.00",
+  "iva": "0.00",
   "total": "0.00",
-  "percepcion": "0.00",
-  "detraccion": "0.00",
-  "expense_account_suggested": "6311|6011|6343|null",
-  "cost_center_suggested": "LIM-ADM|LIM-COM|null",
+  "retencion": "0.00",
+  "autorretencion": "0.00",
+  "expense_account_suggested": "5135|5195|1435|null",
+  "cost_center_suggested": "BOG-ADM|BOG-COM|null",
   "glosa_suggested": "glosa contable corta",
   "line_items": [
     {{
@@ -108,7 +104,7 @@ Devuelve exclusivamente JSON valido con esta forma:
   ],
   "confidence": {{
     "overall": 0.0,
-    "ruc": 0.0,
+    "nit": 0.0,
     "serie_numero": 0.0,
     "amounts": 0.0
   }},
@@ -119,8 +115,8 @@ Devuelve exclusivamente JSON valido con esta forma:
 
     def _default_target_fields(self, direction: Direction) -> list[str]:
         if direction == "sale":
-            return ["serie", "number", "customerRuc", "issueDate", "lineItems", "subtotal", "igv", "percepcion", "detraccion", "costCenter"]
-        return ["serie", "number", "supplierRuc", "subtotal", "igv", "expenseAccount", "costCenter"]
+            return ["serie", "number", "customerNit", "issueDate", "lineItems", "subtotal", "iva", "costCenter"]
+        return ["serie", "number", "supplierNit", "subtotal", "iva", "expenseAccount", "costCenter"]
 
     def _parse_json(self, content: str) -> dict[str, Any]:
         text = content.strip()
@@ -152,26 +148,26 @@ Devuelve exclusivamente JSON valido con esta forma:
         if serie and number:
             serie_numero = f"{serie}-{number}"
 
-        supplier_ruc = self._ruc(data.get("supplier_ruc") or data.get("ruc_proveedor") or data.get("emisor_ruc"))
-        customer_ruc = self._ruc(data.get("customer_ruc") or data.get("ruc_cliente") or data.get("receptor_ruc"))
-        partner_ruc = self._ruc(data.get("partner_ruc"))
-        if not partner_ruc:
-            partner_ruc = supplier_ruc if direction == "purchase" else customer_ruc
-        if direction == "purchase" and not supplier_ruc:
-            supplier_ruc = partner_ruc
-        if direction == "sale" and not customer_ruc:
-            customer_ruc = partner_ruc
+        supplier_nit = self._nit(data.get("supplier_nit") or data.get("supplier_ruc") or data.get("nit_proveedor") or data.get("emisor_nit"))
+        customer_nit = self._nit(data.get("customer_nit") or data.get("customer_ruc") or data.get("nit_cliente") or data.get("receptor_nit"))
+        partner_nit = self._nit(data.get("partner_nit") or data.get("partner_ruc"))
+        if not partner_nit:
+            partner_nit = supplier_nit if direction == "purchase" else customer_nit
+        if direction == "purchase" and not supplier_nit:
+            supplier_nit = partner_nit
+        if direction == "sale" and not customer_nit:
+            customer_nit = partner_nit
 
-        subtotal = self._money(data.get("subtotal") or data.get("base_imponible"))
-        igv = self._money(data.get("igv") or data.get("tax_amount"))
+        subtotal = self._money(data.get("subtotal") or data.get("base_imponible") or data.get("base"))
+        iva = self._money(data.get("iva") or data.get("igv") or data.get("tax_amount") or data.get("impuesto"))
         total = self._money(data.get("total") or data.get("total_amount"))
-        if total and not subtotal and not igv:
+        if total and not subtotal and not iva:
             subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            igv = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        elif subtotal and not igv and total:
-            igv = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        elif subtotal and igv and not total:
-            total = (subtotal + igv).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            iva = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        elif subtotal and not iva and total:
+            iva = (total - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        elif subtotal and iva and not total:
+            total = (subtotal + iva).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         return {
             "status": "ok",
@@ -182,17 +178,15 @@ Devuelve exclusivamente JSON valido con esta forma:
             "number": number,
             "serie_numero": serie_numero,
             "issue_date": self._date(data.get("issue_date") or data.get("fecha_emision")),
-            "supplier_ruc": supplier_ruc,
+            "supplier_nit": supplier_nit,
             "supplier_name": self._clean(data.get("supplier_name") or data.get("razon_social_proveedor")),
-            "customer_ruc": customer_ruc,
+            "customer_nit": customer_nit,
             "customer_name": self._clean(data.get("customer_name") or data.get("razon_social_cliente")),
-            "partner_ruc": partner_ruc,
+            "partner_nit": partner_nit,
             "currency": self._currency(data.get("currency")),
             "subtotal": self._money_text(subtotal),
-            "igv": self._money_text(igv),
+            "iva": self._money_text(iva),
             "total": self._money_text(total),
-            "percepcion": self._money_text(self._money(data.get("percepcion"))),
-            "detraccion": self._money_text(self._money(data.get("detraccion"))),
             "expense_account_suggested": self._clean(data.get("expense_account_suggested")),
             "cost_center_suggested": self._clean(data.get("cost_center_suggested")),
             "glosa_suggested": self._clean(data.get("glosa_suggested")),
@@ -202,25 +196,29 @@ Devuelve exclusivamente JSON valido con esta forma:
             "raw_text_summary": self._clean(data.get("raw_text_summary")),
         }
 
-    def _verify_sunat(self, data: dict[str, Any]) -> dict[str, Any]:
-        document = SunatDocumentReference(
-            document_type=data.get("doc_type"),
-            series=data.get("serie"),
-            number=data.get("number"),
-            issue_date=data.get("issue_date"),
-            total_amount=data.get("total"),
-            company_ruc=self.company_ruc,
-        )
-        return self.sunat_verifier.verify(data.get("partner_ruc"), document).as_dict()
+    def _verify_dian(self, data: dict[str, Any]) -> dict[str, Any]:
+        # Stub-compatible call; real DIAN verifier can enrich this result.
+        return {
+            "status": "PENDING",
+            "partner_nit": data.get("partner_nit"),
+            "document": {
+                "type": data.get("doc_type"),
+                "series": data.get("serie"),
+                "number": data.get("number"),
+                "issue_date": data.get("issue_date"),
+                "total_amount": data.get("total"),
+                "company_nit": self.company_nit,
+            },
+        }
 
-    def _compliance_status(self, sunat_validation: dict[str, Any]) -> dict[str, Any]:
-        status = normalize_sunat_text(sunat_validation.get("taxpayer_status"))
-        condition = normalize_sunat_text(sunat_validation.get("taxpayer_condition"))
-        blocked = status in {"BAJA", "BAJA DE OFICIO", "INACTIVO"} or condition in {"NO HABIDO", "NO HALLADO"}
+    def _compliance_status(self, dian_validation: dict[str, Any]) -> dict[str, Any]:
+        status = dian_validation.get("taxpayer_status") or dian_validation.get("estado")
+        condition = dian_validation.get("taxpayer_condition") or dian_validation.get("condicion")
+        blocked = status in {"BAJA", "BAJA DE OFICIO", "INACTIVO", "CANCELADO"} or condition in {"NO HABIDO", "NO HALLADO"}
         warnings: list[str] = []
         if blocked:
-            warnings.append("Proveedor/cliente con estado SUNAT no apto para persistencia automatica.")
-        warnings.extend(str(item) for item in sunat_validation.get("warnings", []))
+            warnings.append("Proveedor/cliente con estado DIAN no apto para persistencia automatica.")
+        warnings.extend(str(item) for item in dian_validation.get("warnings", []))
         return {"blocked": blocked, "warnings": warnings}
 
     def _line_items(self, value: Any) -> list[dict[str, str | None]]:
@@ -248,7 +246,7 @@ Devuelve exclusivamente JSON valido con esta forma:
         return items
 
     def _confidence(self, value: Any) -> dict[str, float]:
-        default = {"overall": 0.0, "ruc": 0.0, "serie_numero": 0.0, "amounts": 0.0}
+        default = {"overall": 0.0, "nit": 0.0, "serie_numero": 0.0, "amounts": 0.0}
         if not isinstance(value, dict):
             return default
         for key in default:
@@ -259,13 +257,11 @@ Devuelve exclusivamente JSON valido con esta forma:
         return default
 
     def _doc_type_code(self, value: Any) -> str:
-        normalized = normalize_sunat_text(value) or "FACTURA"
-        if "BOLETA" in normalized:
-            return "03"
+        normalized = self._clean(value).upper() if value is not None else "FACTURA"
         if "CREDITO" in normalized:
-            return "07"
+            return "91"
         if "DEBITO" in normalized:
-            return "08"
+            return "92"
         return "01"
 
     def _currency(self, value: Any) -> str:
@@ -274,11 +270,11 @@ Devuelve exclusivamente JSON valido con esta forma:
             return "USD"
         return "COP"
 
-    def _ruc(self, value: Any) -> str | None:
+    def _nit(self, value: Any) -> str | None:
         if value is None:
             return None
-        match = re.search(r"\b(10|15|17|20)\d{9}\b", str(value).replace(" ", ""))
-        return match.group(0) if match else None
+        cleaned = re.sub(r"[^\dkK]", "", str(value))
+        return cleaned.upper() if 5 <= len(cleaned) <= 12 else None
 
     def _date(self, value: Any) -> str | None:
         text = self._clean(value)

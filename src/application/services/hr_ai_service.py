@@ -19,12 +19,12 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 CV_EXTRACTION_PROMPT = (
     "Actua como un Especialista en Seleccion de Personal Colombia. Extrae del archivo adjunto los siguientes campos: "
     "Nombres, Apellidos, Cedula de Ciudadania o Extranjeria (valida entre 5 y 12 digitos), Fecha de nacimiento, "
-    "Direccion, Telefono, Correo, Profesion, Estudios, Experiencia, Fondo de pension (AFP), EPS, ARL, CCF, "
+    "Direccion, Telefono, Correo, Profesion, Estudios, Experiencia, Fondo de pension (Colpensiones - SPP o AFP Privada), EPS, ARL, CCF, "
     "cuenta bancaria y evidencias documentarias. "
     "Instruccion critica: Si encuentras discrepancias entre la direccion del CV y los datos del RNEC/RUNT, genera una "
     "alerta de 'Validacion de Domicilio'. Mapea cada dato a su celda correspondiente en el formulario Registro_Personal_V1 "
     "y llena la base de requisitos: Cedula, foto, ficha personal, hoja de vida documentada, estudios, certificados laborales, "
-    "antecedentes judiciales (Policia Nacional), declaracion de domicilio, afiliacion AFP/EPS/ARL/CCF y cuenta bancaria."
+    "antecedentes judiciales (Policia Nacional), declaracion de domicilio, afiliacion Sistema Pensional (Colpensiones o SPP)/EPS/ARL/CCF y cuenta bancaria."
 )
 
 
@@ -179,12 +179,19 @@ class CvExtractionService:
             warnings.append("No se pudo extraer texto OCR; complete o corrija el formulario manualmente.")
         return text, warnings
 
-    def parse_cv(self, text: str, *, reniec_address: str | None = None) -> WorkerDraft:
+    def parse_cv(
+        self,
+        text: str,
+        *,
+        rnec_address: str | None = None,
+        reniec_address: str | None = None,
+    ) -> WorkerDraft:
+        rnec_address = rnec_address or reniec_address
         cleaned = " ".join(text.replace("\n", " ").split())
         draft = WorkerDraft()
-        draft.dni = self._first_match(cleaned, r"\b(\d{8})\b")
+        draft.dni = self._first_match(cleaned, r"\b(\d{5,12})\b")
         draft.email = self._first_match(cleaned, r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})")
-        draft.telefono = self._first_match(cleaned, r"(?:\+?51\s*)?(\d{9})\b")
+        draft.telefono = self._first_match(cleaned, r"(?:\+?57\s*)?(\d{7,10})\b")
         draft.fecha_nacimiento = self._normalize_date(self._first_match(cleaned, r"(\d{1,2}[/-]\d{1,2}[/-]\d{4})")) or None
         draft.sueldo_pactado = self._money(cleaned)
         draft.direccion_domicilio = self._extract_address(cleaned)
@@ -197,17 +204,24 @@ class CvExtractionService:
         draft.habilidades_clave = self._extract_skills(cleaned)
         draft.nombres, draft.apellidos = self._extract_names(cleaned)
 
-        if draft.dni and not re.fullmatch(r"\d{8}", draft.dni):
-            draft.alerts.append("DNI invalido: debe tener 8 digitos.")
+        if draft.dni and not re.fullmatch(r"\d{5,12}", draft.dni):
+            draft.alerts.append("Cedula invalida: debe tener entre 5 y 12 digitos.")
         if not draft.dni:
-            draft.alerts.append("DNI no detectado en el CV.")
-        if reniec_address and draft.direccion_domicilio and self._normalize_address(reniec_address) != self._normalize_address(draft.direccion_domicilio):
-            draft.alerts.append("Validacion de Domicilio: la direccion del CV difiere de RENIEC.")
+            draft.alerts.append("Cedula no detectada en el CV.")
+        if rnec_address and draft.direccion_domicilio and self._normalize_address(rnec_address) != self._normalize_address(draft.direccion_domicilio):
+            draft.alerts.append("Validacion de Domicilio: la direccion del CV difiere de RNEC.")
 
         draft.requirements = self._build_requirements(cleaned, draft)
         return draft
 
-    def parse_cv_batch(self, text: str, *, reniec_address: str | None = None) -> list[dict]:
+    def parse_cv_batch(
+        self,
+        text: str,
+        *,
+        rnec_address: str | None = None,
+        reniec_address: str | None = None,
+    ) -> list[dict]:
+        rnec_address = rnec_address or reniec_address
         chunks = self._split_candidate_chunks(text)
         if not chunks:
             chunks = [text]
@@ -215,7 +229,7 @@ class CvExtractionService:
         result: list[dict] = []
         seen_dni: set[str] = set()
         for index, chunk in enumerate(chunks, start=1):
-            draft = self.parse_cv(chunk, reniec_address=reniec_address)
+            draft = self.parse_cv(chunk, rnec_address=rnec_address)
             draft_data = draft.as_dict()
             dni = str(draft_data.get("dni") or "").strip()
             if dni and dni in seen_dni:
@@ -263,7 +277,7 @@ class CvExtractionService:
         if not normalized:
             return []
 
-        # First pass: split by pages and aggregate pages until we detect a new DNI anchor.
+        # First pass: split by pages and aggregate pages until we detect a new cedula anchor.
         pages = [page.strip() for page in normalized.split("[PAGE_BREAK]") if page.strip()]
         if len(pages) <= 1:
             return self._split_by_dni_windows(normalized)
@@ -271,7 +285,7 @@ class CvExtractionService:
         chunks: list[str] = []
         current = ""
         for page in pages:
-            page_has_dni = bool(re.search(r"\b\d{8}\b", page))
+            page_has_dni = bool(re.search(r"\b\d{5,12}\b", page))
             if current and page_has_dni:
                 chunks.append(current.strip())
                 current = page
@@ -280,7 +294,7 @@ class CvExtractionService:
         if current:
             chunks.append(current.strip())
 
-        # Fallback for a single merged chunk that still contains many DNIs.
+        # Fallback for a single merged chunk that still contains many cedulas.
         if len(chunks) == 1:
             return self._split_by_dni_windows(chunks[0])
         return chunks
@@ -351,7 +365,7 @@ class CvExtractionService:
     @staticmethod
     def _extract_address(text: str) -> str:
         match = re.search(
-            r"(?:vive en|direccion|domicilio)\s*[:=]?\s*(.+?)(?=\s+(?:telefono|celular|correo|email|dni|estudios|formacion|educacion|experiencia|afp|onp|cci|cuenta|habilidades)\b|[.;]|$)",
+            r"(?:vive en|direccion|domicilio)\s*[:=]?\s*(.+?)(?=\s+(?:telefono|celular|correo|email|dni|cedula|documento|estudios|formacion|educacion|experiencia|afp|colpensiones|cuenta|habilidades)\b|[.;]|$)",
             text,
             flags=re.IGNORECASE,
         )
@@ -363,13 +377,13 @@ class CvExtractionService:
         if not match:
             return ""
         raw = match.group(0)
-        cleaned = re.split(r"\b(telefono|correo|email|dni|direccion|experiencia)\b", raw, maxsplit=1, flags=re.IGNORECASE)[0]
+        cleaned = re.split(r"\b(telefono|correo|email|dni|cedula|documento|direccion|experiencia)\b", raw, maxsplit=1, flags=re.IGNORECASE)[0]
         return cleaned.strip(" ,.;:-").title()
 
     @staticmethod
     def _extract_experience(text: str) -> str:
         match = re.search(
-            r"((?:\d+\s+anos|senior|junior|experiencia).+?)(?=\s+(?:estudios|formacion|educacion|afp|onp|cci|cuenta|telefono|correo|email|dni|direccion|domicilio)\b|[.;]|$)",
+            r"((?:\d+\s+anos|senior|junior|experiencia).+?)(?=\s+(?:estudios|formacion|educacion|afp|colpensiones|cuenta|telefono|correo|email|dni|cedula|documento|direccion|domicilio)\b|[.;]|$)",
             text,
             flags=re.IGNORECASE,
         )
@@ -378,7 +392,7 @@ class CvExtractionService:
     @staticmethod
     def _extract_studies(text: str) -> str:
         patterns = [
-            r"(?:estudios|formacion academica|educacion)\s*[:=]?\s*(.+?)(?=\s+(?:experiencia|telefono|correo|email|dni|direccion|domicilio|afp|onp|cci|cuenta|habilidades)\b|[.;]|$)",
+            r"(?:estudios|formacion academica|educacion)\s*[:=]?\s*(.+?)(?=\s+(?:experiencia|telefono|correo|email|dni|cedula|documento|direccion|domicilio|afp|colpensiones|cuenta|habilidades)\b|[.;]|$)",
             r"\b(universidad|instituto|bachiller|titulado|licenciado|tecnico|diploma|certificado)\b[^.;]*",
         ]
         first = re.search(patterns[0], text, flags=re.IGNORECASE)
@@ -387,7 +401,7 @@ class CvExtractionService:
         second = re.search(patterns[1], text, flags=re.IGNORECASE)
         if second:
             raw = re.split(
-                r"\b(experiencia|telefono|correo|email|dni|direccion|domicilio|afp|onp|cci|cuenta|habilidades)\b",
+                r"\b(experiencia|telefono|correo|email|dni|cedula|documento|direccion|domicilio|afp|colpensiones|cuenta|habilidades)\b",
                 second.group(0),
                 maxsplit=1,
                 flags=re.IGNORECASE,
@@ -397,11 +411,15 @@ class CvExtractionService:
 
     @staticmethod
     def _extract_pension_system(text: str) -> str:
-        match = re.search(r"\b(AFP|ONP|Prima AFP|Integra AFP|Habitat AFP|Profuturo AFP)\b", text, flags=re.IGNORECASE)
-        if not match:
-            return ""
-        value = match.group(1).upper()
-        return "ONP" if "ONP" in value else "AFP"
+        # Search for Colombian pension systems: Colpensiones (public), or SPP (private pension funds)
+        colpensiones_match = re.search(r"\b(Colpensiones|SPP|RPM|Regimen Pensional)\b", text, flags=re.IGNORECASE)
+        if colpensiones_match:
+            return "Colpensiones" if "Colpensiones" in colpensiones_match.group(1) else "SPP"
+        # Fallback: search for any AFP mention (user might have copied from other countries)
+        afp_match = re.search(r"\b(AFP|SPP|Regimen Pensional|Sistema Pensional)\b", text, flags=re.IGNORECASE)
+        if afp_match:
+            return "SPP"  # Default to Colombian private pension system
+        return ""
 
     @staticmethod
     def _extract_bank_data(text: str) -> tuple[str, str]:
@@ -431,7 +449,7 @@ class CvExtractionService:
         if not match:
             return "", ""
         raw_name = re.split(
-            r"\b(DNI|Documento|Telefono|Celular|Correo|Email|Direccion|Domicilio)\b",
+            r"\b(Cedula|Documento|Telefono|Celular|Correo|Email|Direccion|Domicilio)\b",
             match.group(1),
             maxsplit=1,
             flags=re.IGNORECASE,
@@ -463,9 +481,9 @@ class CvExtractionService:
 
         return [
             item(
-                "copia_dni_vigente",
+                "copia_cedula_vigente",
                 "OBSERVADO" if draft.dni else "PENDIENTE",
-                f"DNI detectado en CV: {draft.dni}" if draft.dni else "No se detecto numero de DNI en el CV.",
+                f"Cedula detectada en CV: {draft.dni}" if draft.dni else "No se detecto numero de cedula en el CV.",
             ),
             item(
                 "foto_tamano_carne",
@@ -475,7 +493,7 @@ class CvExtractionService:
             item(
                 "ficha_datos_personales",
                 "APROBADO" if full_name and draft.dni and (draft.telefono or draft.email) else "OBSERVADO",
-                f"Datos detectados: {full_name or 'sin nombre'}, DNI {draft.dni or 'sin DNI'}, telefono/correo {draft.telefono or draft.email or 'pendiente'}.",
+                f"Datos detectados: {full_name or 'sin nombre'}, cedula {draft.dni or 'sin cedula'}, telefono/correo {draft.telefono or draft.email or 'pendiente'}.",
             ),
             item(
                 "hoja_vida_documentada",
@@ -513,9 +531,9 @@ class CvExtractionService:
                 draft.direccion_domicilio or "No se detecto domicilio para declaracion jurada.",
             ),
             item(
-                "ficha_afp_onp",
+                "ficha_sistema_pensional",
                 "OBSERVADO" if draft.pension_system else "PENDIENTE",
-                f"Sistema pensionario detectado: {draft.pension_system}" if draft.pension_system else "No se detecto AFP/ONP.",
+                f"Sistema pensional detectado: {draft.pension_system}" if draft.pension_system else "No se detecto Colpensiones/AFP.",
             ),
             item(
                 "cuenta_bancaria_haberes",
@@ -526,7 +544,7 @@ class CvExtractionService:
 
 
 class LaborContractGenerator:
-    UIT_REFERENCE = Decimal("5150.00")
+    UVT_REFERENCE = Decimal("47065.00")
 
     def generate_contract_text(
         self,
@@ -548,7 +566,7 @@ class LaborContractGenerator:
         return f"""
 CONTRATO DE TRABAJO - {tipo_contrato.upper()}
 
-Conste por el presente documento el contrato de trabajo que celebran LA EMPRESA y {full_name}, identificado(a) con DNI {worker.get('dni', '')}, con domicilio en {worker.get('direccion_domicilio', '')}.
+Conste por el presente documento el contrato de trabajo que celebran LA EMPRESA y {full_name}, identificado(a) con cedula {worker.get('dni', '')}, con domicilio en {worker.get('direccion_domicilio', '')}.
 
 VIGENCIA.
 {contract_window}
@@ -666,7 +684,7 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
                 "Cargo de Entrega del Reglamento Interno de Trabajo",
                 [
                     f"Trabajador: {full_name}",
-                    f"DNI: {dni}",
+                    f"Cedula: {dni}",
                     "Se deja constancia de la entrega del Reglamento Interno de Trabajo (RIT).",
                     "El trabajador declara haber recibido, leido y comprendido el documento.",
                 ],
@@ -680,11 +698,11 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
                 ],
             ),
             "03_Boletin_Sistema_Pensionario.pdf": self._annex_pdf(
-                "Boletin Informativo Sistema Pensionario (AFP/ONP)",
+                "Boletin Informativo Sistema Pensional (Colpensiones/AFP)",
                 [
                     f"Trabajador: {full_name}",
-                    f"DNI: {dni}",
-                    "Se informa al trabajador sobre los sistemas pensionarios AFP y ONP.",
+                    f"Cedula: {dni}",
+                    "Se informa al trabajador sobre el sistema pensional colombiano: Colpensiones y fondos privados.",
                     "El trabajador declara haber sido orientado sobre plazos y procedimiento de afiliacion.",
                 ],
             ),
@@ -727,9 +745,9 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
             clauses.append(
                 "Por tratarse de cargo de confianza, se incorpora clausula de exoneracion de jornada maxima conforme al marco legal aplicable."
             )
-        if sueldo_value > self.UIT_REFERENCE * Decimal("2"):
+        if sueldo_value > self.UVT_REFERENCE * Decimal("2"):
             clauses.append(
-                "Al superar 2 UIT de remuneracion mensual, se incorpora clausula de responsabilidad solidaria y deber reforzado de cumplimiento."
+                "Al superar 2 UVT de remuneracion mensual, se incorpora clausula de responsabilidad solidaria y deber reforzado de cumplimiento."
             )
         if not clauses:
             clauses.append("No se activaron clausulas condicionales especiales para este perfil.")
@@ -801,7 +819,7 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
 
     @staticmethod
     def _accounting_alerts_text(worker: dict, tipo_contrato: str, contract_terms: dict) -> str:
-        dni = worker.get("dni") or "SIN-DNI"
+        dni = worker.get("dni") or "SIN-CEDULA"
         name = f"{worker.get('nombres', '')} {worker.get('apellidos', '')}".strip() or "TRABAJADOR"
         start = contract_terms.get("start_date") or "NO DEFINIDA"
         end = contract_terms.get("end_date") or "INDETERMINADO"
@@ -809,7 +827,7 @@ DECIMA PRIMERA: CONTEXTO LEGAL RAG CONSULTADO.
         return (
             "ALERTAS PARA CONTABILIDAD Y PLANILLAS\n"
             f"Trabajador: {name}\n"
-            f"DNI: {dni}\n"
+            f"Cedula: {dni}\n"
             f"Tipo contrato: {tipo_contrato}\n"
             f"Inicio: {start}\n"
             f"Fin: {end}\n"

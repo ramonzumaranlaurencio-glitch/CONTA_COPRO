@@ -298,7 +298,7 @@ const PLAN_AUDIO: Record<string, string> = {
   MAESTRO_PLUS:
     'Plan Maestro Plus, precio a tratar directamente con nosotros. ' +
     'Es la solución completa para contadores que necesitan un ERP total en Colombia. ' +
-    'Empresas ilimitadas. Inventario y almacén activados. Nómina completa con aportes a AFP, EPS, ARL y caja de compensación. ' +
+    'Empresas ilimitadas. Inventario y almacén activados. Nómina completa con aportes a Sistema Pensional (Colpensiones o SPP), EPS, ARL y caja de compensación. ' +
     'Centros de costo. Inteligencia artificial sin límite. ' +
     'DIAN integrado con facturación electrónica, medios magnéticos y exógena. ' +
     'Incluye implementación guiada, capacitación y soporte dedicado. ' +

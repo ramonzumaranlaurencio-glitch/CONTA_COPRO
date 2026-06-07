@@ -273,6 +273,14 @@ class FinancialDocument(Base):
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
+    @property
+    def dian_status(self) -> str:
+        return self.sunat_status
+
+    @dian_status.setter
+    def dian_status(self, value: str) -> None:
+        self.sunat_status = value
+
 class TreasuryAccount(Base):
     __tablename__ = "treasury_accounts"
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -383,24 +391,25 @@ class TaxDetermination(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="CALCULATED")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
-class SunatSubmission(Base):
-    __tablename__ = "sunat_submissions"
+class DianSubmission(Base):
+    __tablename__ = "dian_submissions"
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
     company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     financial_document_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     submission_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    endpoint_type: Mapped[str] = mapped_column(String(20), nullable=False, default="SUNAT")
+    endpoint_type: Mapped[str] = mapped_column(String(20), nullable=False, default="DIAN")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
     ticket: Mapped[str | None] = mapped_column(Text)
     xml_hash: Mapped[str | None] = mapped_column(Text)
-    cdr_code: Mapped[str | None] = mapped_column(Text)
-    cdr_description: Mapped[str | None] = mapped_column(Text)
+    cud_code: Mapped[str | None] = mapped_column(Text)
+    response_description: Mapped[str | None] = mapped_column(Text)
     raw_response: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
-DianSubmission = SunatSubmission
+# Alias para compatibilidad con código legado
+SunatSubmission = DianSubmission
 
 class IntegrationConnector(Base):
     __tablename__ = "integration_connectors"

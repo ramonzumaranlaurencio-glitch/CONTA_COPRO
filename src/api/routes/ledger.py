@@ -319,12 +319,12 @@ def _build_guide_pdf_bytes(document: FinancialDocument) -> bytes:
         ["Serie-Numero", f"{document.series}-{document.number}", "Tipo", "09"],
         ["Documento origen", metadata.get("source_document", ""), "Fecha emision", document.issue_date.isoformat()],
         ["Fecha traslado", metadata.get("transferDate", ""), "Motivo", metadata.get("motivoTraslado", "")],
-        ["Modalidad", metadata.get("modalidadTransporte", ""), "Destinatario RUC", metadata.get("destinatarioRuc", "")],
+        ["Modalidad", metadata.get("modalidadTransporte", ""), "Destinatario NIT/CC", metadata.get("destinatarioRuc", "")],
         ["Partida", metadata.get("partidaDireccion", ""), "Ubigeo", metadata.get("partidaUbigeo", "")],
         ["Llegada", metadata.get("llegadaDireccion", ""), "Ubigeo", metadata.get("llegadaUbigeo", "")],
-        ["Transportista", metadata.get("transportistaRazonSocial", ""), "RUC", metadata.get("transportistaRuc", "")],
+        ["Transportista", metadata.get("transportistaRazonSocial", ""), "NIT", metadata.get("transportistaRuc", "")],
         ["Placa", metadata.get("placaVehiculo", ""), "Licencia", metadata.get("conductorLicencia", "")],
-        ["DNI Conductor", metadata.get("conductorDni", ""), "Bultos", metadata.get("numeroBultos", "")],
+        ["Cedula Conductor", metadata.get("conductorDni", ""), "Bultos", metadata.get("numeroBultos", "")],
     ]
     header_table = Table(header_data, colWidths=[35 * mm, 70 * mm, 30 * mm, 45 * mm])
     header_table.setStyle(
@@ -564,20 +564,11 @@ async def list_journal(
                             "cost_center": line.cost_center,
                             "debit": str(line.debit),
                             "credit": str(line.credit),
-<<<<<<< HEAD
-                            # Explicitly calculate debe_mn and haber_mn in local currency (COP)
-                            # debe_mn = debit * tipo_cambio (convert to local currency)
-                            # haber_mn = credit * tipo_cambio
-                            "debe_mn": str((line.debit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
-                            "haber_mn": str((line.credit or Decimal("0")) * (getattr(line, "tipo_cambio", None) or Decimal("1.0000"))),
-                            "tipo_cambio": str(getattr(line, "tipo_cambio", "1.0000") or "1.0000"),
-=======
                             # Compute tipo_cambio using line.tipo_cambio -> entry.tipo_cambio -> default 1.0000
                             # Then calculate debe_mn/haber_mn as Decimal and quantize to 2 decimals.
                             "debe_mn": (lambda _ld, _lc: str((_ld * _lc).quantize(Decimal("0.01"))))(Decimal(line.debit or Decimal("0.00")), _to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000"))),
                             "haber_mn": (lambda _lc2, _lc3: str((_lc2 * _lc3).quantize(Decimal("0.01"))))(Decimal(line.credit or Decimal("0.00")), _to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000"))),
                             "tipo_cambio": str(_to_decimal(getattr(line, "tipo_cambio", None) or getattr(_entry, "tipo_cambio", None) or Decimal("1.0000")).quantize(Decimal("0.0001"))),
->>>>>>> 26a39a5bf (Actualizacion Colombia)
                             "periodo_fiscal": getattr(line, "periodo_fiscal", None),
                             "modulo_origen": getattr(line, "modulo_origen", None),
                             "partner_ruc": line.partner_ruc,
@@ -853,7 +844,7 @@ async def save_guia_remision(payload: GuiaRemisionRequest, ctx=Depends(get_curre
                 detraccion_amount=Decimal("0.00"),
                 percepcion_amount=Decimal("0.00"),
                 retencion_amount=Decimal("0.00"),
-                sunat_status="PENDING",
+                dian_status="PENDING",
                 metadata_json=metadata,
             )
             uow.session.add(document)

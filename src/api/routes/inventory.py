@@ -10,11 +10,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
 from src.api.dependencies import get_current_context
-=======
-from src.api.dependencies import get_current_context, require_feature_dependency
->>>>>>> 26a39a5bf (Actualizacion Colombia)
 from src.api.routes.ledger import build_hash_service, build_uow_factory
 from src.application.services.inventory_service import InventoryService
 from src.application.services.ledger_posting_service import LedgerPostingService
@@ -22,11 +18,7 @@ from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.repositories.inventory_repository import InventoryRepository
 from src.infrastructure.unit_of_work import UnitOfWork
 
-router = APIRouter(
-    prefix="/inventory",
-    tags=["Inventory"],
-    dependencies=[Depends(require_feature_dependency("inventory"))],
-)
+router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 # Prefijos por clase de artículo
 CLASS_CODES: dict[str, str] = {
@@ -354,10 +346,8 @@ async def list_balances(ctx=Depends(get_current_context)):
             b = row["balance"]
             p = row["product"]
             w = row["warehouse"]
-            # Preserve numeric precision: use Decimal and return monetary values as strings
-            bal_qty = Decimal(str(b.balance_qty)) if getattr(b, "balance_qty", None) is not None else Decimal("0")
-            avg_cost = Decimal(str(b.balance_avg_cost)) if getattr(b, "balance_avg_cost", None) is not None else Decimal("0")
-            balance_value = (bal_qty * avg_cost).quantize(Decimal("0.01"))
+            balance_qty = float(b.balance_qty)
+            avg_cost = float(b.balance_avg_cost)
             result.append({
                 "balance_id": str(b.id),
                 "id": str(p.id),
@@ -379,9 +369,9 @@ async def list_balances(ctx=Depends(get_current_context)):
                 "specs": p.specs,
                 "location": p.location,
                 "is_active": p.is_active,
-                "balance_qty": str(bal_qty),
-                "balance_avg_cost": str(avg_cost.quantize(Decimal("0.01"))),
-                "balance_value": str(balance_value),
+                "balance_qty": balance_qty,
+                "balance_avg_cost": avg_cost,
+                "balance_value": round(balance_qty * avg_cost, 2),
                 "updated_at": b.updated_at.isoformat() if b.updated_at else None,
             })
         return result
@@ -838,7 +828,7 @@ async def reset_products(ctx=Depends(get_current_context)):
 @router.get("/report/by-account")
 async def report_by_account(ctx=Depends(get_current_context)):
     """
-    Reporte de inventario agrupado por cuenta PUC (Plan Único de Cuentas Colombia).
+    Reporte de inventario agrupado por cuenta PUC.
     Muestra: valor total, qty, entradas, salidas, rotación, costo promedio.
     Permite ver exactamente cuánto hay en 252, 201, 241, etc.
     """
@@ -977,7 +967,7 @@ def _puc_account_name(code: str) -> str:
 
 # Alias para compatibilidad con código existente
 
-_puc_account_name = _puc_account_name  # Consolidado: solo nomenclatura PUC colombiano
+_pcge_account_name = _puc_account_name  # Consolidado: solo nomenclatura PUC colombiano
 
 
 # =========================================================================
@@ -1234,110 +1224,6 @@ class ValidatePurchaseItemPayload(BaseModel):
 
 @router.post("/validate-purchase-item")
 async def validate_purchase_item(payload: ValidatePurchaseItemPayload, request: Request, ctx=Depends(get_current_context)):
-    """
-    Accepts a single line item from a purchase invoice/guide.
-    
-    Flow:
-    1. Locate or create the Product (by SKU or name)
-    2. Create a KardexMovement (ENTRY) linking back to source_doc (purchase document)
-    3. Return success with movement details
-    
-    The inventory system tracks which items have been accepted by marking them
-    in KardexMovement.source_document = "{entry_id}-L{idx}"
-    """
-    tenant_id = ctx["tenant_id"]
-    
-    try:
-        async with UnitOfWork(AsyncSessionLocal, tenant_id) as uow:
-            from src.domain.models.inventory import Product, Warehouse, KardexMovement
-            from sqlalchemy import select, func
-            
-            # 1. Get or create the Warehouse
-            warehouse_result = await uow.session.execute(
-                select(Warehouse).where(
-                    Warehouse.tenant_id == tenant_id,
-                    Warehouse.id == payload.warehouse_id
-                )
-            )
-            warehouse = warehouse_result.scalar_one_or_none()
-            if not warehouse:
-                raise HTTPException(status_code=404, detail="Almacén no encontrado")
-            
-            # 2. Get or create the Product
-            product = None
-            if payload.product_id:
-                # Look up by ID
-                prod_result = await uow.session.execute(
-                    select(Product).where(Product.id == payload.product_id)
-                )
-                product = prod_result.scalar_one_or_none()
-            
-            if not product and payload.sku:
-                # Look up by SKU
-                sku_result = await uow.session.execute(
-                    select(Product).where(
-                        Product.tenant_id == tenant_id,
-                        Product.sku == payload.sku
-                    )
-                )
-                product = sku_result.scalar_one_or_none()
-            
-            if not product:
-                # Create new product
-                new_sku = payload.sku or f"AUTO-{payload.product_name[:20]}"
-                product = Product(
-                    id=str(uuid4()),
-                    tenant_id=tenant_id,
-                    sku=new_sku,
-                    name=payload.product_name,
-                    unit_of_measure=payload.unit,
-                    default_cost=Decimal(str(payload.unit_cost)),
-                    default_sales_account="7011",
-                    default_cost_account=payload.account_code or "2011",
-                    item_class=payload.item_class,
-                    area=payload.area,
-                    is_active=True,
-                    created_at=datetime.utcnow(),
-                )
-                uow.session.add(product)
-                await uow.session.flush()
-            
-            # 3. Create KardexMovement
-            movement = KardexMovement(
-                id=str(uuid4()),
-                tenant_id=tenant_id,
-                warehouse_id=payload.warehouse_id,
-                product_id=str(product.id),
-                movement_type="ENTRY",  # Purchase entry
-                qty=Decimal(str(payload.qty)),
-                unit_cost=Decimal(str(payload.unit_cost)),
-                balance_qty=Decimal(str(payload.qty)),  # Will be updated by kardex service
-                balance_avg_cost=Decimal(str(payload.unit_cost)),
-                movement_reference=f"Purchase: {payload.source_module}",
-                source_document=payload.source_doc,  # e.g., "{entry_id}-L{idx}"
-                area=payload.area,
-                validated_by=ctx.get("user_id"),
-                notes=f"From purchase entry {payload.entry_id}. IA confidence: {payload.unit_cost}%",
-                created_at=datetime.utcnow(),
-            )
-            uow.session.add(movement)
-            await uow.session.commit()
-            
-            return {
-                "status": "ACCEPTED",
-                "movement_id": str(movement.id),
-                "product_id": str(product.id),
-                "source_doc": payload.source_doc,
-                "qty": str(payload.qty),
-                "unit_cost": str(payload.unit_cost),
-                "total": str(Decimal(str(payload.qty)) * Decimal(str(payload.unit_cost))),
-            }
-    
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(f"Error validating purchase item: {exc}")
-        raise HTTPException(status_code=500, detail=f"Error al validar ítem: {exc}") from exc
     """
     Valida un ítem de compra e ingresa al inventario (kardex) — multi-empresa.
     Busca el producto por catalog_code + company_id. Si no existe, lo crea

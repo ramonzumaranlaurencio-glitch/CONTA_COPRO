@@ -119,14 +119,12 @@ class InvoicePostRequest(BaseModel):
     entry_date: date | None = None
     due_date: date | None = None
     subtotal: Decimal
-    igv: Decimal
+    iva: Decimal
     total: Decimal
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    detraccion_amount: Decimal = Decimal("0.00")
-    percepcion_amount: Decimal = Decimal("0.00")
-    retencion_amount: Decimal = Decimal("0.00")
+    retencion_amount: Decimal = Decimal("0.00")  # Colombian withholding only
     cost_center: str | None = None
     xml_raw: str | None = None
     xml_hash: str | None = None
@@ -152,7 +150,7 @@ class PurchasePostRequest(BaseModel):
     issue_date: date | None = None
     due_date: date | None = None
     subtotal: Decimal
-    igv: Decimal
+    iva: Decimal
     total: Decimal
 
     # Compatibilidad con versión anterior
@@ -335,7 +333,7 @@ class SunatValidationModel(BaseModel):
 
 class TaxTreatmentModel(BaseModel):
     tratamiento: str = ""
-    igv_credito_fiscal: bool = False
+    iva_deductible: bool = False  # Colombian IVA credit deductibility
     gasto_deducible: bool = False
     requiere_revision: bool = False
     fundamento: str | None = None

@@ -3,8 +3,8 @@ from src.config import settings
 from src.infrastructure.db.session import AsyncSessionLocal
 from src.infrastructure.unit_of_work import UnitOfWork
 from src.infrastructure.workers.celery_app import celery_app
-from src.infrastructure.workers.sunat_worker import CircuitBreaker, SunatOutboxWorker
-from src.infrastructure.adapters.sunat.client import SunatClient
+from src.infrastructure.workers.sunat_worker import CircuitBreaker, DianOutboxWorker
+from src.infrastructure.adapters.sunat.client import SunatClient as DianClient  # TODO: Crear DianClient específico para RADIAN
 from src.infrastructure.adapters.sunat.xml_signer import XmlSigner
 from src.ai.reasoning_engine import AuditCopilot
 from src.application.services.integration_registry import IntegrationRegistry
@@ -18,13 +18,13 @@ class NullVectorStore:
 class NullGemini:
     async def analyze(self, prompt): return {"analysis": "gemini_not_configured", "prompt_keys": list(prompt.keys())}
 
-@celery_app.task(name="src.infrastructure.workers.tasks.process_sunat_outbox")
-def process_sunat_outbox(tenant_id: str):
+@celery_app.task(name="src.infrastructure.workers.tasks.process_dian_outbox")
+def process_dian_outbox(tenant_id: str):
     async def run():
         uow_factory = lambda tid: UnitOfWork(AsyncSessionLocal, tid)
-        worker = SunatOutboxWorker(
+        worker = DianOutboxWorker(
             uow_factory=uow_factory,
-            sunat_client=SunatClient(settings.sunat_endpoint, settings.sunat_ruc, settings.sunat_sol_user, settings.sunat_sol_password),
+            dian_client=DianClient(settings.dian_fe_endpoint, settings.dian_nit, settings.dian_user, settings.dian_password),
             xml_signer=XmlSigner(settings.p12_cert_path, settings.p12_cert_password),
             audit_copilot=AuditCopilot(NullLedgerReader(), NullVectorStore(), NullGemini()),
             breaker=CircuitBreaker(),
