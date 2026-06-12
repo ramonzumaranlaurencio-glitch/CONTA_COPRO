@@ -61,6 +61,17 @@ export default function AccountingLivePanel({
   const [selectedId, setSelectedId] = useState<string | null>(selectedMovementId ?? null);
   const [search, setSearch] = useState('');
 
+  // Jerarquía PUC Colombia: niveles válidos son 1→2→4→6 dígitos (Decreto 2649/1993)
+  // "241" (3 dígitos) NO es hijo válido de "24" — evita que cuentas Perú contaminen grupos
+  const isPucChild = (movCode: string, planCode: string): boolean => {
+    if (movCode === planCode) return true;
+    if (!movCode.startsWith(planCode)) return false;
+    const PUC_LEVELS = [1, 2, 4, 6];
+    const parentIdx = PUC_LEVELS.indexOf(planCode.length);
+    if (parentIdx === -1) return false;
+    return PUC_LEVELS.slice(parentIdx + 1).includes(movCode.length);
+  };
+
   const PUC_CLASSES: Record<string, string> = {
     '1': 'Activos', '2': 'Pasivos', '3': 'Patrimonio',
     '4': 'Ingresos', '5': 'Gastos', '6': 'Costos Ventas',
@@ -110,10 +121,10 @@ export default function AccountingLivePanel({
     }
     for (const movement of movements) {
       const code = movement.account || '';
-      // Busca la entrada del plan más específica que coincida con este movimiento
+      // Busca la entrada del plan más específica usando jerarquía PUC (niveles 1→2→4→6)
       let bestMatch = '';
       for (const planCode of result.keys()) {
-        if ((code === planCode || code.startsWith(planCode)) && planCode.length > bestMatch.length) {
+        if (isPucChild(code, planCode) && planCode.length > bestMatch.length) {
           bestMatch = planCode;
         }
       }
@@ -127,11 +138,11 @@ export default function AccountingLivePanel({
     return result;
   }, [movements, plan]);
 
-  // Filtrado: por cuenta seleccionada (startsWith) y búsqueda de texto
+  // Filtrado: jerarquía PUC estricta — "241" no pertenece al grupo "24" (Impuestos)
   const filtered = useMemo(() => {
     return movements.filter((m) => {
       const byAccount =
-        selectedAccount === '' ? true : (m.account || '').startsWith(selectedAccount);
+        selectedAccount === '' ? true : isPucChild(m.account || '', selectedAccount);
       const bySearch = `${m.glosa} ${m.account} ${m.accountName} ${m.module} ${m.hash}`
         .toLowerCase()
         .includes(search.toLowerCase());
