@@ -1108,32 +1108,62 @@ async def get_pending_purchases(
             # Fallback: si no hay items en metadata, reconstruir desde las líneas del asiento.
             # Buscar débitos en cuentas de inventario PUC Colombia (14=inventarios, 15=PPE).
             if not raw_items and hasattr(entry, "lines") and entry.lines:
+                from src.domain.item_catalog import (
+                    lookup as _cat_lookup,
+                    infer_nat_from_description as _infer_nat,
+                    infer_tk_from_description  as _infer_tk,
+                    item_class_from_nat        as _cls_from_nat,
+                    build_structured_code      as _build_code,
+                )
                 _INV_PREFIXES = ("14", "15")
                 for jl in entry.lines:
-                    ac = str(jl.account_code or "")
-                    if ac[:2] in _INV_PREFIXES and float(jl.debit or 0) > 0:
-                        raw_items.append({
-                            "description":  entry.description or f"Compra {doc_ref}",
-                            "code":         "",
-                            "unit":         "UND",
-                            "quantity":     1,
-                            "unit_price":   float(jl.debit),
-                            "line_subtotal":float(jl.debit),
-                            "account_code": ac,
-                            "account_name": "",
-                            "cost_center":  str(jl.cost_center or "LOG-ALM"),
-                            "line_type":    "INVENTORY_PURCHASE",
-                            "is_inventory": True,
-                            "item_class":   "",
-                            "catalog_code": "",
-                            "catalog_nat":  "",
-                            "catalog_rub":  "GE",
-                            "catalog_tk":   "F",
-                            "catalog_match":False,
-                            "gasto_account":"",
-                            "ai_reason":    "Reconstruido desde línea de asiento contable.",
-                            "ai_confidence":0.5,
-                        })
+                    ac   = str(jl.account_code or "")
+                    if ac[:2] not in _INV_PREFIXES or not (float(jl.debit or 0) > 0):
+                        continue
+                    desc = entry.description or f"Compra {doc_ref}"
+                    cta4 = ac[:4]
+                    # Buscar en catálogo por descripción y cuenta PUC
+                    cat  = _cat_lookup(desc, ac)
+                    if cat:
+                        cat_code  = cat["code"]
+                        cat_nat   = cat["nat"]
+                        cat_rub   = cat["rub"]
+                        cat_tk    = cat["tk"]
+                        cat_unit  = cat["unit"]
+                        cat_match = True
+                        gasto_acc = cat.get("gasto", "")
+                        item_cls  = _cls_from_nat(cat_nat)
+                    else:
+                        cat_nat   = _infer_nat(desc, cta4)
+                        cat_tk    = _infer_tk(desc, cat_nat)
+                        cat_rub   = "GE"
+                        cat_code  = _build_code(cta4, cat_nat, cat_rub, 9999, cat_tk)
+                        cat_unit  = "UND"
+                        cat_match = False
+                        gasto_acc = ""
+                        item_cls  = _cls_from_nat(cat_nat)
+                    raw_items.append({
+                        "description":  desc,
+                        "code":         cat_code,
+                        "unit":         cat_unit,
+                        "quantity":     1,
+                        "unit_price":   float(jl.debit),
+                        "line_subtotal":float(jl.debit),
+                        "account_code": ac,
+                        "account_name": "",
+                        "cost_center":  str(jl.cost_center or "LOG-ALM"),
+                        "line_type":    "INVENTORY_PURCHASE",
+                        "is_inventory": True,
+                        "item_class":   item_cls,
+                        "catalog_code": cat_code,
+                        "catalog_nat":  cat_nat,
+                        "catalog_rub":  cat_rub,
+                        "catalog_tk":   cat_tk,
+                        "catalog_match":cat_match,
+                        "gasto_account":gasto_acc,
+                        "ai_reason":    f"Reconstruido desde asiento contable. Cuenta PUC {ac}.",
+                        "ai_confidence":0.6 if cat_match else 0.4,
+                    })
 
             for idx, item in enumerate(raw_items):
                 # Referencia única por línea — permite validar ítem a ítem sin que
