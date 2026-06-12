@@ -161,7 +161,6 @@ async def seed_legal_library(ctx=Depends(require_roles("ADMIN", "ACCOUNTANT", "C
                 metadata={"url": item["url"], "domain": "laboral_colombia"},
             )
         )
-    ]
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         service = LegalRagService(
             pgvector_store=PgVectorAccountingStore(uow.session),
