@@ -137,9 +137,12 @@ async def _apply_schema_patches() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Todo el startup en try/except — uvicorn arranca siempre aunque no haya DB
+    # Patches PRIMERO con await — garantiza que las columnas existen antes del primer request
     try:
-        asyncio.create_task(_apply_schema_patches())
+        await _apply_schema_patches()
+    except Exception:
+        pass
+    try:
         dispatcher = get_dispatcher()
         register_default_handlers(dispatcher)
         await dispatcher.start()
