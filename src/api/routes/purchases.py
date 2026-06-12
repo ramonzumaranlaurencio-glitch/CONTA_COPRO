@@ -441,7 +441,7 @@ LEGAL_TAX_REVIEW_LIBRARY = [
     "Bancarizacion: en Colombia operaciones > $1.000.000 COP requieren pago bancarizado para ser deducibles (Art. 771-5 ET).",
     "IVA descontable: validar factura electronica con CUFE, NIT activo en DIAN, operacion gravada, vinculada con actividad generadora de IVA.",
     "Retencion en la fuente: aplicar tarifas correctas segun concepto (compras 3.5%, servicios 4%, honorarios 11%) y verificar cuantia minima.",
-    "Retencion/percepcion: evaluar condicion del proveedor, regimen aplicable y comprobante.",
+    "ReteFuente/ReteIVA: evaluar condicion del proveedor, regimen aplicable y comprobante.",
     "No deducibles u observados: multas, sanciones, gastos personales, liberalidades o conceptos sin causalidad.",
     "Servicios publicos Colombia: separar consumo actual, cargo fijo, alumbrado publico (impuesto municipal), mantenimiento red, deuda anterior, mora/intereses e IVA.",
     "Redondeo monetario: linea tecnica de conciliacion. No integra base gravable del IVA ni genera IVA descontable; no debe bloquear si esta dentro de tolerancia razonable.",
@@ -510,8 +510,7 @@ def _is_valid_nit(value: Any) -> bool:
     return expected == check
 
 
-# Alias para compatibilidad con código existente que use _is_valid_ruc
-_is_valid_ruc = _is_valid_nit
+_is_valid_ruc = _is_valid_nit  # backward-compat alias
 
 
 def _line_kind(description: str, code: str = "") -> str:
@@ -632,8 +631,8 @@ def _account_meta(account_code: str, account_name: str, accepts_partner: bool = 
         "account_code": code,
         "account_name": account_name or f"Cuenta {code}",
         "account_class": first,
-        "statement": "BALANCE" if first in {"1", "2", "3", "4", "5"} else "PROFIT_LOSS",
-        "nature": "CREDIT" if first in {"2", "3", "4", "5", "7"} else "DEBIT",
+        "statement": "BALANCE" if first in {"1", "2", "3"} else "PROFIT_LOSS",
+        "nature": "CREDIT" if first in {"2", "3", "4"} else "DEBIT",
         "accepts_cost_center": first in {"6", "9"},
         "accepts_partner": accepts_partner,
     }

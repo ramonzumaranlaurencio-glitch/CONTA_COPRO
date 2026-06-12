@@ -163,8 +163,8 @@ class PurchasePostRequest(BaseModel):
     cost_centers_to_upsert: list[PurchaseCostCenterUpsertRequest] = Field(default_factory=list)
     audit_metadata: PurchaseAuditMetadataRequest | None = None
 
-    detraccion_amount: Decimal = Decimal("0.00")
-    percepcion_amount: Decimal = Decimal("0.00")
+    retefuente_amount: Decimal = Decimal("0.00")
+    reteiva_amount: Decimal = Decimal("0.00")
     retencion_amount: Decimal = Decimal("0.00")
     currency: str = "COP"
     exchange_rate: Decimal | None = None

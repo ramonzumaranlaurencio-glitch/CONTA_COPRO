@@ -67,32 +67,33 @@ export default function AccountingLivePanel({
     '7': 'Costos Producción', '8': 'Orden Deudoras', '9': 'Orden Acreedoras',
   };
 
-  // Plan contable dinámico agrupado por 4 dígitos (cuenta PUC) — separa IVA 2408 de 241x, 242x
+  // Plan contable dinámico — usa código exacto de la cuenta (PUC Colombia)
+  // Cada cuenta aparece como entrada propia: 1405, 1435, 2408, 2205, etc.
   const plan = useMemo(() => {
     const grouped = new Map<string, { code: string; name: string; type: string }>();
 
-    // Primero agrega las cuentas del backend (plan contable real)
+    // Cuentas del backend (plan contable real) — código exacto, sin truncar
     for (const acc of chartAccounts) {
-      const prefix = acc.code.slice(0, 4);
-      if (!grouped.has(prefix)) {
+      const code = acc.code;
+      if (!grouped.has(code)) {
         const typeLabel =
           acc.statement === 'PROFIT_LOSS'
             ? 'Resultados'
             : acc.statement === 'BALANCE'
             ? 'Balance'
             : acc.statement || 'Otros';
-        grouped.set(prefix, { code: prefix, name: acc.name, type: typeLabel });
+        grouped.set(code, { code, name: acc.name, type: typeLabel });
       }
     }
 
-    // Complementa con cuentas que aparecen en movimientos pero no en el plan
+    // Complementa con cuentas presentes en movimientos pero no en el plan
     for (const m of movements) {
       if (!m.account) continue;
-      const prefix = (m.account || '').slice(0, 4);
-      if (prefix && !grouped.has(prefix)) {
-        grouped.set(prefix, {
-          code: prefix,
-          name: m.accountName || `Cuenta ${prefix}`,
+      const code = m.account;
+      if (code && !grouped.has(code)) {
+        grouped.set(code, {
+          code,
+          name: m.accountName || `Cuenta ${code}`,
           type: 'Otros',
         });
       }
@@ -101,16 +102,23 @@ export default function AccountingLivePanel({
     return Array.from(grouped.values()).sort((a, b) => a.code.localeCompare(b.code));
   }, [chartAccounts, movements]);
 
-  // Totales por cuenta (prefijo 4 dígitos PUC)
+  // Totales por cuenta — asigna cada movimiento a la entrada más específica del plan
   const accountTotals = useMemo(() => {
     const result = new Map<string, { count: number; debit: number; credit: number }>();
     for (const acc of plan) {
       result.set(acc.code, { count: 0, debit: 0, credit: 0 });
     }
     for (const movement of movements) {
-      const prefix = (movement.account || '').slice(0, 4);
-      if (result.has(prefix)) {
-        const total = result.get(prefix)!;
+      const code = movement.account || '';
+      // Busca la entrada del plan más específica que coincida con este movimiento
+      let bestMatch = '';
+      for (const planCode of result.keys()) {
+        if ((code === planCode || code.startsWith(planCode)) && planCode.length > bestMatch.length) {
+          bestMatch = planCode;
+        }
+      }
+      if (bestMatch) {
+        const total = result.get(bestMatch)!;
         total.count += 1;
         total.debit += movement.debit;
         total.credit += movement.credit;

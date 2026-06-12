@@ -1,6 +1,6 @@
 """
 Modelo de catálogo maestro de artículos de almacén.
-Multi-empresa · Multi-rubro · Alineado PCGE Perú + NIC 2.
+Multi-empresa · Multi-rubro · Alineado PUC Colombia (Decreto 2649/1993) + NIC 2.
 """
 from __future__ import annotations
 

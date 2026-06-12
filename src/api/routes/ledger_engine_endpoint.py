@@ -35,7 +35,7 @@ class LedgerEngineRequest(BaseModel):
     supplier_nit: str | None = Field(None, description="NIT del proveedor (para compras)")
     customer_nit: str | None = Field(None, description="NIT del cliente (para ventas)")
     payment_method: str | None = Field(None, description="TRANSFERENCIA, CHEQUE, EFECTIVO, etc")
-    service_code: str | None = Field(None, description="Código de servicio para detracciones")
+    service_code: str | None = Field(None, description="Código de servicio para ReteFuente (HONORARIOS_PJ, COMPRAS, SERVICIOS, etc)")
     doc_type_code: str | None = Field(None, description="01=Factura, 03=Boleta, 07=NC, 08=ND")
     due_date: str | None = Field(None, description="Fecha de vencimiento (YYYY-MM-DD)")
     reference_id: str | None = Field(None, description="ID de referencia (factura anterior, etc)")

@@ -229,8 +229,8 @@ async def books_packages(period: str | None = None, ctx=Depends(get_current_cont
     return rows
 
 
-@router.post("/books/packages/{package_id}/submit-sunat")
-async def books_submit_sunat(package_id: str, ctx=Depends(get_current_context)):
+@router.post("/books/packages/{package_id}/submit-dian")
+async def books_submit_dian(package_id: str, ctx=Depends(get_current_context)):
     package = BOOK_PACKAGES.get(package_id)
     if not package or package["tenant_id"] != ctx["tenant_id"]:
         raise HTTPException(status_code=404, detail="Package not found")

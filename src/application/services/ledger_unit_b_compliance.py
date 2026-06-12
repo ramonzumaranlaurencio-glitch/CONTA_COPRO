@@ -1,6 +1,6 @@
 """
 The Ledger Engine - Unit B: Compliance Agent (Legal/Tributary/Labor)
-Audita documentos contra SUNAT, Código Tributario, MTPE y derecho laboral
+Audita documentos contra DIAN, Estatuto Tributario Colombia y normativa laboral
 """
 
 from __future__ import annotations
@@ -24,11 +24,13 @@ class CausalityStatus(str, Enum):
     REQUIRES_REVIEW = "REQUIRES_REVIEW"
 
 
-class DetraccionStatus(str, Enum):
+class RetefuenteStatus(str, Enum):
     NO_APLICA = "NO_APLICA"
-    APLICA_10 = "APLICA_10"
-    APLICA_12 = "APLICA_12"
-    APLICA_30 = "APLICA_30"
+    APLICA_25 = "APLICA_25"    # 2.5% compras generales Art. 376 ET
+    APLICA_35 = "APLICA_35"    # 3.5% compras / arrendamiento bienes muebles
+    APLICA_40 = "APLICA_40"    # 4% servicios en general Art. 392 ET
+    APLICA_100 = "APLICA_100"  # 10% honorarios persona natural Art. 383 ET
+    APLICA_110 = "APLICA_110"  # 11% honorarios persona jurídica Art. 383 ET
 
 
 class LaborValidationStatus(str, Enum):
@@ -38,9 +40,9 @@ class LaborValidationStatus(str, Enum):
 
 
 class BankingValidation(BaseModel):
-    """Validación de bancarización según Ley de Lucha contra Evasión"""
-    monto_threshold_pen: Decimal = Decimal("2000")
-    monto_threshold_usd: Decimal = Decimal("500")
+    """Bancarización Art. 771-5 ET Colombia — pagos ≥ 100 UVT requieren medio bancario"""
+    monto_threshold_cop: Decimal = Decimal("5000000")  # ~100 UVT 2025
+    monto_threshold_usd: Decimal = Decimal("1500")
     monto_actual: Decimal
     requiere_bancarizacion: BankingRequirementStatus
     codigo_operacion: str | None = None
@@ -48,26 +50,26 @@ class BankingValidation(BaseModel):
 
 
 class CausalityValidation(BaseModel):
-    """Validación del Principio de Causalidad (TUO LIR Art. 37)"""
+    """Principio de Causalidad Art. 107 ET Colombia — deducibilidad del gasto"""
     es_necesario_para_mantener_fuente: bool | None = None
     gasto_no_deducible: bool = False
     razon_deducibilidad: str = ""
     status: CausalityStatus
 
 
-class DetraccionValidation(BaseModel):
-    """Validación de Sistema de Detracciones (SPOT)"""
-    status: DetraccionStatus
+class RetefuenteValidation(BaseModel):
+    """Retención en la Fuente Art. 371-385 ET Colombia"""
+    status: RetefuenteStatus
     tasa_porcentaje: Decimal = Decimal("0.00")
     codigo_servicio: str | None = None
-    monto_detraccion: Decimal = Decimal("0.00")
+    monto_retefuente: Decimal = Decimal("0.00")
 
 
 class ComplianceCheckOutput(BaseModel):
-    """Output Unit B: Auditoría legal, tributaria y laboral"""
+    """Output Unit B: Auditoría legal, tributaria y laboral Colombia"""
     bancarizacion: BankingValidation
     causalidad: CausalityValidation
-    detraccion: DetraccionValidation
+    retefuente: RetefuenteValidation
     requiere_descargo: bool = False
     alerta_legal: str = "Ninguna. Cumple normativa."
     bloqueante: bool = False
@@ -77,17 +79,16 @@ class ComplianceCheckOutput(BaseModel):
 
 class ComplianceAgent:
     """
-    Unit B: Agente de Cumplimiento Legal/Tributario/Laboral
-    
+    Unit B: Agente de Cumplimiento Legal/Tributario/Laboral Colombia
+
     Responsabilidades:
-    1. Cruza documento con BD SUNAT y Código Tributario
-    2. Bancarización: Si >$500 o >S/2,000, valida medio de pago
-    3. Causalidad: Evalúa Principio de Causalidad (TUO LIR Art. 37)
-    4. Laboral: Si contrato/liquidación, valida contra D. Leg. 728
+    1. Bancarización: Si ≥ 100 UVT (~5M COP), valida medio de pago (Art. 771-5 ET)
+    2. Causalidad: Evalúa deducibilidad del gasto (Art. 107 ET Colombia)
+    3. ReteFuente: Verifica si aplica retención en la fuente (Art. 371-385 ET)
     """
 
-    def __init__(self, sunat_verifier=None):
-        self.sunat_verifier = sunat_verifier
+    def __init__(self, dian_verifier=None):
+        self.dian_verifier = dian_verifier
 
     def audit_document(
         self,
@@ -99,7 +100,7 @@ class ComplianceAgent:
         service_code: str | None = None,
         doc_type_code: str | None = None,
     ) -> ComplianceCheckOutput:
-        """Audita documento contra normativa tributaria, laboral y legal"""
+        """Audita documento contra normativa tributaria, laboral y legal colombiana"""
 
         bancarizacion = self._check_bancarizacion(
             amount=amount,
@@ -112,7 +113,7 @@ class ComplianceAgent:
             amount=amount,
         )
 
-        detraccion = self._check_detraccion(
+        retefuente = self._check_retefuente(
             service_code=service_code,
             amount=amount,
             doc_type_code=doc_type_code,
@@ -130,17 +131,20 @@ class ComplianceAgent:
         if bloqueante:
             alerta = "BLOQUEANTE: Revisar bancarización o causalidad"
             if bancarizacion.requiere_bancarizacion == BankingRequirementStatus.FAILED:
-                razon_bloqueo = f"Monto {amount} {currency} excede límite y no valida bancarización"
+                razon_bloqueo = f"Monto {amount} {currency} ≥ 100 UVT y no valida bancarización (Art. 771-5 ET)"
             elif causalidad.status == CausalityStatus.INVALID:
-                razon_bloqueo = "Gasto no deducible. No cumple Principio de Causalidad"
+                razon_bloqueo = "Gasto no deducible. No cumple Art. 107 ET Colombia"
 
-        if detraccion.status != DetraccionStatus.NO_APLICA:
-            sugerencia = f"Registrar detracción {detraccion.tasa_porcentaje*100:.0f}% en cuenta 104 (Detracciones)"
+        if retefuente.status != RetefuenteStatus.NO_APLICA:
+            sugerencia = (
+                f"Practicar ReteFuente {float(retefuente.tasa_porcentaje)*100:.1f}% "
+                f"= COP {float(retefuente.monto_retefuente):,.0f} — cuenta 236505"
+            )
 
         return ComplianceCheckOutput(
             bancarizacion=bancarizacion,
             causalidad=causalidad,
-            detraccion=detraccion,
+            retefuente=retefuente,
             requiere_descargo=False,
             alerta_legal=alerta,
             bloqueante=bloqueante,
@@ -155,16 +159,14 @@ class ComplianceAgent:
         payment_method: str | None,
     ) -> BankingValidation:
         """
-        Ley para la Lucha contra la Evasión y para la Formalización de la Economía:
-        - Limite COP: $ 2,000
-        - Límite USD: $ 500
-        - Si excede, DEBE usar medio de pago bancario
+        Art. 771-5 ET Colombia: pagos ≥ 100 UVT (~5M COP) deben realizarse
+        mediante medio de pago bancario para que el gasto sea deducible.
         """
-        threshold_pen = Decimal("2000")
-        threshold_usd = Decimal("500")
+        threshold_cop = Decimal("5000000")  # ~100 UVT 2025
+        threshold_usd = Decimal("1500")
 
         excede_limite = (
-            (currency == "COP" and amount > threshold_pen)
+            (currency == "COP" and amount > threshold_cop)
             or (currency == "USD" and amount > threshold_usd)
         )
 
@@ -172,15 +174,14 @@ class ComplianceAgent:
             return BankingValidation(
                 monto_actual=amount,
                 requiere_bancarizacion=BankingRequirementStatus.NOT_REQUIRED,
-                validacion_resultado="Monto por debajo de límite de bancarización",
+                validacion_resultado="Monto < 100 UVT — bancarización no obligatoria",
             )
 
-        # Si excede, requiere medio de pago válido
         if not payment_method:
             return BankingValidation(
                 monto_actual=amount,
                 requiere_bancarizacion=BankingRequirementStatus.FAILED,
-                validacion_resultado=f"Monto {amount} {currency} excede límite pero NO reporta medio de pago",
+                validacion_resultado=f"Monto {amount} {currency} ≥ 100 UVT pero NO se reporta medio de pago",
             )
 
         valid_methods = {"TRANSFERENCIA", "CHEQUE", "EFECTIVO_BANCARIO", "TARJETA"}
@@ -188,14 +189,14 @@ class ComplianceAgent:
             return BankingValidation(
                 monto_actual=amount,
                 requiere_bancarizacion=BankingRequirementStatus.FAILED,
-                validacion_resultado=f"Método '{payment_method}' NO es válido para monto de {amount} {currency}",
+                validacion_resultado=f"Método '{payment_method}' no válido para monto ≥ 100 UVT (Art. 771-5 ET)",
             )
 
         return BankingValidation(
             monto_actual=amount,
             requiere_bancarizacion=BankingRequirementStatus.REQUIRED,
             codigo_operacion=f"BAN-{int(amount)}-{payment_method[:3]}",
-            validacion_resultado=f"Bancarización validada: {payment_method}",
+            validacion_resultado=f"Bancarización validada: {payment_method} (Art. 771-5 ET)",
         )
 
     def _check_causalidad(
@@ -204,12 +205,10 @@ class ComplianceAgent:
         amount: Decimal,
     ) -> CausalityValidation:
         """
-        Principio de Causalidad (TUO LIR Art. 37):
-        "Son deducibles los gastos que se hayan pagado o incurrido en la obtención o mantenimiento
-        de la renta."
+        Art. 107 ET Colombia: son deducibles las expensas realizadas durante el
+        año gravable en el desarrollo de cualquier actividad productora de renta.
         """
 
-        # Gastos NO deducibles según TUO LIR
         gastos_no_deducibles = {
             "MULTAS_INFRACCIONES",
             "GASTO_PERSONAL",
@@ -222,11 +221,10 @@ class ComplianceAgent:
             return CausalityValidation(
                 es_necesario_para_mantener_fuente=False,
                 gasto_no_deducible=True,
-                razon_deducibilidad=f"Gasto tipo '{transaction_type}' no es deducible según TUO LIR",
+                razon_deducibilidad=f"Gasto '{transaction_type}' no deducible — Art. 107 ET Colombia",
                 status=CausalityStatus.INVALID,
             )
 
-        # Gastos típicamente deducibles
         gastos_deducibles = {
             "COMPRA_MERCADERIA",
             "MATERIA_PRIMA",
@@ -240,11 +238,10 @@ class ComplianceAgent:
             return CausalityValidation(
                 es_necesario_para_mantener_fuente=True,
                 gasto_no_deducible=False,
-                razon_deducibilidad=f"Gasto deducible por mantener fuente de renta",
+                razon_deducibilidad="Gasto deducible — necesario para generación de renta (Art. 107 ET)",
                 status=CausalityStatus.VALID,
             )
 
-        # Casos que requieren revisión
         return CausalityValidation(
             es_necesario_para_mantener_fuente=None,
             gasto_no_deducible=False,
@@ -252,46 +249,35 @@ class ComplianceAgent:
             status=CausalityStatus.REQUIRES_REVIEW,
         )
 
-    def _check_detraccion(
+    def _check_retefuente(
         self,
         service_code: str | None,
         amount: Decimal,
         doc_type_code: str | None,
-    ) -> DetraccionValidation:
+    ) -> RetefuenteValidation:
         """
-        Sistema de Detracciones (SPOT):
-        Tabla de servicios y tasas de detracción
+        ReteFuente Colombia (Art. 371-392 ET):
+        Tabla de tarifas por tipo de servicio/bien.
         """
 
-        # Tabla simplificada de detracciones por tipo de servicio
-        detraccion_table = {
-            "TRANSPORTE_CARGA": ("10", Decimal("0.10")),
-            "TRANSPORTE_PASAJEROS": ("10", Decimal("0.10")),
-            "SERVICIOS_HOTEL": ("12", Decimal("0.12")),
-            "SERVICIOS_COMIDA": ("10", Decimal("0.10")),
-            "REPARACION_INMUEBLE": ("30", Decimal("0.30")),
-            "ALQUILER_INMUEBLE": ("30", Decimal("0.30")),
-            "CONTRATO_INDEPENDIENTE": ("30", Decimal("0.30")),
+        retefuente_table: dict[str, tuple[RetefuenteStatus, Decimal]] = {
+            "HONORARIOS_PJ": (RetefuenteStatus.APLICA_110, Decimal("0.11")),
+            "HONORARIOS_PN": (RetefuenteStatus.APLICA_100, Decimal("0.10")),
+            "COMPRAS": (RetefuenteStatus.APLICA_35, Decimal("0.035")),
+            "COMPRAS_GENERAL": (RetefuenteStatus.APLICA_25, Decimal("0.025")),
+            "SERVICIOS": (RetefuenteStatus.APLICA_40, Decimal("0.04")),
+            "ARRENDAMIENTO": (RetefuenteStatus.APLICA_35, Decimal("0.035")),
         }
 
-        if not service_code or service_code.upper() not in detraccion_table:
-            return DetraccionValidation(
-                status=DetraccionStatus.NO_APLICA,
-                razon="Servicio no está en SPOT",
-            )
+        if not service_code or service_code.upper() not in retefuente_table:
+            return RetefuenteValidation(status=RetefuenteStatus.NO_APLICA)
 
-        codigo, tasa = detraccion_table[service_code.upper()]
-        monto_detraccion = (amount * tasa).quantize(Decimal("0.01"))
+        status_enum, tasa = retefuente_table[service_code.upper()]
+        monto_retefuente = (amount * tasa).quantize(Decimal("0.01"))
 
-        status_map = {
-            "10": DetraccionStatus.APLICA_10,
-            "12": DetraccionStatus.APLICA_12,
-            "30": DetraccionStatus.APLICA_30,
-        }
-
-        return DetraccionValidation(
-            status=status_map.get(codigo, DetraccionStatus.NO_APLICA),
+        return RetefuenteValidation(
+            status=status_enum,
             tasa_porcentaje=tasa,
             codigo_servicio=service_code,
-            monto_detraccion=monto_detraccion,
+            monto_retefuente=monto_retefuente,
         )

@@ -308,10 +308,10 @@ class LedgerPostingService:
         subtotal = self._as_decimal(purchase_data["subtotal"])
         iva = self._as_decimal(purchase_data.get("iva") or purchase_data.get("igv") or "0.00")
         total = self._as_decimal(purchase_data["total"])
-        detraccion = self._as_decimal(purchase_data.get("detraccion_amount", "0.00"))
-        percepcion = self._as_decimal(purchase_data.get("percepcion_amount", "0.00"))
+        retefuente = self._as_decimal(purchase_data.get("retefuente_amount", purchase_data.get("detraccion_amount", "0.00")))
+        reteiva = self._as_decimal(purchase_data.get("reteiva_amount", purchase_data.get("percepcion_amount", "0.00")))
         retencion = self._as_decimal(purchase_data.get("retencion_amount", "0.00"))
-        payable_balance = (total + percepcion - retencion - detraccion).quantize(Decimal("0.01"))
+        payable_balance = (total + reteiva - retencion - retefuente).quantize(Decimal("0.01"))
         company_id = purchase_data.get("company_id")
         supplier_ruc = purchase_data.get("supplier_nit") or purchase_data.get("supplier_ruc")
         doc_type = purchase_data.get("doc_type", "01")  # Default document type
@@ -498,12 +498,12 @@ class LedgerPostingService:
                     "cost_center": None,
                 },
             ]
-            if detraccion:
-                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": Decimal("0.00"), "credit": detraccion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+            if retefuente:
+                lines.append({"account_code": "236505", "account_name": "ReteFuente por pagar", "debit": Decimal("0.00"), "credit": retefuente, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
             if retencion:
-                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": Decimal("0.00"), "credit": retencion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
-            if percepcion:
-                lines.append({"account_code": "2365", "account_name": "Retenciones y percepciones por pagar", "debit": percepcion, "credit": Decimal("0.00"), "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+                lines.append({"account_code": "236505", "account_name": "ReteFuente por pagar", "debit": Decimal("0.00"), "credit": retencion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+            if reteiva:
+                lines.append({"account_code": "236515", "account_name": "ReteIVA por pagar", "debit": reteiva, "credit": Decimal("0.00"), "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
 
         total_debit = sum(self._as_decimal(line.get("debit")) for line in lines)
         total_credit = sum(self._as_decimal(line.get("credit")) for line in lines)
@@ -610,8 +610,8 @@ class LedgerPostingService:
             "nit_validation": ("VALID" if nit_valid else ("INVALID" if nit_valid is False else "UNKNOWN")),
             "late_registration": bool(late_registration_alert),
             "late_registration_months": months_diff,
-            "detraccion_amount": str(detraccion),
-            "percepcion_amount": str(percepcion),
+            "retefuente_amount": str(retefuente),
+            "reteiva_amount": str(reteiva),
             "retencion_amount": str(retencion),
             "items": processed_items,
             "accounts_to_upsert": account_upserts,
@@ -641,8 +641,8 @@ class LedgerPostingService:
                 "tax_amount": iva,
                 "total_amount": total,
                 "balance_amount": payable_balance,
-                "detraccion_amount": detraccion,
-                "percepcion_amount": percepcion,
+                "retefuente_amount": retefuente,
+                "reteiva_amount": reteiva,
                 "retencion_amount": retencion,
                 "dian_status": "PENDING",
                 "metadata_json": financial_metadata,
@@ -692,10 +692,10 @@ class LedgerPostingService:
                 await uow.session.flush()
 
             subtotal = Decimal(str(invoice_data["subtotal"]))
-            iva = Decimal(str(invoice_data.get("iva") or invoice_data.get("igv") or "0.00"))
+            iva = Decimal(str(invoice_data.get("iva") or "0.00"))
             total = Decimal(str(invoice_data["total"]))
-            detraccion = Decimal(str(invoice_data.get("detraccion_amount", "0.00")))
-            percepcion = Decimal(str(invoice_data.get("percepcion_amount", "0.00")))
+            retefuente = Decimal(str(invoice_data.get("retefuente_amount", invoice_data.get("detraccion_amount", "0.00"))))
+            reteiva = Decimal(str(invoice_data.get("reteiva_amount", invoice_data.get("percepcion_amount", "0.00"))))
             retencion = Decimal(str(invoice_data.get("retencion_amount", "0.00")))
             company_id = invoice_data.get("company_id")
             revenue_account = self._normalize_code(invoice_data.get("revenue_account"), "413505")
@@ -774,9 +774,9 @@ class LedgerPostingService:
                 taxable_amount=subtotal,
                 tax_amount=iva,
                 total_amount=total,
-                balance_amount=total + percepcion - retencion - detraccion,
-                detraccion_amount=detraccion,
-                percepcion_amount=percepcion,
+                balance_amount=total + reteiva - retencion - retefuente,
+                retefuente_amount=retefuente,
+                reteiva_amount=reteiva,
                 retencion_amount=retencion,
                 journal_entry_id=entry.id,
                 dian_status="PENDING",

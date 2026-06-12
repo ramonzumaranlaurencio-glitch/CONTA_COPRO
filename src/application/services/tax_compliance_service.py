@@ -200,7 +200,7 @@ class TaxComplianceService:
             "ubl_2_1": ["invoice", "credit_note", "debit_note", "voided_documents", "summary_documents"],
             "validation": ["xsd_bundle", "business_rules", "hash_digest"],
             "signing": ["pfx_port", "xml_dsig_port", "secrets_manager_ready"],
-            "delivery": ["sunat_soap", "ose_ready", "pse_ready", "cdr_parser", "outbox", "dlq"],
+            "delivery": ["dian_soap", "radian_ready", "cufe_validation", "cdr_parser", "outbox", "dlq"],
             "books": ["sire_rvie", "ple", "sales_purchase_registers"],
-            "taxes": ["detracciones", "percepciones", "retenciones"],
+            "taxes": ["retefuente", "reteiva", "reteica"],
         }

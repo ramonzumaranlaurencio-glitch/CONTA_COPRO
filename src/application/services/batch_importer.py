@@ -14,7 +14,7 @@ class BatchAccountingImporter:
 
     async def calculate_lines(self, data: dict) -> list[dict]:
         subtotal = data.get("subtotal", 0)
-        iva = data.get("iva", data.get("igv", 0))  # Support both IVA (Colombian) and IGV (legacy)
+        iva = data.get("iva", 0)
         total = data.get("total", subtotal + iva)
 
         # Colombian chart of accounts

@@ -1,6 +1,6 @@
 """
 The Ledger Engine - Unit A: Classification & Journal Entry Agent
-Core contable: Genera asientos JSON validados contra PCGE
+Core contable: Genera asientos JSON validados contra PUC Colombia
 """
 
 from __future__ import annotations
@@ -14,10 +14,10 @@ from pydantic import BaseModel, Field
 
 class TransactionType(str, Enum):
     FACTURA = "FACTURA"
-    RECIBO_HONORARIOS = "RECIBO_HONORARIOS"
+    CUENTA_COBRO = "CUENTA_COBRO"
     NOTA_CREDITO = "NOTA_CREDITO"
     NOTA_DEBITO = "NOTA_DEBITO"
-    BOLETA = "BOLETA"
+    FACTURA_SIMPLIFICADA = "FACTURA_SIMPLIFICADA"
     COMPROBANTE_PAGO = "COMPROBANTE_PAGO"
     TRANSFERENCIA_BANCARIA = "TRANSFERENCIA_BANCARIA"
     CHEQUE = "CHEQUE"
@@ -26,124 +26,122 @@ class TransactionType(str, Enum):
     LIQUIDACION = "LIQUIDACION"
 
 
-class PCGEAccountClass(str, Enum):
-    """Plan Contable General Empresarial - Clases principales"""
-    ACTIVO_CIRCULANTE = "1"
-    ACTIVO_FIJO = "2"
-    PASIVO_CIRCULANTE = "4"
-    PATRIMONIO = "5"
-    GASTOS = "6"
-    INGRESOS = "7"
-    CUENTAS_ANALÍTICAS = "9"
+class PUCAccountClass(str, Enum):
+    """Plan Unico de Cuentas Colombia - Clases principales (Decreto 2649/1993)"""
+    ACTIVOS = "1"
+    PASIVOS = "2"
+    PATRIMONIO = "3"
+    INGRESOS = "4"
+    GASTOS = "5"
+    COSTOS_VENTAS = "6"
+    COSTOS_PRODUCCION = "7"
+    CUENTAS_ORDEN_DEUDORAS = "8"
+    CUENTAS_ORDEN_ACREEDORAS = "9"
 
 
 class JournalLine(BaseModel):
-    cuenta: str = Field(..., description="Código contable PCGE")
+    cuenta: str = Field(..., description="Código contable PUC Colombia")
     debe: Decimal = Field(Decimal("0.00"), ge=0)
     haber: Decimal = Field(Decimal("0.00"), ge=0)
     glosa: str = Field(default="", max_length=200)
     centro_costo: str | None = None
-    ruc_contraparte: str | None = None
+    nit_contraparte: str | None = None
 
 
 class AsientoContable(BaseModel):
-    """Asiento de destino automático para gastos clase 6"""
-    cuenta_origen: str = Field(..., description="Cuenta 6x del gasto")
+    """Asiento de destino automático para costos clase 6"""
+    cuenta_origen: str = Field(..., description="Cuenta 6x del costo")
     cuenta_destino: str = Field(..., description="Cuenta 9x del centro de costo")
     monto: Decimal
 
 
-class RetencionCuartaCategoria(BaseModel):
-    """Cálculo automático de retención 4ta categoría para honorarios"""
+class RetencionFuente(BaseModel):
+    """Calculo de retención en la fuente para honorarios (Art. 383-385 ET Colombia)"""
     monto_bruto: Decimal
-    tasa_retencion: Decimal = Decimal("0.08")
+    tasa_retencion: Decimal = Decimal("0.11")
     monto_retencion: Decimal
     monto_neto: Decimal
-    requiere_retension: bool = Field(default=False, description="True si supera monto legal")
+    aplica: bool = Field(default=True, description="True: aplica ReteFuente desde el primer peso")
 
 
 class ClassificationOutput(BaseModel):
-    """Output Unit A: Clasificación y generación de asiento"""
+    """Output Unit A: Clasificacion y generacion de asiento PUC Colombia"""
     transaction_id: str
     tipo_documento: TransactionType
     monto_total: Decimal
-    igv_18_detectado: bool = False
-    igv_monto: Decimal = Decimal("0.00")
+    iva_19_detectado: bool = False
+    iva_monto: Decimal = Decimal("0.00")
     asiento_principal: list[JournalLine]
     asientos_destino: list[AsientoContable] = Field(default_factory=list)
-    retension_4ta_cat: RetencionCuartaCategoria | None = None
-    validaciones_pcge: list[str] = Field(default_factory=list)
+    retencion_fuente: RetencionFuente | None = None
+    validaciones_puc: list[str] = Field(default_factory=list)
     alertas: list[str] = Field(default_factory=list)
 
 
 class ClassificationAgent:
     """
-    Unit A: Agente de Clasificación y Asiento
-    
-    Instrucción de Oro: Todo gasto de cuenta 6 genera automáticamente:
-    - Destino a cuenta 9 (Centro de Costos)
-    - Línea en cuenta 79 (Cuentas de Orden)
-    
-    Validación: Factura → verificar IVA 19%
-                 Recibo Honorarios → calcular retención 4ta categoría 8%
+    Unit A: Agente de Clasificacion y Asiento — PUC Colombia
+
+    Regla de cuadre: Suma Debitos == Suma Creditos
+    Factura de compra → verifica IVA 19% (Art. 468 ET)
+    Cuenta de cobro → calcula ReteFuente honorarios 11% persona juridica (Art. 383 ET)
+    Cuentas clase 5 → naturaleza debito; clase 4 → naturaleza credito
     """
 
     def classify_transaction(
         self,
         transaction_type: TransactionType,
         amount: Decimal,
-        igv_included: bool = True,
+        iva_included: bool = True,
         has_cost_center: bool = False,
         cost_center_code: str | None = None,
     ) -> ClassificationOutput:
-        """Clasifica transacción y genera asiento automático"""
+        """Clasifica transaccion y genera asiento automatico PUC Colombia"""
 
-        igv_monto = Decimal("0.00")
-        igv_detectado = False
+        iva_monto = Decimal("0.00")
+        iva_detectado = False
 
-        if transaction_type == TransactionType.FACTURA and igv_included:
-            igv_detectado = True
-            # IVA = Monto * 0.159663 (equivalente a 19% sobre subtotal)
-            igv_monto = (amount * Decimal("0.1525")).quantize(Decimal("0.01"))
+        if transaction_type == TransactionType.FACTURA and iva_included:
+            iva_detectado = True
+            # IVA descontable = Total × 19/119 (extrae el 19% incluido en el total)
+            iva_monto = (amount * Decimal("0.1597")).quantize(Decimal("0.01"))
 
-        # Asiento principal según tipo
         asiento_principal = self._generate_primary_entry(
             transaction_type=transaction_type,
             amount=amount,
-            igv_monto=igv_monto,
+            iva_monto=iva_monto,
             cost_center=cost_center_code,
         )
 
-        # Si es gasto, generar destino automático
         asientos_destino: list[AsientoContable] = []
-        if transaction_type in {TransactionType.FACTURA, TransactionType.BOLETA}:
-            asientos_destino = self._generate_expense_destination_entries(
+        if transaction_type in {TransactionType.FACTURA, TransactionType.FACTURA_SIMPLIFICADA}:
+            asientos_destino = self._generate_cost_destination_entries(
                 amount=amount,
-                cost_center=cost_center_code or "DEFAULT",
+                cost_center=cost_center_code or "BOG-ADM",
             )
 
-        # Si es Recibo de Honorarios, calcular retención 4ta categoría
         retencion = None
-        if transaction_type == TransactionType.RECIBO_HONORARIOS:
-            retencion = self._calculate_fourth_category_withholding(amount)
+        if transaction_type == TransactionType.CUENTA_COBRO:
+            retencion = self._calculate_retefuente_honorarios(amount)
 
-        validaciones = self._validate_against_pcge(asiento_principal)
+        validaciones = self._validate_against_puc(asiento_principal)
         alertas = []
         if not has_cost_center and any(
-            line.cuenta.startswith("6") for line in asiento_principal
+            line.cuenta.startswith("5") or line.cuenta.startswith("6")
+            for line in asiento_principal
         ):
-            alertas.append("Gasto registrado sin centro de costo asignado")
+            alertas.append("Gasto/costo registrado sin centro de costo asignado")
 
         return ClassificationOutput(
-            transaction_id=f"TXN-{int(amount)}-{transaction_type.value}",
+            transaction_id="",
             tipo_documento=transaction_type,
             monto_total=amount,
-            igv_18_detectado=igv_detectado,
-            igv_monto=igv_monto,
+            iva_19_detectado=iva_detectado,
+            iva_monto=iva_monto,
             asiento_principal=asiento_principal,
             asientos_destino=asientos_destino,
-            retension_4ta_cat=retencion,
-            validaciones_pcge=validaciones,
+            retencion_fuente=retencion,
+            validaciones_puc=validaciones,
             alertas=alertas,
         )
 
@@ -151,107 +149,109 @@ class ClassificationAgent:
         self,
         transaction_type: TransactionType,
         amount: Decimal,
-        igv_monto: Decimal,
+        iva_monto: Decimal,
         cost_center: str | None,
     ) -> list[JournalLine]:
-        """Genera líneas del asiento principal según tipo de transacción"""
+        """Genera lineas del asiento principal segun tipo de transaccion PUC Colombia"""
 
         if transaction_type == TransactionType.FACTURA:
-            subtotal = amount - igv_monto if igv_monto else amount
+            subtotal = amount - iva_monto if iva_monto else amount
             return [
                 JournalLine(
-                    cuenta="60111",
+                    cuenta="1435",
                     debe=subtotal,
                     haber=Decimal("0.00"),
-                    glosa="Compra de mercadería",
-                    centro_costo=cost_center or "DEFAULT",
-                ),
-                JournalLine(
-                    cuenta="40111",
-                    debe=igv_monto,
-                    haber=Decimal("0.00"),
-                    glosa="IVA - Crédito Fiscal",
+                    glosa="Compra mercancia no fabricada",
                     centro_costo=cost_center,
                 ),
                 JournalLine(
-                    cuenta="42121",
+                    cuenta="2408",
+                    debe=iva_monto,
+                    haber=Decimal("0.00"),
+                    glosa="IVA descontable Art. 485 ET",
+                ),
+                JournalLine(
+                    cuenta="220505",
                     debe=Decimal("0.00"),
                     haber=amount,
-                    glosa="Facturas por pagar emitidas",
+                    glosa="Proveedores nacionales por pagar",
                 ),
             ]
 
-        elif transaction_type == TransactionType.RECIBO_HONORARIOS:
+        elif transaction_type == TransactionType.CUENTA_COBRO:
+            retefuente = (amount * Decimal("0.11")).quantize(Decimal("0.01"))
+            neto = amount - retefuente
             return [
                 JournalLine(
-                    cuenta="62312",
+                    cuenta="513035",
                     debe=amount,
                     haber=Decimal("0.00"),
-                    glosa="Honorarios profesionales",
-                    centro_costo=cost_center or "ADMIN",
+                    glosa="Honorarios y consultoria",
+                    centro_costo=cost_center or "BOG-ADM",
                 ),
                 JournalLine(
-                    cuenta="42112",
+                    cuenta="236505",
                     debe=Decimal("0.00"),
-                    haber=amount,
-                    glosa="Honorarios por pagar",
+                    haber=retefuente,
+                    glosa="ReteFuente honorarios 11% Art. 383 ET",
+                ),
+                JournalLine(
+                    cuenta="231010",
+                    debe=Decimal("0.00"),
+                    haber=neto,
+                    glosa="Honorarios por pagar neto",
                 ),
             ]
 
         else:
-            # Caso genérico
             return [
                 JournalLine(
-                    cuenta="61112",
+                    cuenta="519095",
                     debe=amount,
                     haber=Decimal("0.00"),
-                    glosa=f"Transacción {transaction_type.value}",
+                    glosa=f"Transaccion {transaction_type.value}",
                     centro_costo=cost_center,
                 ),
                 JournalLine(
-                    cuenta="42121",
+                    cuenta="220505",
                     debe=Decimal("0.00"),
                     haber=amount,
-                    glosa="Pasivo genérico",
+                    glosa="Obligacion con proveedor",
                 ),
             ]
 
-    def _generate_expense_destination_entries(
+    def _generate_cost_destination_entries(
         self,
         amount: Decimal,
         cost_center: str,
     ) -> list[AsientoContable]:
-        """Regla de Oro: Gasto clase 6 → Destino clase 9 + clase 79"""
+        """Centro de costo destino para costos de ventas clase 6"""
         return [
             AsientoContable(
-                cuenta_origen="60111",
-                cuenta_destino="91001",
+                cuenta_origen="6912",
+                cuenta_destino="9140",
                 monto=amount,
             ),
         ]
 
-    def _calculate_fourth_category_withholding(
+    def _calculate_retefuente_honorarios(
         self,
         gross_amount: Decimal,
-    ) -> RetencionCuartaCategoria:
-        """Calcula retención 4ta categoría para honorarios"""
-        tasa = Decimal("0.08")
+    ) -> RetencionFuente:
+        """ReteFuente honorarios 11% persona juridica (Art. 383 ET Colombia)"""
+        tasa = Decimal("0.11")
         retencion = (gross_amount * tasa).quantize(Decimal("0.01"))
         neto = gross_amount - retencion
-        # Retención requerida si supera UIT (~5,000 PEN en 2026)
-        uit_2026 = Decimal("5350")
-        requiere = gross_amount >= uit_2026
-
-        return RetencionCuartaCategoria(
+        return RetencionFuente(
             monto_bruto=gross_amount,
             tasa_retencion=tasa,
             monto_retencion=retencion,
             monto_neto=neto,
-            requiere_retension=requiere,
+            aplica=True,
         )
 
-    def _validate_against_pcge(self, lines: list[JournalLine]) -> list[str]:
-        """Valida asiento contra PCGE"""
+    def _validate_against_puc(self, lines: list[JournalLine]) -> list[str]:
+        """Valida asiento contra PUC Colombia — Debe == Haber"""
         validaciones = []
         total_debe = sum(line.debe for line in lines)
         total_haber = sum(line.haber for line in lines)
@@ -261,8 +261,11 @@ class ClassificationAgent:
                 f"ALERTA: Desbalance Debe={total_debe} vs Haber={total_haber}"
             )
 
-        class_6_lines = [line for line in lines if line.cuenta.startswith("6")]
-        if class_6_lines and not any(line.centro_costo for line in class_6_lines):
-            validaciones.append("ALERTA: Gastos sin centro de costo")
+        cost_lines = [
+            line for line in lines
+            if line.cuenta.startswith("5") or line.cuenta.startswith("6")
+        ]
+        if cost_lines and not any(line.centro_costo for line in cost_lines):
+            validaciones.append("ALERTA: Gastos/costos sin centro de costo (requerido PUC clase 5/6)")
 
         return validaciones

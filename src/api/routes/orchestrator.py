@@ -27,7 +27,7 @@ class SyncSaleRequest(BaseModel):
     payload: InvoicePayload
     create_missing_products: bool = True
     post_ledger: bool = True
-    sign_sunat: bool = True
+    sign_dian: bool = True
 
 
 def _split_serie_number(raw_serie: str | None) -> tuple[str, str]:
@@ -105,15 +105,15 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
             "total_credit": str(entry.total_credit),
         }
 
-    sunat_result: dict | None = None
-    if payload.sign_sunat:
+    dian_result: dict | None = None
+    if payload.sign_dian:
         if ledger_result is None:
-            sunat_result = {
+            dian_result = {
                 "status": "SKIPPED",
                 "reason": "post_ledger=false. No existe comprobante contable para firmar.",
             }
         else:
-            sunat_result = {
+            dian_result = {
                 "status": "QUEUED",
                 "topic": "dian.invoice.post",
                 "message": "Documento enviado a cola de integracion DIAN Colombia.",
@@ -137,5 +137,5 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
             "created_or_verified": created_products,
         },
         "ledger": ledger_result,
-        "sunat": sunat_result,
+        "dian": dian_result,
     }

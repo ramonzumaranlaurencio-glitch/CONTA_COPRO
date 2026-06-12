@@ -52,10 +52,10 @@ async def get_alerts(year: int = Query(2026), month: int = Query(5)) -> Dict[str
                 {
                     "id": "1",
                     "severity": "critical",
-                    "title": "Detracciones Pendientes",
-                    "description": "12 facturas de proveedores sin CDR registrado",
+                    "title": "ReteFuente Pendiente",
+                    "description": "12 facturas de proveedores sin soporte ReteFuente registrado",
                     "timestamp": datetime.now().isoformat(),
-                    "action": "Registrar comprobantes de detracciones",
+                    "action": "Registrar comprobantes de retención en la fuente",
                 },
                 {
                     "id": "2",

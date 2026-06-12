@@ -1,23 +1,21 @@
 """
 The Ledger Engine - Orchestrator
 Flujo completo de validación legal y contable antes de persistir
-Integra Unit A (Clasificación) + Unit B (Cumplimiento) + JSON Output
+Integra Unit A (Clasificación PUC Colombia) + Unit B (Cumplimiento ET Colombia) + JSON Output
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
-from enum import Enum
 from typing import Literal
 
 from src.application.dto.ledger_engine_output import (
     AccountingLogicModel,
     ActionRequiredModel,
-    BancarizacionModel,
     ComplianceCheckModel,
+    HeaderModel,
     LedgerEngineOutput,
     LineaAsientoModel,
-    build_ledger_engine_output,
 )
 from src.application.services.ledger_command_registry import ModuleCommand
 from src.application.services.ledger_unit_a_classification import (
@@ -30,12 +28,12 @@ from src.domain.exceptions import ExpertValidationException
 
 class LedgerEngineOrchestrator:
     """
-    The Ledger Engine: Flujo integrado de validación
-    
+    The Ledger Engine: Flujo integrado de validación Colombia
+
     Entrada: tipo_documento, monto, datos adicionales
-    Proceso: Unit A (clasificación) → Unit B (cumplimiento)
+    Proceso: Unit A (clasificación PUC) → Unit B (cumplimiento ET Colombia)
     Salida: JSON LedgerEngine (header + accounting + compliance + action)
-    Bloqueo: Si compliance.bloqueante = True, NO se persistiiza
+    Bloqueo: Si compliance.bloqueante = True, NO se persiste
     """
 
     def __init__(self):
@@ -52,16 +50,16 @@ class LedgerEngineOrchestrator:
     ) -> LedgerEngineOutput:
         """
         Procesa transacción a través del Ledger Engine completo.
-        
+
         Args:
-            module_command: Qué módulo/comando invoca (INGRESO_GASTO, TRAMITE_BANCARIO, etc)
-            transaction_type: Tipo de documento (FACTURA, RECIBO, etc)
-            amount: Monto de la transacción
+            module_command: Módulo/comando que invoca (INGRESO_GASTO, TRAMITE_BANCARIO, etc)
+            transaction_type: Tipo de documento (FACTURA, CUENTA_COBRO, etc)
+            amount: Monto de la transacción en COP
             currency: COP o USD
-            **kwargs: supplier_nit, customer_nit, payment_method, service_code, etc
+            **kwargs: supplier_nit, payment_method, service_code, cost_center, etc
 
         Returns:
-            LedgerEngineOutput con asientos, compliance checks y acciones requeridas
+            LedgerEngineOutput con asientos PUC, compliance ET Colombia y acciones requeridas
 
         Raises:
             ExpertValidationException: Si hay bloqueo en validación
@@ -69,16 +67,15 @@ class LedgerEngineOrchestrator:
 
         operacion_id = f"TRANS-{int(amount)}-{transaction_type}"
 
-        # UNIT A: Clasificación y generación de asientos
+        # UNIT A: Clasificación y generación de asientos PUC Colombia
         classification = self.unit_a.classify_transaction(
             transaction_type=TransactionType(transaction_type),
             amount=amount,
-            igv_included=kwargs.get("iva_included", kwargs.get("igv_included", True)),
+            iva_included=kwargs.get("iva_included", True),
             has_cost_center=bool(kwargs.get("cost_center")),
             cost_center_code=kwargs.get("cost_center"),
         )
 
-        # Convertir salida Unit A al formato de output
         accounting_lines = [
             LineaAsientoModel(
                 cuenta=line.cuenta,
@@ -91,54 +88,59 @@ class LedgerEngineOrchestrator:
         ]
 
         accounting_logic = AccountingLogicModel(
-            asiento_diario=accounting_lines,
-            asiento_destino=[
-                {"cuenta": dest.cuenta_origen, "debe": dest.monto, "haber": Decimal("0")}
-                for dest in classification.asientos_destino
-            ],
-            retension_4ta_categoria=(
-                classification.retension_4ta_cat.monto_retencion
-                if classification.retension_4ta_cat
-                else None
-            ),
-            validaciones_pcge=classification.validaciones_pcge,
+            journal_lines=[line.model_dump() for line in accounting_lines],
+            summary={
+                "asiento_destino": [
+                    {"cuenta": dest.cuenta_origen, "debe": float(dest.monto), "haber": 0}
+                    for dest in classification.asientos_destino
+                ],
+                "retefuente_monto": (
+                    float(classification.retencion_fuente.monto_retencion)
+                    if classification.retencion_fuente
+                    else None
+                ),
+                "validaciones_puc": classification.validaciones_puc,
+            },
         )
 
-        # UNIT B: Cumplimiento legal y tributario
+        # UNIT B: Cumplimiento legal y tributario — ET Colombia
         compliance_result = self.unit_b.audit_document(
             transaction_type=transaction_type,
             amount=amount,
             currency=currency,
             payment_method=kwargs.get("payment_method"),
-            supplier_nit=kwargs.get("supplier_nit") or kwargs.get("supplier_ruc"),
+            supplier_nit=kwargs.get("supplier_nit"),
             service_code=kwargs.get("service_code"),
             doc_type_code=kwargs.get("doc_type_code"),
         )
 
-        # Construir compliance check output
         compliance_check = ComplianceCheckModel(
-            bancarizacion_requerida=compliance_result.bancarizacion.requiere_bancarizacion.value != "NOT_REQUIRED",
-            bancarizacion_validada=(
-                BancarizacionModel(
-                    requerida=compliance_result.bancarizacion.requiere_bancarizacion.value != "NOT_REQUIRED",
-                    monto_actual=compliance_result.bancarizacion.monto_actual,
-                    medio_pago_validado=(
-                        compliance_result.bancarizacion.requiere_bancarizacion.value
-                        != "FAILED"
-                    ),
-                )
-                if compliance_result.bancarizacion.requiere_bancarizacion.value != "NOT_REQUIRED"
-                else None
+            status="BLOCKED" if compliance_result.bloqueante else "OK",
+            warnings=(
+                [compliance_result.alerta_legal]
+                if compliance_result.alerta_legal != "Ninguna. Cumple normativa."
+                else []
             ),
-            causalidad_cumplida=compliance_result.causalidad.status.value != "INVALID",
-            detraccion_aplica=compliance_result.detraccion.status.value != "NO_APLICA",
-            detraccion_tasa=compliance_result.detraccion.tasa_porcentaje,
-            detraccion_monto=compliance_result.detraccion.monto_detraccion,
-            alerta_legal=compliance_result.alerta_legal,
-            bloqueante=compliance_result.bloqueante,
+            checks=[
+                {
+                    "regla": "bancarizacion",
+                    "estado": compliance_result.bancarizacion.requiere_bancarizacion.value,
+                    "detalle": compliance_result.bancarizacion.validacion_resultado,
+                },
+                {
+                    "regla": "causalidad",
+                    "estado": compliance_result.causalidad.status.value,
+                    "detalle": compliance_result.causalidad.razon_deducibilidad,
+                },
+                {
+                    "regla": "retefuente",
+                    "estado": compliance_result.retefuente.status.value,
+                    "tasa": float(compliance_result.retefuente.tasa_porcentaje),
+                    "monto": float(compliance_result.retefuente.monto_retefuente),
+                },
+            ],
         )
 
-        # Acciones requeridas según módulo
         action_required = self._build_action_required(
             module_command=module_command,
             compliance=compliance_result,
@@ -146,17 +148,19 @@ class LedgerEngineOrchestrator:
             **kwargs
         )
 
-        # Construir output final del Ledger Engine
-        output = build_ledger_engine_output(
-            operacion_id=operacion_id,
-            tipo_documento=transaction_type,
-            entidad="SUNAT" if compliance_check.bancarizacion_requerida else "INTERNO",
-            accounting=accounting_logic,
-            compliance=compliance_check,
+        output = LedgerEngineOutput(
+            header=HeaderModel(
+                operacion_id=operacion_id,
+                tipo_transaccion=transaction_type,
+                moneda=currency,
+            ),
+            accounting_logic=accounting_logic,
+            compliance_check=compliance_check,
             action_required=action_required,
+            bloquea_persistencia=compliance_result.bloqueante,
+            razon_bloqueo=compliance_result.razon_bloqueo,
         )
 
-        # Si hay bloqueo, lanzar excepción
         if output.bloquea_persistencia:
             raise ExpertValidationException(
                 message=f"Bloqueo en Ledger Engine: {output.razon_bloqueo}",
@@ -177,45 +181,44 @@ class LedgerEngineOrchestrator:
         amount: Decimal,
         **kwargs
     ) -> ActionRequiredModel:
-        """Construye acciones requeridas según el módulo"""
+        """Construye acciones requeridas según el módulo — Colombia"""
 
-        action = ActionRequiredModel()
+        actions: list[str] = []
 
         if module_command == ModuleCommand.INGRESO_GASTO:
-            if compliance.detraccion.status.value != "NO_APLICA":
-                action.notificar_tesoreria = (
-                    f"Registrar detracción {compliance.detraccion.tasa_porcentaje*100:.0f}% "
-                    f"por $ {compliance.detraccion.monto_detraccion} en cuenta 104"
+            if compliance.retefuente.status.value != "NO_APLICA":
+                actions.append(
+                    f"Practicar ReteFuente {float(compliance.retefuente.tasa_porcentaje)*100:.1f}% "
+                    f"= COP {float(compliance.retefuente.monto_retefuente):,.0f} — cuenta 236505"
                 )
-            action.registro_sunat_listo = True
+            actions.append("Validar registro DIAN y soporte documental")
 
         elif module_command == ModuleCommand.TRAMITE_BANCARIO:
-            vencimiento = kwargs.get("due_date")
-            if vencimiento:
-                action.notificar_tesoreria = f"Conciliación completada. Pago registrado."
-            action.registro_sunat_listo = True
+            if kwargs.get("due_date"):
+                actions.append("Conciliación completada. Pago registrado.")
+            actions.append("Verificar radicado DIAN y trazabilidad bancaria")
 
         elif module_command == ModuleCommand.DOCUMENTO_LEGAL:
-            action.generar_carta_descargo = True
-            action.requerimiento_tipo = kwargs.get("requerimiento_type", "SUNAT")
-            action.fecha_vencimiento_respuesta = kwargs.get("response_deadline")
+            requerimiento = kwargs.get("requerimiento_type", "DIAN")
+            actions.append(f"Preparar respuesta requerimiento {requerimiento}")
+            if kwargs.get("response_deadline"):
+                actions.append(f"Plazo vencimiento: {kwargs['response_deadline']}")
 
         elif module_command == ModuleCommand.ANTICIPO:
-            action.notificar_tesoreria = (
-                "Anticipo registrado en cuenta 122. "
-                "Pendiente factura para descontar y completar ciclo."
+            actions.append(
+                "Anticipo registrado en cuenta 1305. "
+                "Pendiente factura para aplicar y completar ciclo."
             )
 
         elif module_command == ModuleCommand.RETENCION:
-            action.notificar_tesoreria = (
-                f"Retención registrada. Programar declaración a SUNAT."
+            actions.append(
+                "ReteFuente registrada. Programar declaración mensual a DIAN (Formulario 350)."
             )
 
         elif module_command == ModuleCommand.AJUSTE_CIERRE:
-            action.notificar_tesoreria = "Asientos de cierre generados. Validar balance."
-            action.registro_sunat_listo = True
+            actions.append("Asientos de cierre generados. Validar balance PUC.")
 
-        return action
+        return ActionRequiredModel(actions=actions)
 
     def validate_and_get_output(
         self,
@@ -224,10 +227,7 @@ class LedgerEngineOrchestrator:
         amount: Decimal,
         **kwargs
     ) -> LedgerEngineOutput:
-        """
-        Wrapper que procesa la transacción y retorna output,
-        lanzando excepción si hay bloqueo (safe-by-default)
-        """
+        """Wrapper con excepción en bloqueo (safe-by-default)"""
         try:
             return self.process_transaction(
                 module_command=module_command,
