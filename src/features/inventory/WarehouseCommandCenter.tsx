@@ -1004,7 +1004,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
         };
 
         try {
-          const res = await fetch(`${apiBase}/inventory/validate-purchase-items`, {
+          const res = await fetch(`${apiBase}/inventory/validate-purchase-item`, {
             method: 'POST',
             headers: hdrs,
             body: JSON.stringify(body),
