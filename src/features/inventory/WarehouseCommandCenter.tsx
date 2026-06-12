@@ -561,7 +561,7 @@ function ItemModal({
             </div>
             <div>
               <label style={labelStyle}>Cta. Costo de Ventas</label>
-              <input style={inputStyle} value={form.default_sales_account} onChange={e => set('default_sales_account', e.target.value)} placeholder="6911" />
+              <input style={inputStyle} value={form.default_sales_account} onChange={e => set('default_sales_account', e.target.value)} placeholder="6135" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
               <label style={{ ...labelStyle, marginBottom: 10 }}>Estado del Artículo</label>
@@ -614,7 +614,7 @@ interface Props {
 const EMPTY_FORM: ItemFormData = {
   sku: '', token_code: '', name: '', detail_description: '', item_class: 'MERCADERIA',
   token_type: 'PERMANENTE', area: 'ALMACEN', unit_of_measure: 'NIU', default_cost: '0',
-  default_sales_account: '6911', default_cost_account: '2011',
+  default_sales_account: '6135', default_cost_account: '2011',
   min_stock: '0', max_stock: '0', brand: '', specs: '', location: '', is_active: true,
 };
 
@@ -854,7 +854,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       name: item.name, detail_description: item.detail_description || '',
       item_class: item.item_class, token_type: item.token_type, area: item.area,
       unit_of_measure: item.unit_of_measure, default_cost: String(item.default_cost),
-      default_sales_account: item.default_sales_account || '6911',
+      default_sales_account: item.default_sales_account || '6135',
       default_cost_account: item.default_cost_account || '2011',
       min_stock: String(item.min_stock), max_stock: String(item.max_stock),
       brand: item.brand || '', specs: item.specs || '',
@@ -970,9 +970,9 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       for (const p of toValidate) {
         // Preferir datos que ya vienen del backend (catalog_code del catálogo Python)
         const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
-        // cta: primeros 3 dígitos de la subcuenta PCGE — solo para construir el token de almacén
-        // account_code completo (ej: "2522") se pasa por separado al backend
-        const cta          = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 3) : '252');
+        // cta: primeros 4 dígitos de la subcuenta PUC Colombia — solo para construir el token de almacén
+        // account_code completo (ej: "143505") se pasa por separado al backend
+        const cta          = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 4) : '1455');
         const nat          = p.catalog_nat  || catalogMatch?.nat  || 'SU';
         const rub          = p.catalog_rub  || activeRubro || 'GE';
         const tk           = p.catalog_tk   || catalogMatch?.tk   || 'F';
@@ -991,7 +991,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           unit_cost:     p.unit_cost,
           item_class:    p.item_class    || 'MERCADERIA',
           area:          p.area          || 'ALMACEN',
-          account_code:  p.account_code  || cta,  // subcuenta PCGE completa (ej: "2522", no "252")
+          account_code:  p.account_code  || cta,  // subcuenta PUC Colombia completa (ej: "143505", no "1455")
           cost_center:   p.cost_center   || 'LOG-ALM',
           catalog_code:  catalogCode,              // código almacén (ej: "252-HE-PA-0001-P")
           catalog_nat:   nat,
@@ -1039,7 +1039,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
           const existingCodes = [...items, ...newItemsFb].map(i => i.token_code);
           const nat  = catalogMatch?.nat  || 'SU';
-          const cta  = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 3) : '252');
+          const cta  = catalogMatch?.cta  || (p.account_code ? p.account_code.slice(0, 4) : '1455');
           const tk   = catalogMatch?.tk   || 'F';
           const code = generateNextCode(existingCodes, cta, nat, activeRubro, tk as any);
           const newItem: WarehouseItem = {
@@ -1048,7 +1048,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
             item_class: (cta.startsWith('24') ? 'MATERIA_PRIMA' : cta.startsWith('20') ? 'MERCADERIA' : cta.startsWith('33') ? (tk === 'T' ? 'HERRAMIENTAS' : 'ACTIVO_FIJO') : (nat === 'HE' || nat === 'HT' || nat === 'MQ') ? 'HERRAMIENTAS' : 'INSUMOS') as any,
             token_type: tk === 'P' ? 'PERMANENTE' : 'TEMPORAL', area: p.area,
             unit_of_measure: catalogMatch?.unit || p.unit || 'UND', default_cost: p.unit_cost,
-            default_cost_account: cta, default_sales_account: catalogMatch?.gasto || '6569',
+            default_cost_account: cta, default_sales_account: catalogMatch?.gasto || '5175',
             min_stock: 0, max_stock: 0, is_active: true,
             balance_qty: 0, balance_avg_cost: p.unit_cost, balance_value: 0,
           };
@@ -2867,8 +2867,8 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   // Auto-match catálogo para mostrar sugerencia
                   const catalogMatch = matchCatalogItem(p.product_name, p.account_code, activeRubro);
                   // ctaSuggested: primeros 3 dígitos para el token de almacén (no truncar account_code completo)
-                  const ctaSuggested = catalogMatch?.cta || (p.account_code ? p.account_code.slice(0, 3) : '252');
-                  const gastoSuggested = catalogMatch?.gasto || '6569';
+                  const ctaSuggested = catalogMatch?.cta || (p.account_code ? p.account_code.slice(0, 4) : '1455');
+                  const gastoSuggested = catalogMatch?.gasto || '5175';
                   const isGuia = p.doc_type === '09';
                   return (
                   <tr key={p.id}

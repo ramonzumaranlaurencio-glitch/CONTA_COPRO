@@ -1180,19 +1180,19 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             item["catalog_rub"]   = match["rub"]
             item["catalog_tk"]    = match["tk"]
             # REGLA: El catálogo maestro es autoridad en la clasificación contable.
-            # Si el catálogo dice que una pala es "252" (suministro), se usa 252
-            # aunque la IA de Gemini haya devuelto "333x" (activo fijo).
+            # Si el catálogo dice que una pala es "1455" (Materiales y repuestos), se usa 1455
+            # aunque la IA de Gemini haya devuelto "152x" (activo fijo).
             # La IA es buena leyendo texto/montos, pero el catálogo tiene las
-            # reglas PCGE correctas por tipo de bien.
-            cat_cta = match["cta"]   # ej: "252" para herramientas manuales
-            ai_cta  = acc[:3] if acc else ""
+            # reglas PUC Colombia correctas por tipo de bien.
+            cat_cta = match["cta"]   # ej: "1455" para herramientas manuales
+            ai_cta  = acc[:4] if acc else ""
             # Solo respetar la cuenta de la IA si es compatible con el catálogo
-            # (misma familia PCGE: ambas 25x, ambas 33x, etc.)
+            # (misma familia PUC: ambas 1455, ambas 1520, etc.)
             if ai_cta and ai_cta == cat_cta:
                 # IA y catálogo coinciden en familia → preservar subcuenta IA si es más específica
                 item["account_code"] = acc if len(acc) >= len(cat_cta) else cat_cta
             else:
-                # IA discrepa (ej: IA=3337, catálogo=252) → el catálogo gana
+                # IA discrepa (ej: IA=1528, catálogo=1455) → el catálogo gana
                 item["account_code"] = cat_cta
             item["account_name"] = match.get("gasto_name", match.get("name", "Inventarios"))
             item["item_class"]   = item_class_from_nat(match["nat"])
@@ -1200,12 +1200,12 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         else:
             # No está en catálogo → construir código provisional para almacén
             # account_code (contable) y catalog_code (almacén) son campos separados
-            cta = acc if len(acc) >= 3 else "252"   # mantener subcuenta PCGE completa
-            cta3 = cta[:3]                           # solo primeros 3 dígitos para el token
-            nat = infer_nat_from_description(desc, cta3)
+            cta = acc if len(acc) >= 4 else "1455"   # mantener subcuenta PUC Colombia completa
+            cta4 = cta[:4]                            # solo primeros 4 dígitos para el token
+            nat = infer_nat_from_description(desc, cta4)
             tk  = infer_tk_from_description(desc, nat)
             # SEQQ 9999 = pendiente de asignar secuencia real al ingresar al almacén
-            provisional_code = build_structured_code(cta3, nat, "GE", 9999, tk)
+            provisional_code = build_structured_code(cta4, nat, "GE", 9999, tk)
             item["catalog_code"]   = provisional_code   # código almacén (≠ account_code)
             item["catalog_name"]   = desc
             item["catalog_unit"]   = _norm_text(item.get("unit")) or "UND"

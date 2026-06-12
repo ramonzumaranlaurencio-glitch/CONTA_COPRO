@@ -225,14 +225,9 @@ class ClassificationAgent:
         amount: Decimal,
         cost_center: str,
     ) -> list[AsientoContable]:
-        """Centro de costo destino para costos de ventas clase 6"""
-        return [
-            AsientoContable(
-                cuenta_origen="6912",
-                cuenta_destino="9140",
-                monto=amount,
-            ),
-        ]
+        """En PUC Colombia clase 9 = cuentas de orden (no centros de costo).
+        El centro de costo se registra como dimensión analítica, no como asiento."""
+        return []
 
     def _calculate_retefuente_honorarios(
         self,

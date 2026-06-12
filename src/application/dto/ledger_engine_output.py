@@ -168,7 +168,7 @@ class PurchasePostRequest(BaseModel):
     retencion_amount: Decimal = Decimal("0.00")
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    expense_account: str = "6011"
+    expense_account: str = "6135"
     cost_center: str | None = None
     sunat_validation: dict | None = None
     user_id: str | None = None

@@ -280,7 +280,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
   const barData = useMemo(() => {
     const map: Record<string, { debe: number; haber: number }> = {};
     rows.forEach(r => {
-      const key = r.account?.slice(0, 3) || 'OTR';
+      const key = r.account?.slice(0, 4) || 'OTR';
       if (!map[key]) map[key] = { debe: 0, haber: 0 };
       map[key].debe  += toNum(r.debit);
       map[key].haber += toNum(r.credit);
@@ -295,7 +295,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
   const donutSlices = useMemo(() => {
     const map: Record<string, number> = {};
     comprasRows.forEach(r => {
-      const key = r.accountName || `Cta. ${r.account?.slice(0, 3) || 'OTR'}`;
+      const key = r.accountName || `Cta. ${r.account?.slice(0, 4) || 'OTR'}`;
       map[key] = (map[key] || 0) + toNum(r.debit);
     });
     const colors = [C.accent, C.green, C.purple, C.yellow, C.orange, C.red];

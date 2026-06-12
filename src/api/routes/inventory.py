@@ -1255,9 +1255,9 @@ async def validate_purchase_item(payload: ValidatePurchaseItemPayload, request: 
                 if existing:
                     product_id = str(existing.id)
                 else:
-                    # account_code es la subcuenta PUC completa (ej: "2522")
-                    # cta es solo los primeros 3 dígitos para el token del almacén (ej: "252")
-                    cta   = (payload.account_code or "252")[:3]
+                    # account_code es la subcuenta PUC completa (ej: "143505")
+                    # cta es solo los primeros 4 dígitos para el token del almacén (ej: "1455")
+                    cta   = (payload.account_code or "1455")[:4]
                     nat   = payload.catalog_nat or infer_nat_from_description(payload.product_name, cta)
                     rub   = payload.catalog_rub or "GE"
                     tk    = payload.catalog_tk  or infer_tk_from_description(payload.product_name, nat)

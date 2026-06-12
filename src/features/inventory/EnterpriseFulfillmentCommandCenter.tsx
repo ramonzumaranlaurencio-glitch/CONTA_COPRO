@@ -54,7 +54,7 @@ type LedgerAccount = {
 
 const FALLBACK_LEDGER_ACCOUNTS: LedgerAccount[] = [
   { code: "2011", name: "Inventarios", statement: "BALANCE", nature: "DEBIT" },
-  { code: "6911", name: "Costo de ventas", statement: "INCOME", nature: "DEBIT", accepts_cost_center: true },
+  { code: "6135", name: "Costo de ventas", statement: "INCOME", nature: "DEBIT", accepts_cost_center: true },
   { code: "7599", name: "Ajuste positivo de inventario", statement: "INCOME", nature: "CREDIT" },
 ];
 
@@ -477,7 +477,7 @@ export default function ApexLogixCore({
     cc:"",
     wh:"WH-LIM-01",
     inventoryAccount:"2011",
-    cogsAccount:"6911",
+    cogsAccount:"6135",
     adjustmentAccount:"7599",
   });
   const [newToken, setNewToken] = useState({ tool:"", worker:"", cc:"", days:"7" });
@@ -773,7 +773,7 @@ export default function ApexLogixCore({
       cc:"",
       wh:"WH-LIM-01",
       inventoryAccount:"2011",
-      cogsAccount:"6911",
+      cogsAccount:"6135",
       adjustmentAccount:"7599",
     });
     if (postedEntryId) {

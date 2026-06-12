@@ -43,13 +43,13 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "3. Extrae NIT proveedor y verifica en DIAN. "
             "4. Clasifica tipo de gasto (clase 5) y asigna centro de costo. "
             "5. Genera asiento doble entrada (Gasto | IVA | CxP). "
-            "6. Aplica Regla de Oro: gasto clase 5 → destino clase 9 automatico. "
+            "6. Verifica bancarización Art. 771-5 ET si pago supera 100 UVT (~$5.000.000 COP). "
             "7. Valida Principio de Causalidad (Estatuto Tributario Colombia Art. 107). "
             "Output: JSON LedgerEngine con asientos, destinos y compliance check."
         ),
         documentos_base=[
             "Estatuto Tributario Colombia (ET)",
-            "Plan Unico de Cuentas Colombia (PUC)",
+            "Plan Unico de Cuentas Colombia (PUC — Decreto 2649/1993)",
             "NIC 2 (Inventarios)",
             "Reglamento Facturacion Electronica DIAN",
         ],
@@ -60,7 +60,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "causalidad_principio_cumple",
             "double_entry_balanceado",
         ],
-        cuenta_por_defecto="60111",
+        cuenta_por_defecto="5175",
     ),
     ModuleCommand.TRAMITE_BANCARIO: CommandDescriptor(
         comando=ModuleCommand.TRAMITE_BANCARIO,
@@ -69,16 +69,16 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "Procesa comprobante de pago bancario. "
             "1. Extrae datos del voucher/comprobante (referencia, monto, fecha). "
             "2. Busca factura pendiente (CxP) que coincida con referencia y monto. "
-            "3. Valida bancarización: si monto >2000 PEN o >500 USD, requiere medio de pago. "
+            "3. Valida bancarización: si monto >100 UVT (~$5.000.000 COP), requiere medio de pago (Art. 771-5 ET). "
             "4. Verifica código de operación y trazabilidad bancaria. "
-            "5. Genera asiento de pago: Caja bancaria (104) contra CxP (421/422). "
-            "6. Si hay retención o detracción, registra en cuenta correspondiente (1041, 40114). "
+            "5. Genera asiento de pago: Banco (1110) contra CxP (220505). "
+            "6. Si hay ReteFuente o ReteIVA, registra en cuenta correspondiente (236505, 236515). "
             "Output: JSON LedgerEngine con líneas de pago conciliadas y alertas de inconsistencia."
         ),
         documentos_base=[
-            "Ley para la Lucha contra la Evasión y Formalización (Bancarización)",
-            "Ley de Títulos Valores y Cheques",
-            "Normas de Bancarización del BCRP",
+            "Art. 771-5 ET Colombia (bancarización > 100 UVT)",
+            "Decreto 1092 de 1996 - GMF 4x1000",
+            "Circular DIAN - Medios de Pago Electrónico",
         ],
         validaciones_requeridas=[
             "bancarizacion_validada",
@@ -87,7 +87,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "codigo_operacion_verificado",
             "no_reconciliacion_mismatch",
         ],
-        cuenta_por_defecto="104",
+        cuenta_por_defecto="1110",
     ),
     ModuleCommand.DOCUMENTO_LEGAL: CommandDescriptor(
         comando=ModuleCommand.DOCUMENTO_LEGAL,
@@ -102,10 +102,10 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "Output: JSON con draft de carta descargo, plazos y recomendaciones."
         ),
         documentos_base=[
-            "Código Tributario (Procedimiento Tributario)",
-            "Ley de Procedimiento Administrativo General (LPAG)",
-            "Decreto Legislativo 728 (Régimen de relaciones de trabajo)",
-            "Guía de Infracciones y Sanciones SUNAT",
+            "Estatuto Tributario (ET) — Procedimiento Tributario Art. 683+",
+            "CPACA — Ley 1437/2011 Procedimiento Administrativo",
+            "Código Sustantivo del Trabajo (CST) Colombia",
+            "Régimen Sancionatorio DIAN (Art. 641+ ET Colombia)",
         ],
         validaciones_requeridas=[
             "requerimiento_tipo_identificado",
@@ -120,25 +120,25 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
         label_ui="Anticipo",
         instruccion_ai=(
             "Registra adelanto de pago sin factura aún. "
-            "1. IMPORTANTE: NO registrar en gasto (clase 6). "
-            "2. Registrar en cuenta de Anticipo (122 o 422 según sea recepción o entrega). "
+            "1. IMPORTANTE: NO registrar en gasto (clase 5/6). "
+            "2. Registrar en cuenta de Anticipo (1335 si es entregado, 2385 si es recibido). "
             "3. Crear control de seguimiento para facturas futuras. "
             "4. Cuando llegue la factura, descontar del anticipo y completar el ciclo. "
             "5. Validar que el monto total de anticipos no supere umbral de provisión. "
-            "Output: JSON con asiento en cuenta 122/422 y nota de trazabilidad."
+            "Output: JSON con asiento en cuenta 1335/2385 y nota de trazabilidad."
         ),
         documentos_base=[
             "NIC 1 (Presentación de Estados Financieros)",
-            "PCGE (Cuentas Corrientes)",
+            "PUC Colombia — Anticipos y Avances (1335 activo / 2385 pasivo)",
             "NIIF 15 (Ingresos de Actividades Ordinarias)",
         ],
         validaciones_requeridas=[
             "no_registrado_como_gasto",
-            "anticipo_en_cuenta_122_o_422",
+            "anticipo_en_cuenta_1335_o_2385",
             "control_factura_futura_creado",
             "double_entry_balanceado",
         ],
-        cuenta_por_defecto="122",
+        cuenta_por_defecto="1335",
     ),
     ModuleCommand.DEVOLUCION: CommandDescriptor(
         comando=ModuleCommand.DEVOLUCION,
@@ -149,13 +149,13 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "2. Genera Nota de Crédito (NC) o Nota de Débito (ND) según corresponda. "
             "3. Revierte asiento original manteniendo trazabilidad. "
             "4. Si hay impuestos (IVA), aplica reversión correcta. "
-            "5. Actualiza stock si aplica (cuenta 20). "
+            "5. Actualiza stock si aplica (cuentas 1435/1405 inventarios). "
             "Output: JSON con asiento de reversión y NC/ND generada."
         ),
         documentos_base=[
             "NIC 18 / NIIF 15 (Ingresos)",
-            "PCGE (Notas de Crédito/Débito)",
-            "Reglamento de Comprobantes de Pago",
+            "PUC Colombia — Notas Crédito/Débito",
+            "Reglamento Facturación Electrónica DIAN",
         ],
         validaciones_requeridas=[
             "documento_original_identificado",
@@ -186,20 +186,20 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "tipo_retencion_identificado",
             "tasa_correcta_aplicada",
             "cuenta_retencion_correcta",
-            "orden_pago_sunat_programada",
+            "orden_pago_dian_programada",
         ],
-        cuenta_por_defecto="40114",
+        cuenta_por_defecto="236505",
     ),
     ModuleCommand.AJUSTE_CIERRE: CommandDescriptor(
         comando=ModuleCommand.AJUSTE_CIERRE,
         label_ui="Ajuste de Cierre",
         instruccion_ai=(
             "Genera asientos de ajuste para cierre de período (mes/año). "
-            "1. Diferencia de cambio (USD): calcula y registra en cuenta 676/776. "
-            "2. Cobranza dudosa (CxC): provisiona en cuenta 684. "
-            "3. Depreciación de activos fijos (cuenta 2). "
-            "4. Provisión de vacaciones, CTS, gratificaciones (clase 4). "
-            "5. Cierre de cuentas de orden (clase 9). "
+            "1. Diferencia en cambio (USD): calcula y registra en cuentas 5305/4245 (ET Art. 32). "
+            "2. Deterioro cartera (CxC): provisiona en cuenta 5170 (provisiones - cartera). "
+            "3. Depreciación activos fijos: gasto 5160, contra depreciación acumulada (159905/168005). "
+            "4. Provisión prestaciones: Vacaciones 2610, Cesantías 2605, Prima de servicios 2615 (CST). "
+            "5. Cierre de cuentas de resultado (clase 4/5/6/7) contra utilidad del ejercicio (3605). "
             "6. Valida que Activo = Pasivo + Patrimonio en balance de comprobación. "
             "Output: JSON con todos los asientos de ajuste y balance verificado."
         ),
@@ -207,7 +207,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "NIC 1 (Presentación)",
             "NIC 16 (Propiedad, Planta y Equipo)",
             "NIC 37 (Provisiones)",
-            "PCGE (Cuentas de Ajuste)",
+            "PUC Colombia — Ajustes de Cierre (Decreto 2649/1993)",
         ],
         validaciones_requeridas=[
             "diferencia_cambio_calculada",

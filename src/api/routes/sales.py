@@ -55,5 +55,5 @@ async def process_sale_with_ai(
     return {
         **result,
         "cost_center": result.get("cost_center_suggested"),
-        "revenue_account": result.get("expense_account_suggested") or "7011",
+        "revenue_account": result.get("expense_account_suggested") or "4135",
     }
