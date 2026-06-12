@@ -25,7 +25,7 @@ class InvoiceVisionAI:
         serie_numero = f"{serie[0]}-{serie[1]}" if isinstance(serie, tuple) else None
 
         data = {
-            "ruc_emisor": self._find_pattern(raw_text, r"RUC[:\s]+(\d{11})"),
+            "nit_emisor": self._find_pattern(raw_text, r"NIT[:\s]+([\d.-]+)"),
             "serie_numero": serie_numero,
             "fecha": self._find_pattern(raw_text, r"(\d{2}/\d{2}/\d{4})"),
             "total": self._find_money(raw_text, ["TOTAL", "NETO", "IMPORTE"]),

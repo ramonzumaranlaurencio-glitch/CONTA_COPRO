@@ -24,9 +24,9 @@ async def company_info(ctx=Depends(get_current_context)):
     if row:
         return {
             "legal_name": row[0] or "",
-            "ruc":        row[1] or "",
+            "nit":        row[1] or "",
             "trade_name": row[2] or row[0] or "",
-            "sunat_env":  row[3] or "BETA",
+            "dian_env":   row[3] or "HABILITACION",
         }
     # Fallback: leer desde tabla tenants
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
@@ -36,8 +36,8 @@ async def company_info(ctx=Depends(get_current_context)):
         )
         row2 = r2.fetchone()
     if row2:
-        return {"legal_name": row2[0] or "", "ruc": row2[1] or "", "trade_name": row2[0] or "", "sunat_env": "BETA"}
-    return {"legal_name": "", "ruc": "", "trade_name": "", "sunat_env": "BETA"}
+        return {"legal_name": row2[0] or "", "nit": row2[1] or "", "trade_name": row2[0] or "", "dian_env": "HABILITACION"}
+    return {"legal_name": "", "nit": "", "trade_name": "", "dian_env": "HABILITACION"}
 
 
 class ChartAccountUpsertRequest(BaseModel):

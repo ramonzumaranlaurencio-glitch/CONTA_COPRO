@@ -8,9 +8,9 @@ import { Search24Regular } from '@fluentui/react-icons';
 export type SaleFormData = {
   serie: string;
   number: string;
-  customerRuc: string;
+  customerNit: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   revenueAccount: string;
   costCenter: string;
 };
@@ -31,7 +31,7 @@ type SaleItem = {
   aiConfidence: number;
   requiresReview: boolean;
   taxable: boolean;
-  igvAmount: string;
+  ivaAmount: string;
   totalLine: string;
   lineType: SaleLineType;
   requiresSupport: boolean;
@@ -56,7 +56,7 @@ type GuideForm = {
   placaVehiculo: string;
 };
 
-type RucValidationState = 'idle' | 'validating' | 'valid' | 'invalid' | 'unknown';
+type NitValidationState = 'idle' | 'validating' | 'valid' | 'invalid' | 'unknown';
 
 type SaleLineType =
   | 'REVENUE'
@@ -86,7 +86,7 @@ export type SaleSubmitPayload = {
   customerName: string;
   issueDate: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   total: string;
   items: Array<{
     code: string;
@@ -103,7 +103,7 @@ export type SaleSubmitPayload = {
     aiConfidence: number;
     requiresReview: boolean;
     taxable: boolean;
-    igvAmount: string;
+    ivaAmount: string;
     totalLine: string;
     lineType: SaleLineType;
     requiresSupport: boolean;
@@ -204,14 +204,14 @@ type GeminiSaleItem = {
   lineSubtotal?: number | string;
   subtotal?: number | string;
   taxable?: boolean;
-  igv_amount?: number | string;
-  igvAmount?: number | string;
+  iva_amount?: number | string;
+  ivaAmount?: number | string;
   total_line?: number | string;
   totalLine?: number | string;
   line_type?: SaleLineType | string;
   lineType?: SaleLineType | string;
   deductibility?: string;
-  igv_credit?: string;
+  iva_credit?: string;
   requires_support?: boolean;
   requires_review?: boolean;
   requiresReview?: boolean;
@@ -234,7 +234,7 @@ type GeminiSaleResponse = {
   customer_ruc?: string;
   customer_name?: string;
   subtotal?: number | string;
-  igv?: number | string;
+  iva?: number | string;
   total?: number | string;
   total_read_from_document?: number | string;
   reconciliation_status?: string;
@@ -440,7 +440,7 @@ const createSaleItem = (costCenter = DEFAULT_COST_CENTER): SaleItem => ({
   aiConfidence: 0,
   requiresReview: true,
   taxable: true,
-  igvAmount: '0.00',
+  ivaAmount: '0.00',
   totalLine: '0.00',
   lineType: 'REVENUE',
   requiresSupport: true,
@@ -455,8 +455,8 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
   const [isPosting, setIsPosting] = useState(false);
   const [isReadingAi, setIsReadingAi] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
-  const [rucState, setRucState] = useState<RucValidationState>('idle');
-  const [rucMessage, setRucMessage] = useState('Pendiente de validación externa');
+  const [nitState, setNitState] = useState<NitValidationState>('idle');
+  const [nitMessage, setNitMessage] = useState('Pendiente de validación externa');
   const [status, setStatus] = useState('');
   const [aiWarnings, setAiWarnings] = useState<string[]>([]);
   const [explicitAccountLines, setExplicitAccountLines] = useState<ExplicitAccountLine[]>([]);
@@ -495,8 +495,8 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     [items],
   );
   const subtotal = toNumber(form.subtotal) > 0 ? toNumber(form.subtotal) : subtotalItems;
-  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.igv);
-  const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + igv;
+  const iva = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.iva);
+  const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + iva;
 
   const groupedLines = useMemo(() => {
     const map = new Map<string, { accountCode: string; accountName: string; costCenter: string; amount: number; taxTreatment: string }>();
@@ -547,12 +547,12 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         accountName: SALES_IVA_NAME,
         costCenter: '-',
         debit: '0.00',
-        credit: money(igv),
+        credit: money(iva),
         lineType: 'TAX' as SaleLineType,
         taxTreatment: 'IVA generado por venta. Se reconoce como impuesto por pagar.',
       },
     ].filter((line) => toNumber(line.debit) !== 0 || toNumber(line.credit) !== 0);
-  }, [explicitAccountLines, groupedLines, igv, total]);
+  }, [explicitAccountLines, groupedLines, iva, total]);
 
   const accountsToUpsert = useMemo(() => {
     const map = new Map<string, SaleSubmitPayload['accountsToUpsert'][number]>();
@@ -604,7 +604,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     const next = { ...form, [key]: value };
 
     if (key === 'subtotal' && isAutoIgv) {
-      next.igv = money(toNumber(value) * 0.19);
+      next.iva = money(toNumber(value) * 0.19);
     }
 
     if (key === 'costCenter') {
@@ -635,13 +635,13 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
 
         if (key === 'quantity' || key === 'unitPrice') {
           next.lineSubtotal = money(toNumber(next.quantity) * toNumber(next.unitPrice));
-          next.igvAmount = next.taxable ? money(toNumber(next.lineSubtotal) * 0.19) : '0.00';
-          next.totalLine = money(toNumber(next.lineSubtotal) + toNumber(next.igvAmount));
+          next.ivaAmount = next.taxable ? money(toNumber(next.lineSubtotal) * 0.19) : '0.00';
+          next.totalLine = money(toNumber(next.lineSubtotal) + toNumber(next.ivaAmount));
         }
 
         if (key === 'lineSubtotal') {
-          next.igvAmount = next.taxable ? money(toNumber(value) * 0.19) : '0.00';
-          next.totalLine = money(toNumber(value) + toNumber(next.igvAmount));
+          next.ivaAmount = next.taxable ? money(toNumber(value) * 0.19) : '0.00';
+          next.totalLine = money(toNumber(value) + toNumber(next.ivaAmount));
         }
 
         if (key === 'accountCode') {
@@ -671,7 +671,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
                   : 'REVENUE';
           next.taxable = next.lineType === 'REVENUE';
           next.requiresSupport = c.requiresReview;
-          next.igvAmount = next.taxable ? next.igvAmount : '0.00';
+          next.ivaAmount = next.taxable ? next.ivaAmount : '0.00';
           next.costCenter = next.lineType === 'PRIOR_BALANCE' || next.lineType === 'ADVANCE_PAYMENT'
             ? '-'
             : normalizeCostCenter(form.costCenter || next.costCenter || DEFAULT_COST_CENTER);
@@ -688,7 +688,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
   const applyGeminiPayload = (payload: GeminiSaleResponse) => {
     const nextSerie = payload.serie || form.serie || '';
     const nextNumber = payload.number || form.number || '';
-    const nextCustomerRuc = payload.customer_ruc || form.customerRuc || '';
+    const nextCustomerNit = payload.customer_nit || payload.customer_ruc || form.customerNit || '';
     const nextCustomerName = payload.customer_name || customerName || '';
     const nextCostCenter = normalizeCostCenter(payload.cost_center || form.costCenter || DEFAULT_COST_CENTER);
 
@@ -749,8 +749,8 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         aiConfidence,
         requiresReview,
         taxable: Boolean(raw.taxable ?? detectedLineType === 'REVENUE'),
-        igvAmount: money(toNumber(raw.igv_amount ?? raw.igvAmount ?? (detectedLineType === 'REVENUE' ? lineSubtotal * 0.19 : 0))),
-        totalLine: money(toNumber(raw.total_line ?? raw.totalLine ?? (lineSubtotal + toNumber(raw.igv_amount ?? raw.igvAmount ?? 0)))),
+        ivaAmount: money(toNumber(raw.iva_amount ?? raw.ivaAmount ?? (detectedLineType === 'REVENUE' ? lineSubtotal * 0.19 : 0))),
+        totalLine: money(toNumber(raw.total_line ?? raw.totalLine ?? (lineSubtotal + toNumber(raw.iva_amount ?? raw.ivaAmount ?? 0)))),
         lineType: detectedLineType,
         requiresSupport,
       };
@@ -790,9 +790,9 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       ...form,
       serie: nextSerie,
       number: nextNumber,
-      customerRuc: nextCustomerRuc,
+      customerNit: nextCustomerNit,
       subtotal: money(toNumber(payload.subtotal ?? (payload as any).taxable_base ?? mappedItems.reduce((a, i) => a + toNumber(i.lineSubtotal), 0))),
-      igv: money(toNumber(payload.igv ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
+      iva: money(toNumber(payload.iva ?? mappedItems.reduce((a, i) => a + toNumber(i.ivaAmount), 0))),
       revenueAccount: normalizeAccount(String(payload.revenue_account || mappedItems[0]?.accountCode || form.revenueAccount || '413505')),
       costCenter: nextCostCenter,
     });
@@ -840,35 +840,35 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     }
   };
 
-  const validateRucExternally = async () => {
-    const clean = form.customerRuc.replace(/[^0-9]/g, '');
+  const validateNitExternally = async () => {
+    const clean = form.customerNit.replace(/[^0-9]/g, '');
     if (!/^\d{9,12}$/.test(clean)) {
-      setRucState('invalid');
-      setRucMessage('Identificador inválido. Debe tener entre 9 y 12 dígitos.');
+      setNitState('invalid');
+      setNitMessage('Identificador inválido. Debe tener entre 9 y 12 dígitos.');
       return;
     }
     if (clean.length >= 9) {
-      setRucState('validating');
-      setRucMessage('Consultando DIAN...');
+      setNitState('validating');
+      setNitMessage('Consultando DIAN...');
       try {
         const response = await fetch(`https://api.datos.gov.co/resource/swrg-pj5c.json?nit=${clean}`);
         if (response.ok) {
           const data = await response.json();
           const nombre = data?.[0]?.nombre_contribuyente || data?.[0]?.razon_social || '';
           if (nombre) setCustomerName(nombre);
-          setRucState('valid');
-          setRucMessage('NIT/CC validado en DIAN. Razón social cargada.');
+          setNitState('valid');
+          setNitMessage('NIT/CC validado en DIAN. Razón social cargada.');
           return;
         }
-        setRucState('unknown');
-        setRucMessage('DIAN no disponible. Continuar con validación manual.');
+        setNitState('unknown');
+        setNitMessage('DIAN no disponible. Continuar con validación manual.');
       } catch {
-        setRucState('unknown');
-        setRucMessage('No se pudo validar externamente. Verifica red/CORS.');
+        setNitState('unknown');
+        setNitMessage('No se pudo validar externamente. Verifica red/CORS.');
       }
     } else {
-      setRucState('unknown');
-      setRucMessage('Identificador aceptado. Validación externa no configurada para este país.');
+      setNitState('unknown');
+      setNitMessage('Identificador aceptado. Validación externa no configurada para este país.');
     }
   };
 
@@ -886,7 +886,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     if (!form.serie.trim()) return 'Falta serie.';
     if (!form.number.trim()) return 'Falta número.';
     if (!issueDate.trim()) return 'Falta fecha.';
-    if (!/^\d{9,12}$/.test(form.customerRuc.replace(/[^0-9]/g, ''))) return 'Identificador cliente inválido (9-12 dígitos).';
+    if (!/^\d{9,12}$/.test(form.customerNit.replace(/[^0-9]/g, ''))) return 'Identificador cliente inválido (9-12 dígitos).';
     if (!customerName.trim()) return 'Falta razón social cliente.';
     if (items.length === 0) return 'Agrega al menos un item.';
     if (total <= 0) return 'Total inválido.';
@@ -949,7 +949,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     setAiLegalWarnings([]);
     setAiAccountingWarnings([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    onFormChange({ ...form, serie: '', number: '', customerRuc: '', subtotal: '0.00', igv: '0.00', revenueAccount: '413505', costCenter: DEFAULT_COST_CENTER });
+    onFormChange({ ...form, serie: '', number: '', customerNit: '', subtotal: '0.00', iva: '0.00', revenueAccount: '413505', costCenter: DEFAULT_COST_CENTER });
   };
 
   const handleSubmit = async () => {
@@ -963,7 +963,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     const nextForm: SaleFormData = {
       ...form,
       subtotal: money(subtotal),
-      igv: money(igv),
+      iva: money(iva),
       revenueAccount: firstLine?.accountCode || normalizeAccount(form.revenueAccount) || DEFAULT_SERVICE_REVENUE_ACCOUNT,
       costCenter: firstLine?.costCenter || normalizeCostCenter(form.costCenter),
     };
@@ -983,7 +983,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       aiConfidence: item.aiConfidence,
       requiresReview: item.requiresReview,
       taxable: item.taxable,
-      igvAmount: item.igvAmount,
+      ivaAmount: item.ivaAmount,
       totalLine: item.totalLine,
       lineType: item.lineType,
       requiresSupport: item.requiresSupport,
@@ -994,7 +994,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       customerName,
       issueDate,
       subtotal: money(subtotal),
-      igv: money(igv),
+      iva: money(iva),
       total: money(total),
       items: normalizedItems,
       accountLines: accountingLines.map((line) => ({
@@ -1016,7 +1016,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
           serie: nextForm.serie,
           number: nextForm.number,
           issueDate,
-          customerNit: nextForm.customerRuc,
+          customerNit: nextForm.customerNit,
           customerName,
         },
         items: normalizedItems.map((item) => ({
@@ -1105,13 +1105,13 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-        <Field label="NIT/CC cliente"><Input value={form.customerRuc} onChange={(_, d) => updateField('customerRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
+        <Field label="NIT/CC cliente"><Input value={form.customerNit} onChange={(_, d) => updateField('customerNit', d.value)} contentAfter={<Search24Regular />} /></Field>
         <Field label="Razón social cliente"><Input value={customerName} onChange={(_, d) => setCustomerName(d.value)} /></Field>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
-        <Button appearance="secondary" onClick={validateRucExternally}>Validar NIT DIAN</Button>
-        <MessageBar intent={rucState === 'valid' ? 'success' : rucState === 'invalid' ? 'error' : 'info'}><MessageBarBody>{rucMessage}</MessageBarBody></MessageBar>
+        <Button appearance="secondary" onClick={validateNitExternally}>Validar NIT DIAN</Button>
+        <MessageBar intent={nitState === 'valid' ? 'success' : nitState === 'invalid' ? 'error' : 'info'}><MessageBarBody>{nitMessage}</MessageBarBody></MessageBar>
       </div>
 
       {aiWarnings.length > 0 && (
@@ -1193,7 +1193,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
         <Field label="Cuenta ingreso fallback"><Input value={form.revenueAccount} onChange={(_, d) => updateField('revenueAccount', d.value)} /></Field>
         <Field label="Centro costo general"><Input value={form.costCenter} onChange={(_, d) => updateField('costCenter', d.value)} /></Field>
         <Field label="Subtotal"><Input value={money(subtotal)} disabled /></Field>
-        <Field label="IVA"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
+        <Field label="IVA"><Input value={money(iva)} disabled={isAutoIgv} onChange={(_, d) => updateField('iva', d.value)} /></Field>
       </div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>

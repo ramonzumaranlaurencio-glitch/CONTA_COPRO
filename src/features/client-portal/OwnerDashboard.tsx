@@ -34,7 +34,7 @@ interface PendingPayment {
   id: string;
   fecha: string;
   cliente: string;
-  ruc: string;
+  nit: string;
   plan: string;
   monto: number;
   metodo: 'YAPE' | 'PLIN' | 'TRANSFERENCIA';
@@ -48,7 +48,7 @@ interface Client {
   id: string;
   tipo: 'CONTADOR' | 'EMPRESA';
   nombre: string;
-  ruc: string;
+  nit: string;
   email: string;
   plan: string;
   status: ClientStatus;
@@ -178,7 +178,7 @@ export const OwnerDashboard = () => {
 
   const clientesFiltrados = useMemo(() =>
     clientes.filter(c =>
-      (clienteFilter === '' || c.nombre.toLowerCase().includes(clienteFilter.toLowerCase()) || c.ruc.includes(clienteFilter)) &&
+      (clienteFilter === '' || c.nombre.toLowerCase().includes(clienteFilter.toLowerCase()) || c.nit.includes(clienteFilter)) &&
       (planFilter === '' || c.plan.includes(planFilter))
     ), [clientes, clienteFilter, planFilter]);
 
@@ -372,7 +372,7 @@ export const OwnerDashboard = () => {
                       <td style={{ ...tdStyle, fontWeight: 600, maxWidth: 180 }}>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.cliente}</div>
                       </td>
-                      <td style={{ ...tdStyle, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{p.ruc}</td>
+                      <td style={{ ...tdStyle, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{p.nit}</td>
                       <td style={tdStyle}><Badge label={p.plan} color={planColor(p.plan)} /></td>
                       <td style={{ ...tdStyle, color: C.green, fontWeight: 700, fontFamily: 'Consolas, monospace' }}>$ {fmt(p.monto)}</td>
                       <td style={tdStyle}>{metodoBadge(p.metodo)}</td>
@@ -398,7 +398,7 @@ export const OwnerDashboard = () => {
               </table>
             </div>
 
-            {/* Instrucciones de validación */}
+            {/* Instnitciones de validación */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[
                 { icon: '💚', title: 'Nequi (Bancolombia)', steps: ['Verificar número celular Nequi del pagador', 'Confirmar monto exacto en COP', 'Validar código de operación Nequi (10 dígitos)', 'Verificar estado en app Nequi o portal Bancolombia', 'Aprobar y generar código de acceso CONTA_COLPRO'] },
@@ -458,7 +458,7 @@ export const OwnerDashboard = () => {
                         </td>
                         <td style={tdStyle}>
                           <div style={{ fontWeight: 600, color: C.text }}>{c.nombre}</div>
-                          <div style={{ color: C.dim, fontSize: 10, fontFamily: 'Consolas, monospace' }}>{c.ruc} · {c.email}</div>
+                          <div style={{ color: C.dim, fontSize: 10, fontFamily: 'Consolas, monospace' }}>{c.nit} · {c.email}</div>
                         </td>
                         <td style={tdStyle}><Badge label={c.plan.replace('_', ' ')} color={planColor(c.plan)} /></td>
                         <td style={tdStyle}><Badge label={c.status} color={statusColor(c.status)} /></td>
@@ -505,7 +505,7 @@ export const OwnerDashboard = () => {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
-                    ['NIT', selectedClient.ruc], ['Email', selectedClient.email],
+                    ['NIT', selectedClient.nit], ['Email', selectedClient.email],
                     ['Tipo', selectedClient.tipo], ['Plan', selectedClient.plan],
                     ['Estado', selectedClient.status], ['Código', selectedClient.codigoAcceso],
                     ['IPs registradas', selectedClient.ips.join(', ') || '—'],

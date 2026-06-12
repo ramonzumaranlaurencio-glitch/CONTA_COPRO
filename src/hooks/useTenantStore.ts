@@ -3,7 +3,7 @@ import type { Rubro } from '../config/itemCatalog';
 
 export type Company = {
   id: string;
-  ruc: string;
+  nit: string;
   businessName: string;
   rubro: Rubro;
   rubros: Rubro[];
@@ -23,7 +23,7 @@ const STORAGE_KEY = 'conta_pro_companies';
 
 const PLACEHOLDER: Company = {
   id: 'tenant-placeholder',
-  ruc: '',
+  nit: '',
   businessName: 'Sin empresa activa',
   rubro: 'GE',
   rubros: ['GE'],
@@ -35,12 +35,15 @@ const loadCompanies = (): Company[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Company[];
+      const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Filtrar empresas demo hardcodeadas de versiones anteriores
-        const real = parsed.filter(c => !DEMO_IDS.has(c.id));
-        if (real.length !== parsed.length) {
-          // Había demos: guardar versión limpia
+        // Migrar campo ruc→nit y filtrar demos de versiones anteriores
+        const migrated = parsed.map(c => ({
+          ...c,
+          nit: (c.nit ?? c.ruc ?? '') as string,
+        })) as Company[];
+        const real = migrated.filter(c => !DEMO_IDS.has(c.id));
+        if (real.length !== parsed.length || parsed.some(c => 'ruc' in c)) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(real));
         }
         return real;

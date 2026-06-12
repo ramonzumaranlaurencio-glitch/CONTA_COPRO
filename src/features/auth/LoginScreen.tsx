@@ -190,7 +190,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   const [hoverOrb, setHoverOrb] = useState(false);
 
   // Estados del paso ADD_COMPANY (deben estar en el top — Rules of Hooks)
-  const [acNewRuc,    setAcNewRuc]    = useState('');
+  const [acNewNit,    setAcNewNit]    = useState('');
   const [acNewNombre, setAcNewNombre] = useState('');
   const [acNewRubro,  setAcNewRubro]  = useState('COMERCIAL');
   const [acAddError,  setAcAddError]  = useState('');
@@ -198,12 +198,12 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
   // Estado formulario contador
   const [acctData, setAcctData] = useState({
     nombres: '', apellidos: '', dni: '', telefono: '', email: '', password: '', confirmPass: '',
-    colegio: '', colegiatura: '', especialidad: '', anios: '', rucPersonal: '',
+    colegio: '', colegiatura: '', especialidad: '', anios: '', nitPersonal: '',
   });
 
   // Estado formulario empresa
   const [compData, setCompData] = useState({
-    ruc: '', razonSocial: '', nombreComercial: '', regimen: '', telefono: '', emailEmpresa: '',
+    nit: '', razonSocial: '', nombreComercial: '', regimen: '', telefono: '', emailEmpresa: '',
     direccion: '', departamento: '',
     adminNombres: '', adminApellidos: '', adminDni: '', adminCargo: '', adminEmail: '', adminPass: '', adminPassC: '',
   });
@@ -809,7 +809,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                 { k: 'dni' as const, lbl: 'Cédula / CE *', ph: '1.032.456.789' },
                 { k: 'telefono' as const, lbl: 'Teléfono *', ph: '+51 999 999 999' },
                 { k: 'email' as const, lbl: 'Correo electrónico *', ph: 'contador@email.com' },
-                { k: 'rucPersonal' as const, lbl: 'NIT personal', ph: '900XXXXXX-X' },
+                { k: 'nitPersonal' as const, lbl: 'NIT personal', ph: '900XXXXXX-X' },
               ].map(f => (
                 <div key={f.k}>
                   <label style={label}>{f.lbl}</label>
@@ -880,7 +880,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
-                { k: 'ruc' as const, lbl: 'NIT *', ph: '900.123.456-1', full: false },
+                { k: 'nit' as const, lbl: 'NIT *', ph: '900.123.456-1', full: false },
                 { k: 'razonSocial' as const, lbl: 'Razón social *', ph: 'Mi Empresa S.A.S.', full: false },
                 { k: 'nombreComercial' as const, lbl: 'Nombre comercial', ph: 'Nombre de negocio', full: false },
                 { k: 'regimen' as const, lbl: 'Régimen tributario *', ph: 'SIMPLE / Ordinario / Gran Contribuyente', full: false },
@@ -1197,14 +1197,14 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
             <button type="button" onClick={() => {
               const { addCompany } = useTenantStore.getState();
-              if (accountType === 'COMPANY' && compData.ruc && compData.razonSocial) {
+              if (accountType === 'COMPANY' && compData.nit && compData.razonSocial) {
                 const rubroMap: Record<string, Rubro> = {
                   COMERCIAL: 'CO', SERVICIOS: 'GE', CONSTRUCCION: 'CM',
                   FABRICACION: 'FA', MINERIA: 'MI', OTRO: 'GE',
                 };
                 addCompany({
                   id: `tenant-${Date.now()}`,
-                  ruc: compData.ruc,
+                  nit: compData.nit,
                   businessName: compData.razonSocial,
                   rubro: rubroMap[selectedRubro] ?? 'GE',
                   rubros: [rubroMap[selectedRubro] ?? 'GE'],
@@ -1242,11 +1242,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     ];
 
     const handleAddEmpresa = () => {
-      if (!acNewRuc.trim() || acNewRuc.trim().length < 11) { setAcAddError('El RUC debe tener 11 dígitos.'); return; }
+      if (!acNewNit.trim() || acNewNit.trim().length < 9) { setAcAddError('El NIT debe tener mínimo 9 dígitos.'); return; }
       if (!acNewNombre.trim()) { setAcAddError('Ingresa la razón social.'); return; }
       const r = RUBROS_LISTA.find(x => x.id === acNewRubro);
-      addCompany({ id: `tenant-${Date.now()}`, ruc: acNewRuc.trim(), businessName: acNewNombre.trim(), rubro: r?.rCode ?? 'GE', rubros: [r?.rCode ?? 'GE'] });
-      setAcNewRuc(''); setAcNewNombre(''); setAcNewRubro('COMERCIAL'); setAcAddError('');
+      addCompany({ id: `tenant-${Date.now()}`, nit: acNewNit.trim(), businessName: acNewNombre.trim(), rubro: r?.rCode ?? 'GE', rubros: [r?.rCode ?? 'GE'] });
+      setAcNewNit(''); setAcNewNombre(''); setAcNewRubro('COMERCIAL'); setAcAddError('');
     };
 
     const currentCompanies = useTenantStore.getState().companies;
@@ -1277,7 +1277,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 10, color: P.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>NIT</label>
-                  <input value={acNewRuc} onChange={e => { setAcNewRuc(e.target.value); setAcAddError(''); }}
+                  <input value={acNewNit} onChange={e => { setAcNewNit(e.target.value); setAcAddError(''); }}
                     placeholder="900.XXX.XXX-X"
                     style={{ ...input(false), fontSize: 13, fontFamily: 'Consolas, monospace' }} />
                 </div>
@@ -1319,7 +1319,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: `${P.green}10`, border: `1px solid ${P.green}33`, borderRadius: 8, padding: '8px 14px' }}>
                       <div>
                         <span style={{ color: P.text, fontSize: 12, fontWeight: 700 }}>{c.businessName}</span>
-                        <span style={{ color: P.dim, fontSize: 11, marginLeft: 8 }}>RUC {c.ruc}</span>
+                        <span style={{ color: P.dim, fontSize: 11, marginLeft: 8 }}>NIT {c.nit}</span>
                       </div>
                       <span style={{ color: P.green, fontSize: 11, fontWeight: 700 }}>✓</span>
                     </div>

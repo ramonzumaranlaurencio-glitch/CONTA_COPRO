@@ -2,9 +2,9 @@ from __future__ import annotations
 import httpx
 
 class SunatClient:
-    def __init__(self, endpoint: str, ruc: str, sol_user: str, sol_password: str, timeout: int = 30):
+    def __init__(self, endpoint: str, nit: str, sol_user: str, sol_password: str, timeout: int = 30):
         self.endpoint = endpoint
-        self.ruc = ruc
+        self.nit = nit
         self.sol_user = sol_user
         self.sol_password = sol_password
         self.timeout = timeout
@@ -24,9 +24,9 @@ class SunatClient:
     def _soap_envelope(self, signed_xml: bytes) -> bytes:
         import base64
 
-        filename = f"{self.ruc or '00000000000'}-01.xml"
+        filename = f"{self.nit or '00000000000'}-01.xml"
         content = base64.b64encode(signed_xml).decode("ascii")
-        username = f"{self.ruc}{self.sol_user}" if self.ruc and self.sol_user else (self.sol_user or "")
+        username = f"{self.nit}{self.sol_user}" if self.nit and self.sol_user else (self.sol_user or "")
         password = self.sol_password or ""
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe">

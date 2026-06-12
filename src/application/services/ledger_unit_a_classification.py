@@ -170,7 +170,7 @@ class ClassificationAgent:
                     cuenta="40111",
                     debe=igv_monto,
                     haber=Decimal("0.00"),
-                    glosa="IGV - Crédito Fiscal",
+                    glosa="IVA - Crédito Fiscal",
                     centro_costo=cost_center,
                 ),
                 JournalLine(

@@ -270,7 +270,7 @@ export const DashboardEnterprisePremium = ({ rows = [] }: Props) => {
 
   const ventasTotal  = useMemo(() => ventasRows.reduce((s, r)  => s + toNum(r.credit), 0), [ventasRows]);
   const comprasTotal = useMemo(() => comprasRows.reduce((s, r) => s + toNum(r.debit),  0), [comprasRows]);
-  const igv          = useMemo(() => {
+  const iva          = useMemo(() => {
     const cr = rows.filter(r => r.account?.startsWith('40')).reduce((s, r) => s + toNum(r.credit), 0);
     const db = rows.filter(r => r.account?.startsWith('40')).reduce((s, r) => s + toNum(r.debit),  0);
     return cr - db;

@@ -44,7 +44,7 @@ class InvoicePostRequest(BaseModel):
     year: int
     month: int
     invoice_id: str
-    customer_ruc: str | None = None
+    customer_nit: str | None = None
     customer_name: str | None = None
     doc_type: str = "01"
     serie: str
@@ -57,13 +57,13 @@ class InvoicePostRequest(BaseModel):
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    retencion_amount: Decimal = Decimal("0.00")  # Only Colombian retention (no detraccion or percepcion)
+    retencion_amount: Decimal = Decimal("0.00")
     cost_center: str | None = None
-    revenue_account: str = "7011"
+    revenue_account: str = "413505"
     audit_metadata: dict | None = None
     xml_raw: str | None = None
     xml_hash: str | None = None
-    sunat_validation: dict | None = None
+    dian_validation: dict | None = None
     user_id: str | None = None
     trace_id: str | None = None
     ip_address: str | None = None
@@ -75,7 +75,7 @@ class PurchasePostRequest(BaseModel):
     year: int
     month: int
     purchase_id: str
-    supplier_ruc: str | None = None
+    supplier_nit: str | None = None
     supplier_name: str | None = None
     doc_type: str = "01"
     serie: str
@@ -91,15 +91,13 @@ class PurchasePostRequest(BaseModel):
     account_lines: list[dict] = Field(default_factory=list)
     accounts_to_upsert: list[dict] = Field(default_factory=list)
     cost_centers_to_upsert: list[dict] = Field(default_factory=list)
-    detraccion_amount: Decimal = Decimal("0.00")
-    percepcion_amount: Decimal = Decimal("0.00")
     retencion_amount: Decimal = Decimal("0.00")
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    expense_account: str = "6011"
+    expense_account: str = "513540"
     cost_center: str | None = None
     audit_metadata: dict | None = None
-    sunat_validation: dict | None = None
+    dian_validation: dict | None = None
     user_id: str | None = None
     trace_id: str | None = None
     ip_address: str | None = None
@@ -124,7 +122,7 @@ class JournalEntryListItem(BaseModel):
     total_credit: str
     row_hash: str
     previous_hash: str
-    sunat_status: str = "PENDING"
+    dian_status: str = "PENDING"
     account_code: str | None = None
     account_name: str | None = None
     cost_center: str | None = None

@@ -733,7 +733,7 @@ El TOTAL A PAGAR impreso en el comprobante manda. No modifiques el total para ha
 LECTURA PIXEL POR PIXEL Y ROLES DE DATOS:
 1. Lee el comprobante completo, incluyendo encabezado, logo, datos del emisor, datos del cliente, periodo, detalle, totales, notas pequeñas, QR y talon.
 2. El proveedor/emisor es la empresa que emite/cobra el comprobante. NO confundas el NIT del cliente, cedula, codigo de suministro, numero de medidor, codigo de pago o numero de contrato con el NIT proveedor.
-3. El supplier_ruc debe ser el NIT del emisor/proveedor (9-10 digitos colombianos). Si no estas seguro, deja supplier_ruc vacio y agrega warning. No inventes NIT.
+3. El supplier_nit debe ser el NIT del emisor/proveedor (9-10 digitos colombianos). Si no estas seguro, deja supplier_nit vacio y agrega warning. No inventes NIT.
 4. supplier_name debe ser la razon social/nombre comercial del emisor/proveedor. Si no esta legible, deja vacio y agrega warning.
 5. En recibos de servicios publicos, distingue: empresa emisora, titular/cliente, suministro, codigo de pago, medidor y recibo.
 
@@ -764,7 +764,7 @@ FORMATO JSON OBLIGATORIO:
   "issue_date": "YYYY-MM-DD",
   "due_date": "YYYY-MM-DD",
   "period": "YYYY-MM",
-  "supplier_ruc": "",
+  "supplier_nit": "",
   "supplier_name": "",
   "currency": "COP",
   "subtotal": "0.00",
@@ -919,7 +919,7 @@ def _clean_public_receipt_items_and_amounts(
     data: dict[str, Any],
     items: list[dict[str, Any]],
     subtotal: Decimal,
-    igv: Decimal,
+    iva: Decimal,
     total_read: Decimal,
     warnings: list[str],
     tax_warnings: list[str],
@@ -968,12 +968,12 @@ def _clean_public_receipt_items_and_amounts(
         data["subtotal"] = _money_str(subtotal)
 
     if subtotal > 0:
-        expected_igv = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if igv == 0 or abs(igv - expected_igv) <= Decimal("1.10"):
-            if igv != expected_igv:
-                ocr_warnings.append(f"IVA corregido de {igv} a {expected_igv} usando SUB TOTAL visible {subtotal}.")
-            igv = expected_igv
-            data["igv"] = _money_str(igv)
+        expected_iva = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if iva == 0 or abs(iva - expected_iva) <= Decimal("1.10"):
+            if iva != expected_iva:
+                ocr_warnings.append(f"IVA corregido de {iva} a {expected_iva} usando SUB TOTAL visible {subtotal}.")
+            iva = expected_iva
+            data["iva"] = _money_str(iva)
 
     # Aplicar reglas de todos los organismos reguladores
     all_regulated_rules = (
@@ -997,7 +997,7 @@ def _clean_public_receipt_items_and_amounts(
         item["account_name"] = matched_rule["account_name"]
         item["taxable"] = bool(matched_rule["taxable"])
         if not matched_rule["taxable"]:
-            item["igv_amount"] = "0.00"
+            item["iva_amount"] = "0.00"
         item["requires_support"] = False
         item["requires_bancarization"] = False
         item["requires_retefuente_review"] = False
@@ -1013,7 +1013,7 @@ def _clean_public_receipt_items_and_amounts(
 
     if diff_items:
         current_diff = sum((_item_amount_value(item) for item in diff_items), Decimal("0.00")).quantize(Decimal("0.01"))
-        expected_diff = (total_read - subtotal - igv - saldo - aporte).quantize(Decimal("0.01"))
+        expected_diff = (total_read - subtotal - iva - saldo - aporte).quantize(Decimal("0.01"))
         if abs(current_diff - expected_diff) <= Decimal("2.00"):
             if current_diff != expected_diff:
                 ocr_warnings.append(f"Diferencia de redondeo corregida de {current_diff} a {expected_diff} usando TOTAL impreso.")
@@ -1039,7 +1039,7 @@ def _clean_public_receipt_items_and_amounts(
     accounting_warnings[:] = [w for w in accounting_warnings if _keep_warning(w)]
 
     reconciliation_notes.append("RECIBO_PUBLICO_FLEXIBLE: se respetan montos impresos, subcuentas y centro de costo de gastos.")
-    return items, subtotal, igv
+    return items, subtotal, iva
 
 
 def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
@@ -1052,13 +1052,13 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     reconciliation_notes = list(audit.get("reconciliation_notes") or [])
 
     supplier_name = _norm_text(data.get("supplier_name"))
-    supplier_ruc = _only_digits(data.get("supplier_ruc"))
-    if supplier_ruc and not _is_valid_nit(supplier_ruc):
-        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_ruc}. Verifique en el RUT de la DIAN.")
-        supplier_ruc = ""
+    supplier_nit = _only_digits(data.get("supplier_nit") or data.get("supplier_ruc"))
+    if supplier_nit and not _is_valid_nit(supplier_nit):
+        warnings.append(f"NIT proveedor descartado por no pasar validacion modulo 11 DIAN: {supplier_nit}. Verifique en el RUT de la DIAN.")
+        supplier_nit = ""
     if not supplier_name:
         warnings.append("No se pudo leer razon social del proveedor con seguridad.")
-    if not supplier_ruc:
+    if not supplier_nit:
         warnings.append("No se pudo leer NIT del proveedor con seguridad; no se debe inventar.")
 
     fallback_cc = _norm_upper(data.get("cost_center")) or CENTRO_COSTO_DEFAULT
@@ -1076,13 +1076,13 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
 
         line_subtotal = _money(raw.get("line_subtotal") or raw.get("subtotal") or raw.get("unit_price"))
         total_line = _money(raw.get("total_line") or line_subtotal)
-        igv_amount = _money(raw.get("igv_amount"))
+        iva_amount = _money(raw.get("iva_amount") or raw.get("iva_amount"))
 
         if kind in {"ROUNDING", "PRIOR_BALANCE", "ADVANCE_PAYMENT", "LATE_FEE"}:
             account_code = local["account_code"]
             account_name = local["account_name"]
             cost_center = local["cost_center"]
-            igv_amount = Decimal("0.00")
+            iva_amount = Decimal("0.00")
             raw["taxable"] = False
             raw["iva_credit"] = local["iva_credit"]
             raw["requires_support"] = local["requires_support"]
@@ -1112,7 +1112,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "unit_price": _money_str(raw.get("unit_price") or line_subtotal),
             "line_subtotal": _money_str(line_subtotal),
             "taxable": bool(raw.get("taxable", True)),
-            "igv_amount": _money_str(igv_amount),
+            "iva_amount": _money_str(iva_amount),
             "total_line": _money_str(total_line),
             "line_type": resolved_kind,
             "account_code": account_code,
@@ -1136,15 +1136,15 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         items.append(item)
 
     subtotal = _money(data.get("printed_subtotal") or data.get("subtotal") or sum(_money(item["line_subtotal"]) for item in items if item.get("line_type") in {"EXPENSE_OR_ASSET", "INVENTORY_PURCHASE"}))
-    igv = _money(data.get("printed_igv") or data.get("igv") or sum(_money(item.get("igv_amount")) for item in items))
-    total_read = _money(data.get("printed_total") or data.get("total_read_from_document") or data.get("total") or subtotal + igv)
+    iva = _money(data.get("printed_iva") or data.get("iva") or data.get("printed_iva") or data.get("iva") or sum(_money(item.get("iva_amount") or item.get("iva_amount")) for item in items))
+    total_read = _money(data.get("printed_total") or data.get("total_read_from_document") or data.get("total") or subtotal + iva)
     total = total_read
 
-    items, subtotal, igv = _clean_public_receipt_items_and_amounts(
+    items, subtotal, iva = _clean_public_receipt_items_and_amounts(
         data,
         items,
         subtotal,
-        igv,
+        iva,
         total_read,
         warnings,
         tax_warnings,
@@ -1232,7 +1232,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "unit_price": _money_str(subtotal),
             "line_subtotal": _money_str(subtotal),
             "taxable": True,
-            "igv_amount": _money_str(igv),
+            "iva_amount": _money_str(iva),
             "total_line": _money_str(subtotal),
             "line_type": "EXPENSE_OR_ASSET",
             "account_code": local["account_code"],
@@ -1330,12 +1330,12 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             "audit_note": "",
         })
 
-    if igv != 0:
+    if iva != 0:
         account_lines.append({
             "account_code": IVA_DESCONTABLE_ACCOUNT,
             "account_name": "IVA descontable",
             "cost_center": "-",
-            "debit": _money_str(igv),
+            "debit": _money_str(iva),
             "credit": "0.00",
             "line_type": "TAX",
             "tax_treatment": "IVA descontable Art. 485 ET. Sujeto a validacion CUFE, NIT activo DIAN, causalidad y anotacion oportuna en registro de compras.",
@@ -1428,11 +1428,11 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         "issue_date": _norm_text(data.get("issue_date")),
         "due_date": _norm_text(data.get("due_date")),
         "period": _norm_text(data.get("period")),
-        "supplier_ruc": supplier_ruc,
+        "supplier_nit": supplier_nit,
         "supplier_name": supplier_name,
         "currency": _norm_text(data.get("currency")) or "COP",
         "subtotal": _money_str(subtotal),
-        "iva": _money_str(igv),
+        "iva": _money_str(iva),
         "non_taxed_amount": _money_str(data.get("non_taxed_amount")),
         "exempt_amount": _money_str(data.get("exempt_amount")),
         "other_charges": _money_str(data.get("other_charges")),
@@ -1661,8 +1661,8 @@ VALIDACIONES DIAN OBLIGATORIAS:
 IVA COLOMBIA:
 - Tarifa general: 19% (Art. 468 ET) → cuenta 2408
 - Tarifa 5%: bienes sensibles (Art. 468-1 ET)
-- Excluidos: medicamentos, libros, cuadernos (Art. 424 ET) → campo igv=0
-- Exentos: exportaciones, servicios hoteleros (Art. 481 ET) → campo igv=0
+- Excluidos: medicamentos, libros, cuadernos (Art. 424 ET) → campo iva=0
+- Exentos: exportaciones, servicios hoteleros (Art. 481 ET) → campo iva=0
 
 RETENCIONES (solo si aplica segun cuantia y tipo):
 - ReteFuente: cuenta 2365 (servicios 4%, compras 2.5%, honorarios 10-11% — Art. 383/384/385 ET)
@@ -1917,7 +1917,7 @@ Para CADA linea/producto visible en el documento extraer:
   • quantity      : cantidad numerica exacta (ej: "12", "2.5", "100")
   • unit_price    : precio unitario SIN IVA exacto
   • line_subtotal : subtotal = quantity × unit_price SIN IVA
-  • igv_amount    : IVA de la linea (0 si excluido o exento)
+  • iva_amount    : IVA de la linea (0 si excluido o exento)
   • total_line    : total con IVA de la linea
   • lot_number    : numero de lote/batch si aparece (o "")
   • expiry_date   : fecha de vencimiento si aparece en YYYY-MM-DD (o "")
@@ -2143,7 +2143,7 @@ SALDO ANTERIOR / DEUDA ANTERIOR (EN CUALQUIER RECIBO DE SERVICIO PUBLICO):
 
 REGLAS PUC COLOMBIA PARA TODOS LOS RECIBOS:
 - Cada fila del recibo = un item separado en el JSON. PROHIBIDO agrupar.
-- El IVA (19% Art. 468 ET) va SOLO en cuenta 2408 como campo "igv" del JSON, nunca como item.
+- El IVA (19% Art. 468 ET) va SOLO en cuenta 2408 como campo "iva" del JSON, nunca como item.
 - IVA en Colombia = 19%. Algunos servicios publicos: 0% (agua, alcantarillado, aseo, gas domiciliario residencial).
 - Si no lees el importe exacto, pon el importe mas cercano visible y marca requires_visual_review=true.
 - Los cargos regulados CREG/CRA/CRC (contribucion solidaridad, alumbrado publico, FONTIC) NO generan IVA.
@@ -2186,11 +2186,11 @@ Analiza el archivo PIXEL POR PIXEL como comprobante empresarial colombiano.
 
 REGLA ITEMS: Cada fila visible del comprobante = un item separado. PROHIBIDO agrupar lineas.
 REGLA INVENTARIO: Si el item es bien fisico tangible (producto, material, repuesto) → is_inventory=true, account_code=14xxxx. Si es servicio o gasto → is_inventory=false, account_code=5xxxxx.
-REGLA NIT: Devuelve SOLO los primeros 9 digitos del NIT (sin el digito de verificacion). Ejemplo: NIT impreso "830987654-1" → supplier_ruc="830987654".
+REGLA NIT: Devuelve SOLO los primeros 9 digitos del NIT (sin el digito de verificacion). Ejemplo: NIT impreso "830987654-1" → supplier_nit="830987654".
 REGLA DESCUENTOS: Si hay descuentos, rebajas o notas debito en el comprobante → incluirlos como item con unit_price negativo y line_subtotal negativo. Ejemplo: "Descuento comercial -$100.000" → item separado con total_line="-100000.00".
 
 Devuelve SOLO este JSON valido sin markdown ni texto extra. Copia la estructura exacta, un objeto por item visible:
-{{"supplier_name":"","supplier_ruc":"","invoice_number":"","serie":"","issue_date":"","due_date":null,"currency":"COP","subtotal":"0.00","igv":"0.00","total":"0.00","payment_method":"CREDITO","cost_center":null,"items":[{{"code":"","description":"","unit":"UND","quantity":1,"unit_price":"0.00","line_subtotal":"0.00","igv_amount":"0.00","total_line":"0.00","account_code":"","account_name":"","cost_center":null,"tax_treatment":"GRAVADO_19","taxable":true,"is_inventory":false,"line_type":"EXPENSE_OR_ASSET","requires_support":false,"ai_confidence":0.95,"ai_reason":"cuenta PUC asignada porque..."}}],"warnings":[],"audit_metadata":{{"accounting_warnings":[],"tax_warnings":[],"ocr_warnings":[],"reconciliation_notes":[]}}}}
+{{"supplier_name":"","supplier_nit":"","invoice_number":"","serie":"","issue_date":"","due_date":null,"currency":"COP","subtotal":"0.00","iva":"0.00","total":"0.00","payment_method":"CREDITO","cost_center":null,"items":[{{"code":"","description":"","unit":"UND","quantity":1,"unit_price":"0.00","line_subtotal":"0.00","iva_amount":"0.00","total_line":"0.00","account_code":"","account_name":"","cost_center":null,"tax_treatment":"GRAVADO_19","taxable":true,"is_inventory":false,"line_type":"EXPENSE_OR_ASSET","requires_support":false,"ai_confidence":0.95,"ai_reason":"cuenta PUC asignada porque..."}}],"warnings":[],"audit_metadata":{{"accounting_warnings":[],"tax_warnings":[],"ocr_warnings":[],"reconciliation_notes":[]}}}}
 """
 
 

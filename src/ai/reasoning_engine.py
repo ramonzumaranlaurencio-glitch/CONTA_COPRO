@@ -58,7 +58,7 @@ class AuditCopilot:
             "role": "Controller financiero enterprise",
             "tasks": [
                 "Identificar asientos fuera de patron historico",
-                "Detectar facturas duplicadas por RUC serie numero monto",
+                "Detectar facturas duplicadas por NIT serie numero monto",
                 "Resaltar cuentas con saldos contrarios a su naturaleza",
                 "Priorizar hallazgos por impacto material y trazabilidad",
             ],

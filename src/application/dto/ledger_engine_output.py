@@ -112,7 +112,7 @@ class InvoicePostRequest(BaseModel):
     year: int
     month: int
     invoice_id: str
-    customer_ruc: str | None = None
+    customer_nit: str | None = None
     doc_type: str = "01"
     serie: str
     number: str
@@ -124,11 +124,11 @@ class InvoicePostRequest(BaseModel):
     line_items: list[InvoiceLineItemRequest] = Field(default_factory=list)
     currency: str = "COP"
     exchange_rate: Decimal | None = None
-    retencion_amount: Decimal = Decimal("0.00")  # Colombian withholding only
+    retencion_amount: Decimal = Decimal("0.00")
     cost_center: str | None = None
     xml_raw: str | None = None
     xml_hash: str | None = None
-    sunat_validation: dict | None = None
+    dian_validation: dict | None = None
     user_id: str | None = None
     trace_id: str | None = None
     ip_address: str | None = None
@@ -141,7 +141,7 @@ class PurchasePostRequest(BaseModel):
     year: int
     month: int
     purchase_id: str
-    supplier_ruc: str | None = None
+    supplier_nit: str | None = None
     supplier_name: str | None = None
     doc_type: str = "01"
     serie: str
@@ -283,7 +283,7 @@ class LedgerEngineOutput(BaseModel):
 
 # --- FIN FIX COMPATIBILIDAD MODELOS LEDGER ENGINE ---
 
-# --- FIX COMPATIBILIDAD BANCARIZACION / SUNAT / TRIBUTARIO ---
+# --- FIX COMPATIBILIDAD BANCARIZACION / DIAN / TRIBUTARIO COLOMBIA ---
 from typing import Any
 from pydantic import BaseModel, Field
 
@@ -323,10 +323,10 @@ class PercepcionModel(BaseModel):
     observaciones: list[str] = Field(default_factory=list)
 
 
-class SunatValidationModel(BaseModel):
+class DianValidationModel(BaseModel):
     validado: bool = False
     estado: str = "PENDIENTE"
-    cdr_status: str | None = None
+    cufe_status: str | None = None
     observaciones: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -354,7 +354,7 @@ class RiskModel(BaseModel):
     score: float = 0.0
 
 
-# --- FIN FIX COMPATIBILIDAD BANCARIZACION / SUNAT / TRIBUTARIO ---
+# --- FIN FIX COMPATIBILIDAD BANCARIZACION / DIAN / TRIBUTARIO COLOMBIA ---
 
 
 # --- FIX AUTOMATICO COMPATIBILIDAD LEDGER ENGINE ---

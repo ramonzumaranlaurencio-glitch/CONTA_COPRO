@@ -86,7 +86,7 @@ const PLANS: PlanConfig[] = [
 ];
 
 interface CheckoutForm {
-  ruc: string;
+  nit: string;
   razonSocial: string;
   email: string;
   cardNumber: string;
@@ -102,7 +102,7 @@ export default function PlanComparisonPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState<CheckoutForm>({
-    ruc: '', razonSocial: '', email: '',
+    nit: '', razonSocial: '', email: '',
     cardNumber: '', expiry: '', cvv: '',
   });
 
@@ -125,7 +125,7 @@ export default function PlanComparisonPage() {
     setError('');
 
     // Validaciones básicas (acepta RUC/NIT entre 9 y 12 dígitos)
-    if (!form.ruc || form.ruc.length < 9 || form.ruc.length > 12) {
+    if (!form.nit || form.nit.length < 9 || form.nit.length > 12) {
       setError('Ingresa un identificador fiscal válido (9-12 dígitos)'); return;
     }
     if (!form.razonSocial.trim()) {
@@ -300,13 +300,13 @@ export default function PlanComparisonPage() {
               <div style={styles.errorBox}>{error}</div>
             )}
 
-            <label style={styles.label}>RUC de la empresa</label>
+            <label style={styles.label}>NIT de la empresa</label>
             <input
               style={styles.input}
               placeholder="20123456789"
               maxLength={11}
-              value={form.ruc}
-              onChange={e => handleField('ruc', e.target.value.replace(/\D/g, ''))}
+              value={form.nit}
+              onChange={e => handleField('nit', e.target.value.replace(/\D/g, ''))}
             />
 
             <label style={styles.label}>Razón social</label>

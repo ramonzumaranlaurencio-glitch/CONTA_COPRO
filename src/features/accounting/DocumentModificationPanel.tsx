@@ -11,9 +11,9 @@ type ModificationPanelProps = {
   series: string;
   number: string;
   issueDate?: string;
-  partnerRuc: string;
+  partnerNit: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   onClose: () => void;
   onStatus: (message: string) => void;
 };
@@ -46,23 +46,23 @@ export const DocumentModificationPanel = ({
   series,
   number,
   issueDate,
-  partnerRuc,
+  partnerNit,
   subtotal,
-  igv,
+  iva,
   onClose,
   onStatus,
 }: ModificationPanelProps) => {
-  const [motivo, setMotivo] = useState('ERROR_RUC');
+  const [motivo, setMotivo] = useState('ERROR_NIT');
   const [justificacion, setJustificacion] = useState('');
-  const [proposedRuc, setProposedRuc] = useState(partnerRuc);
+  const [proposedNit, setProposedNit] = useState(partnerNit);
   const [proposedSubtotal, setProposedSubtotal] = useState(subtotal);
-  const [proposedIgv, setProposedIgv] = useState(igv);
+  const [proposedIva, setProposedIva] = useState(iva);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
   const deadline = useMemo(() => nextMonthThirdDay(issueDate), [issueDate]);
   const inWindow = useMemo(() => new Date() <= deadline, [deadline]);
-  const total = useMemo(() => toNumber(proposedSubtotal) + toNumber(proposedIgv), [proposedSubtotal, proposedIgv]);
+  const total = useMemo(() => toNumber(proposedSubtotal) + toNumber(proposedIva), [proposedSubtotal, proposedIva]);
   const weakJustification = isWeakJustification(justificacion);
 
   const submitValidation = async () => {
@@ -73,7 +73,7 @@ export const DocumentModificationPanel = ({
 
     setIsSubmitting(true);
     try {
-      const partnerKey = direction === 'AR' ? 'customer_ruc' : 'supplier_ruc';
+      const partnerKey = direction === 'AR' ? 'customer_nit' : 'supplier_nit';
       const response = await fetch(`${API_BASE}/ledger/documents/modification/validate`, {
         method: 'POST',
         headers: {
@@ -89,10 +89,10 @@ export const DocumentModificationPanel = ({
           motivo,
           justificacion,
           datos_nuevos: {
-            partner_ruc: proposedRuc,
-            [partnerKey]: proposedRuc,
+            partner_nit: proposedNit,
+            [partnerKey]: proposedNit,
             taxable_amount: proposedSubtotal,
-            tax_amount: proposedIgv,
+            tax_amount: proposedIva,
             total_amount: total.toFixed(2),
             total: total.toFixed(2),
           },
@@ -131,14 +131,14 @@ export const DocumentModificationPanel = ({
 
       <Field label="Motivo de modificacion">
         <select value={motivo} onChange={(event) => setMotivo(event.target.value)} style={{ minHeight: 32, border: '1px solid #cbd5e1', borderRadius: 4, padding: '0 8px' }}>
-          <option value="ERROR_RUC">Error en el NIT: requiere anulacion y nueva emision</option>
+          <option value="ERROR_NIT">Error en el NIT: requiere anulacion y nueva emision</option>
           <option value="ERROR_DESCRIPCION_MONTOS">Error en la descripcion o montos</option>
           <option value="DEVOLUCION_TOTAL_PARCIAL">Devolucion total o parcial</option>
         </select>
       </Field>
 
       <Field label={direction === 'AR' ? 'Nuevo NIT cliente' : 'Nuevo NIT proveedor'}>
-        <Input value={proposedRuc} onChange={(_, data) => setProposedRuc(data.value)} />
+        <Input value={proposedNit} onChange={(_, data) => setProposedNit(data.value)} />
       </Field>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -146,7 +146,7 @@ export const DocumentModificationPanel = ({
           <Input value={proposedSubtotal} onChange={(_, data) => setProposedSubtotal(data.value)} />
         </Field>
         <Field label="IVA propuesto">
-          <Input value={proposedIgv} onChange={(_, data) => setProposedIgv(data.value)} />
+          <Input value={proposedIva} onChange={(_, data) => setProposedIva(data.value)} />
         </Field>
       </div>
 

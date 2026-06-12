@@ -8,9 +8,9 @@ type PrintPanelProps = {
   invoiceData: {
     serie: string;
     number: string;
-    customerRuc: string;
+    customerNit: string;
     subtotal: string;
-    igv: string;
+    iva: string;
     total: string;
     lineItems: Array<{
       productCode: string;
@@ -109,7 +109,7 @@ BT
 50 800 Td
 (FACTURA: ${invoiceData.serie}-${invoiceData.number}) Tj
 0 -30 Td
-(NIT Cliente: ${invoiceData.customerRuc}) Tj
+(NIT Cliente: ${invoiceData.customerNit}) Tj
 0 -60 Td
 (DETALLE DE FACTURA) Tj
 0 -30 Td
@@ -123,7 +123,7 @@ ${invoiceData.lineItems
   .join('\n')}
 (Subtotal: $ ${invoiceData.subtotal}) Tj
 0 -20 Td
-(IVA 19%: $ ${invoiceData.igv}) Tj
+(IVA 19%: $ ${invoiceData.iva}) Tj
 0 -20 Td
 (TOTAL COP: $ ${invoiceData.total}) Tj
 ET

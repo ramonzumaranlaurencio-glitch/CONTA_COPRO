@@ -33,7 +33,7 @@ class LedgerEngineRequest(BaseModel):
     iva_included: bool = Field(default=True, description="Si el monto incluye IVA")
     cost_center: str | None = Field(None, description="Centro de costo")
     supplier_nit: str | None = Field(None, description="NIT del proveedor (para compras)")
-    customer_ruc: str | None = Field(None, description="RUC del cliente (para ventas)")
+    customer_nit: str | None = Field(None, description="NIT del cliente (para ventas)")
     payment_method: str | None = Field(None, description="TRANSFERENCIA, CHEQUE, EFECTIVO, etc")
     service_code: str | None = Field(None, description="Código de servicio para detracciones")
     doc_type_code: str | None = Field(None, description="01=Factura, 03=Boleta, 07=NC, 08=ND")
@@ -51,8 +51,8 @@ async def process_ledger_engine(
     The Ledger Engine: Procesamiento integrado de validación legal y contable.
     
     Flujo:
-    1. Unit A (Clasificación): Genera asientos contables según PCGE
-    2. Unit B (Cumplimiento): Valida contra SUNAT, Código Tributario, D. Leg. 728
+    1. Unit A (Clasificación): Genera asientos contables según PUC Colombia
+    2. Unit B (Cumplimiento): Valida contra DIAN, Estatuto Tributario Colombia
     3. JSON Output: Retorna asientos, compliance checks y acciones requeridas
     4. Bloqueo: Si hay incumplimiento, lanza excepción (safe-by-default)
     
@@ -86,10 +86,10 @@ async def process_ledger_engine(
             transaction_type=request_body.transaction_type,
             amount=request_body.amount,
             currency=request_body.currency,
-            igv_included=request_body.igv_included,
+            iva_included=request_body.iva_included,
             cost_center=request_body.cost_center,
-            supplier_ruc=request_body.supplier_ruc,
-            customer_ruc=request_body.customer_ruc,
+            supplier_nit=request_body.supplier_nit,
+            customer_nit=request_body.customer_nit,
             payment_method=request_body.payment_method,
             service_code=request_body.service_code,
             doc_type_code=request_body.doc_type_code,

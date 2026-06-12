@@ -43,7 +43,7 @@ type Props = {
 export const CompanySelectScreen: React.FC<Props> = ({ userPlan, displayName, onSelectCompany }) => {
   const { companies, addCompany } = useTenantStore();
   const [showForm, setShowForm]   = useState(false);
-  const [ruc,     setRuc]         = useState('');
+  const [nit,     setNit]         = useState('');
   const [nombre,  setNombre]      = useState('');
   const [rubro,   setRubro]       = useState<Rubro>('CO');
   const [error,   setError]       = useState('');
@@ -54,17 +54,17 @@ export const CompanySelectScreen: React.FC<Props> = ({ userPlan, displayName, on
   const limitLabel = maxEmpresas === 0 ? 'Ilimitadas' : `${companies.length} / ${maxEmpresas}`;
 
   const handleAdd = () => {
-    if (!ruc.trim() || ruc.trim().length < 11) { setError('El RUC debe tener 11 dígitos.'); return; }
+    if (!nit.trim() || nit.trim().length < 9) { setError('El NIT debe tener mínimo 9 dígitos.'); return; }
     if (!nombre.trim()) { setError('Ingresa la razón social.'); return; }
     const company: Company = {
       id: `tenant-${Date.now()}`,
-      ruc: ruc.trim(),
+      nit: nit.trim(),
       businessName: nombre.trim(),
       rubro,
       rubros: [rubro],
     };
     addCompany(company);
-    setRuc(''); setNombre(''); setRubro('CO'); setError(''); setShowForm(false);
+    setNit(''); setNombre(''); setRubro('CO'); setError(''); setShowForm(false);
   };
 
   const inp: React.CSSProperties = {
@@ -122,7 +122,7 @@ export const CompanySelectScreen: React.FC<Props> = ({ userPlan, displayName, on
                 >
                   <div style={{ fontSize: 30, marginBottom: 10 }}>{rubroInfo?.icon || '🏢'}</div>
                   <div style={{ color: C.text, fontWeight: 800, fontSize: 14, marginBottom: 4, lineHeight: 1.3 }}>{c.businessName}</div>
-                  <div style={{ color: C.dim, fontSize: 11, marginBottom: 10 }}>RUC {c.ruc}</div>
+                  <div style={{ color: C.dim, fontSize: 11, marginBottom: 10 }}>NIT {c.nit}</div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `${C.blue}22`, border: `1px solid ${C.blue}44`, borderRadius: 20, padding: '2px 10px' }}>
                     <span style={{ color: C.accent, fontSize: 10, fontWeight: 700 }}>{rubroInfo?.label || c.rubro}</span>
                   </div>
@@ -196,9 +196,9 @@ export const CompanySelectScreen: React.FC<Props> = ({ userPlan, displayName, on
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 10, color: C.muted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RUC (11 dígitos) *</label>
-                <input value={ruc} onChange={e => { setRuc(e.target.value); setError(''); }}
-                  placeholder="20XXXXXXXXX" maxLength={12}
+                <label style={{ display: 'block', fontSize: 10, color: C.muted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>NIT (9-12 dígitos) *</label>
+                <input value={nit} onChange={e => { setNit(e.target.value); setError(''); }}
+                  placeholder="900.123.456-1" maxLength={13}
                   style={{ ...inp, fontFamily: 'Consolas, monospace' }} />
               </div>
               <div>

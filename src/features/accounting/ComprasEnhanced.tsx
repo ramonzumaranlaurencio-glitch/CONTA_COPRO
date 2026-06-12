@@ -31,10 +31,10 @@ interface Comprobante {
   id: string;
   fecha: string;
   proveedor: string;
-  ruc: string;
+  nit: string;
   documento: string;
   base: number;
-  igv: number;
+  iva: number;
   total: number;
   cuenta: string;
   estado: DocStatus;
@@ -222,10 +222,10 @@ export const ComprasEnhanced = ({
   /* KPIs */
   const kpis = useMemo(() => {
     const totalBase    = docs.reduce((s, d) => s + d.base, 0);
-    const totalIgv     = docs.reduce((s, d) => s + d.igv, 0);
-    const noHabidos    = docs.filter(d => d.ruc.length < 11).length;
+    const totalIva     = docs.reduce((s, d) => s + d.iva, 0);
+    const noHabidos    = docs.filter(d => d.nit.length < 11).length;
     const sinDetraccion = docs.filter(d => d.estado !== 'OK').length;
-    return { totalBase, totalIgv, total: totalBase + totalIgv, noHabidos, sinDetraccion, count: docs.length };
+    return { totalBase, totalIva, total: totalBase + totalIva, noHabidos, sinDetraccion, count: docs.length };
   }, [docs]);
 
   /* Donut: distribución por cuenta */
@@ -252,7 +252,7 @@ export const ComprasEnhanced = ({
   /* Hallazgos IA */
   const findings = useMemo(() => {
     const out: { icon: string; text: string; detail: string; risk: 'alto' | 'medio'; action: string; actionType: 'alert' | 'warn' }[] = [];
-    const noHab = docs.filter(d => d.estado === 'ATIPICO' || d.ruc.length < 11);
+    const noHab = docs.filter(d => d.estado === 'ATIPICO' || d.nit.length < 11);
     if (noHab.length > 0) {
       out.push({ icon: '🔴', text: `${noHab.length} Proveedores NIT inactivo DIAN`, detail: `Monto observado $ ${fmt(noHab.reduce((s, d) => s + d.total, 0))}`, risk: 'alto', action: 'Ver', actionType: 'alert' });
     }
@@ -434,7 +434,7 @@ export const ComprasEnhanced = ({
             { label: 'COMPRAS PERÍODO',      value: `$ ${fmt(kpis.total)}`, sub: `${kpis.count} comprobantes`,            color: C.purple, icon: '📦', borderTop: C.purple },
             { label: 'PROVEED. NIT INACTIVO',value: String(kpis.noHabidos), sub: `NIT sin validar DIAN`,                  color: C.red,    icon: '🚨', borderTop: C.red    },
             { label: 'SIN RETEFUENTE',       value: String(kpis.sinDetraccion * 3), sub: 'IVA descontable riesgo',        color: C.yellow, icon: '⚡', borderTop: C.yellow },
-            { label: 'IVA COMPRAS',          value: `$ ${fmt(kpis.totalIgv)}`, sub: 'Cta. 2408',                          color: C.accent, icon: '🏛️', borderTop: C.accent },
+            { label: 'IVA COMPRAS',          value: `$ ${fmt(kpis.totalIva)}`, sub: 'Cta. 2408',                          color: C.accent, icon: '🏛️', borderTop: C.accent },
           ].map((k, i) => (
             <div key={i} style={{
               background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
@@ -542,10 +542,10 @@ export const ComprasEnhanced = ({
                             <div style={{ fontSize: 10, color: C.yellow, marginTop: 2 }}>↳ {d.atipico}</div>
                           )}
                         </td>
-                        <td style={{ padding: '9px 10px', color: C.textMut, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{d.ruc}</td>
+                        <td style={{ padding: '9px 10px', color: C.textMut, fontFamily: 'Consolas, monospace', fontSize: 11 }}>{d.nit}</td>
                         <td style={{ padding: '9px 10px', color: C.accent, fontFamily: 'Consolas, monospace', fontWeight: 700 }}>{d.documento}</td>
                         <td style={{ padding: '9px 10px', textAlign: 'right', color: C.text, fontFamily: 'Consolas, monospace' }}>$ {fmt(d.base)}</td>
-                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.textMut, fontFamily: 'Consolas, monospace' }}>$ {fmt(d.igv)}</td>
+                        <td style={{ padding: '9px 10px', textAlign: 'right', color: C.textMut, fontFamily: 'Consolas, monospace' }}>$ {fmt(d.iva)}</td>
                         <td style={{ padding: '9px 10px', textAlign: 'right', color: C.green, fontFamily: 'Consolas, monospace', fontWeight: 700 }}>$ {fmt(d.total)}</td>
                         <td style={{ padding: '9px 10px', textAlign: 'center' }}>
                           <DocStatusBadge status={d.estado} />
@@ -562,7 +562,7 @@ export const ComprasEnhanced = ({
                         $ {fmt(kpis.totalBase)}
                       </td>
                       <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 800, color: C.textMut, fontFamily: 'Consolas, monospace' }}>
-                        $ {fmt(kpis.totalIgv)}
+                        $ {fmt(kpis.totalIva)}
                       </td>
                       <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 900, color: C.green, fontFamily: 'Consolas, monospace', fontSize: 13 }}>
                         $ {fmt(kpis.total)}
@@ -690,10 +690,10 @@ export const ComprasEnhanced = ({
                   </p>
                   {[
                     ['Proveedor', sel.proveedor],
-                    ['NIT',       sel.ruc],
+                    ['NIT',       sel.nit],
                     ['Fecha',     sel.fecha],
                     ['Base',      `$ ${fmt(sel.base)}`],
-                    ['IVA',       `$ ${fmt(sel.igv)}`],
+                    ['IVA',       `$ ${fmt(sel.iva)}`],
                     ['Total',     `$ ${fmt(sel.total)}`],
                     ['Cuenta',    `${sel.cuenta}xx`],
                   ].map(([k, v]) => (
@@ -703,7 +703,7 @@ export const ComprasEnhanced = ({
                       fontSize: 11,
                     }}>
                       <span style={{ color: C.textMut }}>{k}</span>
-                      <span style={{ color: C.text, fontWeight: 600, fontFamily: k === 'Base' || k === 'IGV' || k === 'Total' ? 'Consolas, monospace' : undefined }}>
+                      <span style={{ color: C.text, fontWeight: 600, fontFamily: k === 'Base' || k === 'IVA' || k === 'Total' ? 'Consolas, monospace' : undefined }}>
                         {v}
                       </span>
                     </div>

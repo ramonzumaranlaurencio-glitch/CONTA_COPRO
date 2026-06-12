@@ -2857,7 +2857,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
                   <th style={th}>Área CC</th>
                   <th style={th}>Cant</th>
                   <th style={th}>Costo U.</th>
-                  <th style={th}>Proveedor RUC</th>
+                  <th style={th}>Proveedor NIT</th>
                   <th style={th}>Fecha</th>
                   <th style={th}>Total $</th>
                 </tr>

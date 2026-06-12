@@ -393,7 +393,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
   const [runtimeToken, setRuntimeToken] = useState('');
   const [form, setForm] = useState<WorkerForm>(emptyForm);
   const [workers, setWorkers] = useState<WorkerRow[]>([]);
-  const [companyInfo, setCompanyInfo] = useState<{ legal_name: string; ruc: string } | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<{ legal_name: string; nit: string } | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<WorkerRow | null>(null);
   const [alerts, setAlerts] = useState<string[]>([]);
   const [requirementRecords, setRequirementRecords] = useState<RequirementRecord[]>(() => createRequirementRecords());
@@ -1667,7 +1667,7 @@ export const PayrollGrid = ({ apiBase = '/api/v1', token = '', tenantId = '', on
                   {companyInfo?.legal_name || '— Configure la empresa —'}
                 </strong>
                 <span style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 }}>
-                  {companyInfo?.ruc ? `NIT: ${companyInfo.ruc}` : 'NIT no configurado'}
+                  {companyInfo?.nit ? `NIT: ${companyInfo.nit}` : 'NIT no configurado'}
                 </span>
               </div>
             </header>

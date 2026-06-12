@@ -1091,7 +1091,7 @@ async def get_pending_purchases(
                 continue
 
             supplier_name = str(meta.get("supplier_name") or "")
-            supplier_ruc  = str(meta.get("supplier_ruc") or "")
+            supplier_ruc  = str(meta.get("supplier_nit") or meta.get("supplier_ruc") or "")
             issue_date    = str(fin_doc.issue_date if fin_doc and fin_doc.issue_date else meta.get("issue_date") or str(entry.entry_date))
             doc_type      = str(fin_doc.document_type if fin_doc and fin_doc.document_type else meta.get("document_type") or "01")
             currency      = str(fin_doc.currency if fin_doc and fin_doc.currency else meta.get("currency") or "COP")
@@ -1163,7 +1163,7 @@ async def get_pending_purchases(
                     "source_doc":    line_source_doc,
                     "source_module": entry.source_module,
                     "supplier_name": supplier_name,
-                    "supplier_ruc":  supplier_ruc,
+                    "supplier_nit":  supplier_ruc,
                     "product_name":  description,
                     "sku":           code,
                     "token_code":    "",

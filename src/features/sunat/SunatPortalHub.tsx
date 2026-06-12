@@ -122,7 +122,7 @@ const DIAN_SERVICIOS = [
 // ─── Biblioteca tributaria ──────────────────────────────────────────────────
 const BIBLIOTECA = [
   {
-    id: 'igv',
+    id: 'iva',
     categoria: 'IVA — Impuesto sobre las Ventas',
     icon: '💰', color: C.blue,
     articulos: [
@@ -267,7 +267,7 @@ type Tab = 'ACCESO' | 'BIBLIOTECA' | 'CONSULTA_NIT';
 
 export const SunatPortalHub: React.FC = () => {
   const [tab, setTab] = useState<Tab>('ACCESO');
-  const [catActiva, setCatActiva] = useState('igv');
+  const [catActiva, setCatActiva] = useState('iva');
   const [artActivo, setArtActivo] = useState('');
   const [playingId, setPlayingId] = useState('');
   const [nitQuery, setNitQuery] = useState('');

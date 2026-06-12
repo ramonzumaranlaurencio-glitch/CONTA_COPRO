@@ -35,7 +35,7 @@ class SalesOrchestrator:
             raise ValueError("No se pudo identificar el monto total de la factura")
 
         subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"))
-        igv = (total - subtotal).quantize(Decimal("0.01"))
+        iva = (total - subtotal).quantize(Decimal("0.01"))
 
         asiento = {
             "tenant_id": tenant_id,
@@ -43,9 +43,9 @@ class SalesOrchestrator:
             "glosa": f"Venta IA: {serie_numero}",
             "source_module": "SALES_IA",
             "lines": [
-                {"cuenta": "1212", "debe": float(total), "haber": 0.0},
-                {"cuenta": "4011", "debe": 0.0, "haber": float(igv)},
-                {"cuenta": "7011", "debe": 0.0, "haber": float(subtotal)},
+                {"cuenta": "130505", "debe": float(total), "haber": 0.0},
+                {"cuenta": "240805", "debe": 0.0, "haber": float(iva)},
+                {"cuenta": "413505", "debe": 0.0, "haber": float(subtotal)},
             ],
         }
 

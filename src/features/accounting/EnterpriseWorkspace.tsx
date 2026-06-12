@@ -62,7 +62,7 @@ type JournalLineDetail = {
   cost_center?: string;
   debit?: string;
   credit?: string;
-  partner_ruc?: string;
+  partner_nit?: string;
   document_type?: string;
   document_series?: string;
   document_number?: string;
@@ -83,7 +83,7 @@ type JournalRow = {
   hash: string;
   previousHash?: string;
   sourceModule: string;
-  partnerRuc?: string;
+  partnerNit?: string;
   documentType?: string;
   documentSeries?: string;
   documentNumber?: string;
@@ -97,7 +97,7 @@ type PurchaseForm = {
   number: string;
   supplierNit: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   expenseAccount: string;
   costCenter: string;
   currency: string;
@@ -165,10 +165,10 @@ const MAX_RENDER_ROWS = 1200;
 const _today = new Date();
 const DEFAULT_PERIOD = { year: _today.getFullYear(), month: _today.getMonth() + 1 };
 
-// Deriva un UUID estable a partir del RUC de la empresa activa
-const rucToTenantId = (ruc: string): string => {
-  if (!ruc) return '00000000-0000-0000-0000-000000000000';
-  const padded = ruc.replace(/\D/g, '').padEnd(20, '0').slice(0, 20);
+// Deriva un UUID estable a partir del NIT de la empresa activa
+const nitToTenantId = (nit: string): string => {
+  if (!nit) return '00000000-0000-0000-0000-000000000000';
+  const padded = nit.replace(/\D/g, '').padEnd(20, '0').slice(0, 20);
   return `${padded.slice(0,8)}-${padded.slice(8,12)}-4${padded.slice(12,15)}-8${padded.slice(15,18)}-${padded.slice(8,20)}`;
 };
 
@@ -332,7 +332,7 @@ export const EnterpriseWorkspace = ({ userRole = 'ADMIN', userPlan = 'PREMIUM' }
   const [rows, setRows] = useState<JournalRow[]>([]);
   const [selectedRow, setSelectedRow] = useState<JournalRow>(emptyJournalRow);
   const { currentCompany } = useTenantStore();
-  const getTenantId = () => rucToTenantId(currentCompany.ruc);
+  const getTenantId = () => nitToTenantId(currentCompany.nit);
 
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
@@ -482,9 +482,9 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
   const [saleForm, setSaleForm] = useState<SaleFormData>({
     serie: 'F001',
     number: '',
-    customerRuc: '',
+    customerNit: '',
     subtotal: '',
-    igv: '',
+    iva: '',
     revenueAccount: '413505',
     costCenter: 'BOG-COM',
   });
@@ -494,7 +494,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     number: '',
     supplierNit: '',
     subtotal: '',
-    igv: '',
+    iva: '',
     expenseAccount: '659101',
     costCenter: 'BOG-ADM',
     currency: 'COP',
@@ -549,7 +549,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     const modUp = (r: JournalRow) => String(r.sourceModule ?? '').toUpperCase();
     const ventas = rows.filter(r => modUp(r) === 'BILLING' || modUp(r) === 'VENTAS');
     const compras = rows.filter(r => modUp(r) === 'PURCHASING' || modUp(r) === 'COMPRAS');
-    const igvRows = rows.filter(r => String(r.account ?? '').startsWith('24'));
+    const ivaRows = rows.filter(r => String(r.account ?? '').startsWith('24'));
 
     const sumCredit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.credit), 0);
     const sumDebit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.debit), 0);
@@ -559,7 +559,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     return [
       ['Ventas', empty ? '—' : f(sumCredit(ventas))],
       ['Compras', empty ? '—' : f(sumDebit(compras))],
-      ['IVA neto', empty ? '—' : f(sumCredit(igvRows) - sumDebit(igvRows))],
+      ['IVA neto', empty ? '—' : f(sumCredit(ivaRows) - sumDebit(ivaRows))],
       ['Asientos', empty ? '—' : String(rows.length)],
       ['Periodo', `${DEFAULT_PERIOD.year}-${String(DEFAULT_PERIOD.month).padStart(2, '0')}`],
     ];
@@ -809,7 +809,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         date: item.entry_date ?? '2026-05-01',
         period: item.period || String(item.entry_date ?? '').slice(0, 7),
         description: item.description || 'Sin descripcion',
-        status: statusLabel(item.sunat_status ?? item.status),
+        status: statusLabel(item.dian_status ?? item.status),
         hash: item.row_hash ?? 'sin-hash',
         previousHash: item.previous_hash,
         sourceModule: moduleLabel(item.source_module),
@@ -836,7 +836,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         costCenter: line.cost_center || '-',
         debit: String(line.debit ?? '0'),
         credit: String(line.credit ?? '0'),
-        partnerRuc: line.partner_ruc,
+        partnerNit: line.partner_nit,
         documentType: line.document_type,
         documentSeries: line.document_series,
         documentNumber: line.document_number,
@@ -911,7 +911,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
   // Recargar datos limpios cuando cambia la empresa activa
   useEffect(() => {
-    if (!currentCompany?.ruc) return;
+    if (!currentCompany?.nit) return;
     setRows([]);
     setSelectedRow(emptyJournalRow);
     setStatusMessage(`Cargando datos de ${currentCompany.businessName}...`);
@@ -971,8 +971,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     try {
       const formSource = salePayload.form;
       const subtotal = toNumber(salePayload.subtotal ?? formSource.subtotal);
-      const igv = toNumber(salePayload.igv ?? formSource.igv);
-      const total = toNumber(salePayload.total ?? subtotal + igv);
+      const iva = toNumber(salePayload.iva ?? formSource.iva);
+      const total = toNumber(salePayload.total ?? subtotal + iva);
       const entryDate = salePayload.issueDate || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       const postingPeriod = periodFromIsoDate(entryDate);
 
@@ -981,14 +981,14 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         year: postingPeriod.year,
         month: postingPeriod.month,
         invoice_id: `${formSource.serie}-${formSource.number}`,
-        customer_ruc: formSource.customerRuc,
+        customer_nit: formSource.customerNit,
         customer_name: salePayload.customerName,
         entry_date: entryDate,
         doc_type: '01',
         serie: formSource.serie,
         number: formSource.number,
         subtotal,
-        igv,
+        iva,
         total,
         currency: 'COP',
         revenue_account: formSource.revenueAccount || salePayload.accountLines[0]?.accountCode || '413505',
@@ -1092,8 +1092,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     try {
       const formSource = purchasePayload?.form ?? purchaseForm;
       const subtotal = toNumber(purchasePayload?.subtotal ?? formSource.subtotal);
-      const igv = toNumber(purchasePayload?.igv ?? formSource.igv);
-      const total = toNumber(purchasePayload?.total ?? subtotal + igv);
+      const iva = toNumber(purchasePayload?.iva ?? formSource.iva);
+      const total = toNumber(purchasePayload?.total ?? subtotal + iva);
       // Fecha de registro = HOY en hora Colombia (UTC-5), no UTC
       const entryDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       // Fecha de emisión del comprobante = la que leyó la IA o ingresó el usuario
@@ -1118,7 +1118,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         year: postingPeriod.year,
         month: postingPeriod.month,
         purchase_id: `${formSource.serie}-${formSource.number}`,
-        supplier_ruc: formSource.supplierNit,
+        supplier_nit: formSource.supplierNit,
         supplier_name: purchasePayload?.supplierName ?? '',
         issue_date: issueDate,
         entry_date: entryDate,
@@ -1126,7 +1126,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         serie: formSource.serie,
         number: formSource.number,
         subtotal,
-        igv,
+        iva,
         total,
         currency: formSource.currency || 'COP',
         expense_account: formSource.expenseAccount || accountLines[0]?.accountCode || '659101',
@@ -1430,19 +1430,19 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         const first  = lines[0];
         const debit  = lines.reduce((s, l) => s + toNumber(l.debit), 0);
         const credit = lines.reduce((s, l) => s + toNumber(l.credit), 0);
-        const igvLine = lines.find(l => String(l.account ?? '').startsWith('24'));
-        const igv    = igvLine ? toNumber(igvLine.debit) || toNumber(igvLine.credit) : 0;
-        const base   = Math.max(debit, credit) - igv;
+        const ivaLine = lines.find(l => String(l.account ?? '').startsWith('24'));
+        const iva    = ivaLine ? toNumber(ivaLine.debit) || toNumber(ivaLine.credit) : 0;
+        const base   = Math.max(debit, credit) - iva;
         const doc = first.documentSeries && first.documentNumber
           ? `${first.documentSeries}-${first.documentNumber}` : eid.slice(-8);
         return {
           id:        eid,
           fecha:     first.date,
           proveedor: first.description || 'Proveedor',
-          ruc:       first.partnerRuc  || '—',
+          nit:       first.partnerNit  || '—',
           documento: doc,
           base:      Math.max(0, base),
-          igv:       Math.max(0, igv),
+          iva:       Math.max(0, iva),
           total:     Math.max(debit, credit),
           cuenta:    first.account?.slice(0, 2) || '60',
           estado:    (first.status === 'REVISION' || first.status === 'REVIEW' ? 'ATIPICO' : first.status === 'POSTED' || first.status === 'POSTEADO' ? 'OK' : 'PENDIENTE') as 'OK' | 'ATIPICO' | 'DUPLICADO' | 'PENDIENTE',
@@ -1668,7 +1668,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                     {selectedRow.documentSeries && selectedRow.documentNumber && (
                       <p><strong>Documento:</strong> {selectedRow.documentSeries}-{selectedRow.documentNumber}</p>
                     )}
-                    {selectedRow.partnerRuc && <p><strong>NIT:</strong> {selectedRow.partnerRuc}</p>}
+                    {selectedRow.partnerNit && <p><strong>NIT:</strong> {selectedRow.partnerNit}</p>}
 
                     <div className="forensic-section">
                       <strong>Integridad criptografica</strong>
@@ -1976,7 +1976,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       {/* ── Ventana flotante Mis Negocios ─────────────────────────────────── */}
       {activePanel === 'NEGOCIOS' && (() => {
         const { companies, currentCompany, setCompany, addCompany, removeCompany } = useTenantStore.getState();
-        const [nRuc,    setNRuc]    = useState('');
+        const [nNit,    setNNit]    = useState('');
         const [nNombre, setNNombre] = useState('');
         const [nRubro,  setNRubro]  = useState('CO');
         const [nErr,    setNErr]    = useState('');
@@ -1995,10 +1995,10 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         };
 
         const handleAdd = () => {
-          if (!nRuc.trim() || nRuc.replace(/\D/g, '').length < 9) { setNErr('NIT inválido (mínimo 9 dígitos)'); return; }
+          if (!nNit.trim() || nNit.replace(/\D/g, '').length < 9) { setNErr('NIT inválido (mínimo 9 dígitos)'); return; }
           if (!nNombre.trim()) { setNErr('Ingresa la razón social'); return; }
-          addCompany({ id:`tenant-${Date.now()}`, ruc:nRuc.trim(), businessName:nNombre.trim(), rubro: nRubro as any, rubros:[nRubro as any] });
-          setNRuc(''); setNNombre(''); setNRubro('CO'); setNErr('');
+          addCompany({ id:`tenant-${Date.now()}`, nit:nNit.trim(), businessName:nNombre.trim(), rubro: nRubro as any, rubros:[nRubro as any] });
+          setNNit(''); setNNombre(''); setNRubro('CO'); setNErr('');
         };
 
         return (
@@ -2030,7 +2030,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                         onClick={() => { setCompany(c.id); setActivePanel(null); }}>
                         <div>
                           <div style={{ color: isActive ? '#38bdf8' : '#e8f0fe', fontWeight:700, fontSize:13 }}>{c.businessName}</div>
-                          <div style={{ color:'#4d7a9e', fontSize:11, marginTop:2 }}>NIT {c.ruc} · {c.rubro}</div>
+                          <div style={{ color:'#4d7a9e', fontSize:11, marginTop:2 }}>NIT {c.nit} · {c.rubro}</div>
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           {isActive && <span style={{ background:'rgba(56,189,248,0.2)', color:'#38bdf8', fontSize:10, fontWeight:800, padding:'2px 10px', borderRadius:20 }}>ACTIVA</span>}
@@ -2051,7 +2051,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>NIT</label>
-                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="900123456-1" maxLength={13} style={inp2} />
+                    <input value={nNit} onChange={e => { setNNit(e.target.value); setNErr(''); }} placeholder="900123456-1" maxLength={13} style={inp2} />
                   </div>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>Razón social</label>

@@ -311,5 +311,7 @@ body {
 .sap-detail ul { padding-left: 18px; color: #c5d8f0; font-size: 12px; }
 
 .sap-live-grid { display: grid; grid-template-columns: 260px 1fr 320px; gap: 12px; }
-.sap-plan-list { display: grid; gap: 8px; align-content: start; }
+.sap-plan-list { display: grid; gap: 8px; align-content: start; overflow-y: auto; max-height: 65vh; padding-right: 4px; }
+.sap-plan-class { color: #4a6fa5; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 4px 2px 2px; border-top: 1px solid #1e3a5f; }
+.sap-plan-class:first-child { border-top: none; }
 .sap-ledger-wrap { overflow-x: auto; }

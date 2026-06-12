@@ -70,9 +70,9 @@ class SalesOrchestrator:
             "date": vision_data["fecha"],
             "glosa": f"VENTA IA: {vision_data['serie_numero']}",
             "items": [
-                {"account": "1212", "debit": vision_data["total"], "credit": 0},
-                {"account": "4011", "debit": 0, "credit": vision_data["total"] - vision_data["total"] / Decimal("1.19")},
-                {"account": "7011", "debit": 0, "credit": vision_data["total"] / Decimal("1.19")},
+                {"account": "130505", "debit": vision_data["total"], "credit": 0},
+                {"account": "240805", "debit": 0, "credit": vision_data["total"] - vision_data["total"] / Decimal("1.19")},
+                {"account": "413505", "debit": 0, "credit": vision_data["total"] / Decimal("1.19")},
             ],
         })
 
@@ -114,7 +114,7 @@ class PeriodSecurity:
 
 
 class ChartOfAccountsManager:
-    """Gestion del PCGE editable por empresa."""
+    """Gestion del PUC Colombia editable por empresa."""
 
     async def upsert_account(self, db, tenant_id: str, account_code: str, name: str):
         return await db.chart_of_accounts.upsert(

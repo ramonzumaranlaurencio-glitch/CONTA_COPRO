@@ -16,7 +16,7 @@ type RucState = {
 export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
   const { postEntry, validateNIT } = useAccounting();
   const [loading, setLoading] = useState(false);
-  const [rucState, setRucState] = useState<RucState>({ intent: 'info', message: 'Pendiente de validación DIAN.' });
+  const [nitState, setNitState] = useState<RucState>({ intent: 'info', message: 'Pendiente de validación DIAN.' });
   const [showSuccess, setShowSuccess] = useState(false);
   const [form, setForm] = useState({
     serie: 'F001',
@@ -24,7 +24,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
     nit: '',
     cliente: '',
     subtotal: 0,
-    igv: 0,
+    iva: 0,
     total: 0,
     centroCosto: 'BOG-COM',
   });
@@ -33,7 +33,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
     const calculatedIgv = form.subtotal * 0.19;
     setForm((prev) => ({
       ...prev,
-      igv: Number(calculatedIgv.toFixed(2)),
+      iva: Number(calculatedIgv.toFixed(2)),
       total: Number((form.subtotal + calculatedIgv).toFixed(2)),
     }));
   }, [form.subtotal]);
@@ -41,13 +41,13 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
   const runNitValidation = async (nit: string) => {
     const result = await validateNIT(nit);
     if (result.valid) {
-      setRucState({ intent: 'success', message: `NIT válido: ${result.message}` });
+      setNitState({ intent: 'success', message: `NIT válido: ${result.message}` });
       if (!form.cliente) {
         setForm((prev) => ({ ...prev, cliente: result.message }));
       }
       return;
     }
-    setRucState({ intent: 'error', message: result.message });
+    setNitState({ intent: 'error', message: result.message });
   };
 
   const handlePost = async () => {
@@ -58,7 +58,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
         description: `Venta ${form.serie}-${form.numero} | Cliente: ${form.cliente || form.nit}`,
         lines: [
           { account: '130505', debit: form.total, credit: 0, cost_center: form.centroCosto },
-          { account: '240805', debit: 0, credit: form.igv, cost_center: form.centroCosto },
+          { account: '240805', debit: 0, credit: form.iva, cost_center: form.centroCosto },
           { account: '413505', debit: 0, credit: form.subtotal, cost_center: form.centroCosto },
         ],
       });
@@ -66,7 +66,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
       setTimeout(() => setShowSuccess(false), 1300);
       onSucess?.();
     } catch (error) {
-      setRucState({ intent: 'error', message: 'Fallo en integridad contable al postear en ledger.' });
+      setNitState({ intent: 'error', message: 'Fallo en integridad contable al postear en ledger.' });
       console.error('Fallo en integridad contable', error);
     } finally {
       setLoading(false);
@@ -119,8 +119,8 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
         />
       </section>
 
-      <MessageBar intent={rucState.intent}>
-        <MessageBarBody>{rucState.message}</MessageBarBody>
+      <MessageBar intent={nitState.intent}>
+        <MessageBarBody>{nitState.message}</MessageBarBody>
       </MessageBar>
 
       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
@@ -135,7 +135,7 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
         </div>
         <div className="flex justify-between items-center text-slate-500">
           <span className="text-sm">IVA (19%)</span>
-          <span className="font-mono">$ {Math.round(form.igv).toLocaleString('es-CO')}</span>
+          <span className="font-mono">$ {Math.round(form.iva).toLocaleString('es-CO')}</span>
         </div>
         <hr />
         <div className="flex justify-between items-center text-[#0078d4] font-bold text-lg">

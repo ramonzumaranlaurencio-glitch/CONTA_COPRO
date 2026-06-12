@@ -40,22 +40,22 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "Analiza documento (PDF/XML/Foto). "
             "1. Valida estructura XML si aplica. "
             "2. Detecta IVA al 19% si es factura. "
-            "3. Extrae RUC proveedor y verifica en SUNAT. "
-            "4. Clasifica tipo de gasto (clase 6) y asigna centro de costo. "
-            "5. Genera asiento doble entrada (Gasto | IGV | CxP). "
-            "6. Aplica Regla de Oro: gasto clase 6 → destino clase 9 automático. "
-            "7. Valida Principio de Causalidad (TUO LIR Art. 37). "
+            "3. Extrae NIT proveedor y verifica en DIAN. "
+            "4. Clasifica tipo de gasto (clase 5) y asigna centro de costo. "
+            "5. Genera asiento doble entrada (Gasto | IVA | CxP). "
+            "6. Aplica Regla de Oro: gasto clase 5 → destino clase 9 automatico. "
+            "7. Valida Principio de Causalidad (Estatuto Tributario Colombia Art. 107). "
             "Output: JSON LedgerEngine con asientos, destinos y compliance check."
         ),
         documentos_base=[
-            "Ley del Impuesto a la Renta (TUO LIR)",
-            "Plan Contable General Empresarial (PCGE)",
+            "Estatuto Tributario Colombia (ET)",
+            "Plan Unico de Cuentas Colombia (PUC)",
             "NIC 2 (Inventarios)",
-            "Reglamento Comprobantes de Pago",
+            "Reglamento Facturacion Electronica DIAN",
         ],
         validaciones_requeridas=[
             "iva_19_percent_detectado",
-            "proveedor_ruc_verificado_sunat",
+            "proveedor_nit_verificado_dian",
             "centro_costo_asignado",
             "causalidad_principio_cumple",
             "double_entry_balanceado",
@@ -148,7 +148,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "1. Identifica factura o documento original. "
             "2. Genera Nota de Crédito (NC) o Nota de Débito (ND) según corresponda. "
             "3. Revierte asiento original manteniendo trazabilidad. "
-            "4. Si hay impuestos (IGV), aplica reversión correcta. "
+            "4. Si hay impuestos (IVA), aplica reversión correcta. "
             "5. Actualiza stock si aplica (cuenta 20). "
             "Output: JSON con asiento de reversión y NC/ND generada."
         ),
@@ -161,7 +161,7 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
             "documento_original_identificado",
             "nota_credito_debito_tipo_correcto",
             "revercion_mantiene_trazabilidad",
-            "igv_reversado_correctamente",
+            "iva_reversado_correctamente",
         ],
         cuenta_por_defecto=None,
     ),
@@ -169,17 +169,17 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
         comando=ModuleCommand.RETENCION,
         label_ui="Retención",
         instruccion_ai=(
-            "Registra retención de IGV, renta o 4ta categoría. "
-            "1. Identifica tipo de retención (IGV, LIR, 4ta cat). "
-            "2. Si es IGV: calcula sobre venta, aplica cuenta 40114 (IGV retenciones). "
+            "Registra retención de IVA, renta o 4ta categoría. "
+            "1. Identifica tipo de retención (IVA, renta, honorarios). "
+            "2. Si es IVA: calcula sobre venta, aplica cuenta 2365 (ReteFuente/ReteIVA). "
             "3. Si es LIR: aplica según tabla de tasas, registra en pasivo. "
             "4. Si es 4ta categoría (honorarios): aplica 8% si supera UIT 2026 (S/5,350). "
-            "5. Genera orden de pago/declaración a SUNAT. "
-            "Output: JSON con asiento de retención y calendario de pago a SUNAT."
+            "5. Genera orden de pago/declaración a DIAN. "
+            "Output: JSON con asiento de retención y calendario de pago a DIAN."
         ),
         documentos_base=[
             "TUO Ley del Impuesto a la Renta",
-            "Ley del IGV e ISC",
+            "Estatuto Tributario Colombia — IVA (Art. 420-513 ET)",
             "PCGE (Retenciones)",
         ],
         validaciones_requeridas=[

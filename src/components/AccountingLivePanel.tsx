@@ -61,13 +61,19 @@ export default function AccountingLivePanel({
   const [selectedId, setSelectedId] = useState<string | null>(selectedMovementId ?? null);
   const [search, setSearch] = useState('');
 
-  // Plan contable dinámico: prioriza cuentas del backend, complementa con cuentas de movimientos
+  const PUC_CLASSES: Record<string, string> = {
+    '1': 'Activos', '2': 'Pasivos', '3': 'Patrimonio',
+    '4': 'Ingresos', '5': 'Gastos', '6': 'Costos Ventas',
+    '7': 'Costos Producción', '8': 'Orden Deudoras', '9': 'Orden Acreedoras',
+  };
+
+  // Plan contable dinámico agrupado por 4 dígitos (cuenta PUC) — separa IVA 2408 de 241x, 242x
   const plan = useMemo(() => {
     const grouped = new Map<string, { code: string; name: string; type: string }>();
 
     // Primero agrega las cuentas del backend (plan contable real)
     for (const acc of chartAccounts) {
-      const prefix = acc.code.slice(0, 2);
+      const prefix = acc.code.slice(0, 4);
       if (!grouped.has(prefix)) {
         const typeLabel =
           acc.statement === 'PROFIT_LOSS'
@@ -82,7 +88,7 @@ export default function AccountingLivePanel({
     // Complementa con cuentas que aparecen en movimientos pero no en el plan
     for (const m of movements) {
       if (!m.account) continue;
-      const prefix = (m.account || '').slice(0, 2);
+      const prefix = (m.account || '').slice(0, 4);
       if (prefix && !grouped.has(prefix)) {
         grouped.set(prefix, {
           code: prefix,
@@ -95,14 +101,14 @@ export default function AccountingLivePanel({
     return Array.from(grouped.values()).sort((a, b) => a.code.localeCompare(b.code));
   }, [chartAccounts, movements]);
 
-  // Totales por cuenta (prefijo 2 dígitos)
+  // Totales por cuenta (prefijo 4 dígitos PUC)
   const accountTotals = useMemo(() => {
     const result = new Map<string, { count: number; debit: number; credit: number }>();
     for (const acc of plan) {
       result.set(acc.code, { count: 0, debit: 0, credit: 0 });
     }
     for (const movement of movements) {
-      const prefix = (movement.account || '').slice(0, 2);
+      const prefix = (movement.account || '').slice(0, 4);
       if (result.has(prefix)) {
         const total = result.get(prefix)!;
         total.count += 1;
@@ -187,25 +193,34 @@ export default function AccountingLivePanel({
               Sin cuentas registradas aún. Registre compras, ventas o asientos.
             </div>
           )}
-          {plan.map((account) => {
+          {plan.map((account, idx) => {
             const total = accountTotals.get(account.code) ?? { count: 0, debit: 0, credit: 0 };
             const saldo = total.debit - total.credit;
+            const cls = account.code[0];
+            const prevCls = idx > 0 ? plan[idx - 1].code[0] : null;
+            const showHeader = cls !== prevCls;
             return (
-              <button
-                key={account.code}
-                type="button"
-                className={`sap-account ${selectedAccount === account.code ? 'active' : ''}`}
-                onClick={() => setSelectedAccount(account.code)}
-              >
-                <span>{account.code}</span>
-                <div>
-                  <strong>{account.name}</strong>
-                  <small>
-                    {account.type} · {total.count} mov.
-                    {total.count > 0 && ` · ${money(Math.abs(saldo))}`}
-                  </small>
-                </div>
-              </button>
+              <React.Fragment key={account.code}>
+                {showHeader && (
+                  <div className="sap-plan-class">
+                    Clase {cls} · {PUC_CLASSES[cls] || 'Otras'}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`sap-account ${selectedAccount === account.code ? 'active' : ''}`}
+                  onClick={() => setSelectedAccount(account.code)}
+                >
+                  <span>{account.code}</span>
+                  <div>
+                    <strong>{account.name}</strong>
+                    <small>
+                      {account.type} · {total.count} mov.
+                      {total.count > 0 && ` · ${money(Math.abs(saldo))}`}
+                    </small>
+                  </div>
+                </button>
+              </React.Fragment>
             );
           })}
         </aside>

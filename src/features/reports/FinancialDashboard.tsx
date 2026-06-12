@@ -386,7 +386,7 @@ export const FinancialDashboard = () => {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por RUC, nombre o documento..."
+                placeholder="Buscar por NIT, nombre o documento..."
                 style={{
                   background: C.bgRow, border: `1px solid ${C.border}`, borderRadius: 6,
                   color: C.text, padding: '5px 10px', fontSize: 11, width: 260,
@@ -398,7 +398,7 @@ export const FinancialDashboard = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: C.header }}>
-                    {['RUC / PARTNER', 'NOMBRE', 'DOCUMENTO', 'EMISIÓN', 'VENCIMIENTO', 'DÍAS MORA', 'ANTIGÜEDAD', 'SALDO', 'CUENTA'].map((h, i) => (
+                    {['NIT / PARTNER', 'NOMBRE', 'DOCUMENTO', 'EMISIÓN', 'VENCIMIENTO', 'DÍAS MORA', 'ANTIGÜEDAD', 'SALDO', 'CUENTA'].map((h, i) => (
                       <th key={i} style={{
                         padding: '8px 10px', textAlign: i >= 5 && i <= 7 ? 'right' : 'left',
                         fontSize: 10, fontWeight: 700, color: C.textMut,

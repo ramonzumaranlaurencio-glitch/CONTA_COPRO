@@ -9,7 +9,7 @@ type JournalRow = {
   total_debit: string;
   total_credit: string;
   row_hash: string;
-  sunat_status?: string;
+  dian_status?: string;
   auditTrail?: unknown[];
   documents?: unknown[];
 };
@@ -24,7 +24,7 @@ export const JournalGrid = ({ journalEntries = [] as JournalRow[] }) => {
   };
 
   const exportRows = () => {
-    const header = 'id,fecha,periodo,descripcion,debe,haber,hash,sunat_status';
+    const header = 'id,fecha,periodo,descripcion,debe,haber,hash,dian_status';
     const body = rows.map((row) => [
       row.id,
       row.entry_date,
@@ -33,7 +33,7 @@ export const JournalGrid = ({ journalEntries = [] as JournalRow[] }) => {
       row.total_debit,
       row.total_credit,
       row.row_hash,
-      row.sunat_status ?? 'PENDING',
+      row.dian_status ?? 'PENDING',
     ].join(','));
     const blob = new Blob([[header, ...body].join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -81,7 +81,7 @@ export const JournalGrid = ({ journalEntries = [] as JournalRow[] }) => {
                   <span>{row.entry_date}</span><span>{row.period}</span><span className="truncate">{row.description}</span>
                   <span className="text-right tabular-nums">{row.total_debit}</span>
                   <span className="text-right tabular-nums">{row.total_credit}</span>
-                  <span>{row.sunat_status ?? 'PENDING'}</span>
+                  <span>{row.dian_status ?? 'PENDING'}</span>
                   <span className="font-mono truncate">{row.row_hash}</span>
                 </div>
               );

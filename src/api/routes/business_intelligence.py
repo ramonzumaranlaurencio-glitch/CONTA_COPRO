@@ -117,7 +117,7 @@ async def get_anomalies(year: int = Query(2026), month: int = Query(5)) -> Dict[
                     "description": "Nuevo proveedor 'XYZ Trading' registra 8 facturas en 4 días (patrón anómalo)",
                     "impact": "medium",
                     "confidence": 72,
-                    "suggestedAction": "Validar RUC del proveedor y contactar departamento de compras.",
+                    "suggestedAction": "Validar NIT del proveedor y contactar departamento de compras.",
                 },
             ],
         }

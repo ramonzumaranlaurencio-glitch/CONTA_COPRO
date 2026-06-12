@@ -9,8 +9,8 @@ class BatchAccountingImporter:
         self.ledger_service = ledger_service
         self.tenant_repository = tenant_repository
 
-    async def find_tenant_by_ruc(self, ruc: str):
-        return await self.tenant_repository.find_by_ruc(ruc)
+    async def find_tenant_by_nit(self, nit: str):
+        return await self.tenant_repository.find_by_ruc(nit)
 
     async def calculate_lines(self, data: dict) -> list[dict]:
         subtotal = data.get("subtotal", 0)

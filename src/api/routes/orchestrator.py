@@ -16,7 +16,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Sales Orchestrator"])
 
 
 class InvoicePayload(BaseModel):
-    ruc: str | None = None
+    nit: str | None = None
     total: float
     serie: str | None = None
     items: list[dict] = Field(default_factory=list)
@@ -73,7 +73,7 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
             "doc_type": "01",
             "serie": serie,
             "number": number,
-            "customer_nit": payload.payload.ruc,
+            "customer_nit": payload.payload.nit,
             "subtotal": subtotal,
             "iva": iva,
             "total": total,
@@ -123,7 +123,7 @@ async def sync_sale(payload: SyncSaleRequest, request: Request, ctx=Depends(get_
         "tenant_id": payload.tenant_id,
         "synced": True,
         "invoice": {
-            "nit": payload.payload.ruc,
+            "nit": payload.payload.nit,
             "serie": serie,
             "number": number,
             "total": str(total),

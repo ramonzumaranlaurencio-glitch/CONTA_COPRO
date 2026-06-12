@@ -26,14 +26,14 @@ const fmt = (v: string | number) =>
 interface ResumenPeriodo {
   period:          string;
   ventas_base:     number;
-  ventas_igv:      number;
+  ventas_iva:      number;
   ventas_total:    number;
   compras_base:    number;
-  compras_igv:     number;
+  compras_iva:     number;
   compras_total:   number;
-  igv_debito:      number;
-  igv_credito:     number;
-  igv_saldo:       number;
+  iva_debito:      number;
+  iva_credito:     number;
+  iva_saldo:       number;
   num_facturas_v:  number;
   num_facturas_c:  number;
 }
@@ -70,7 +70,7 @@ const printPDF = (titulo: string, html: string) => {
         tr:nth-child(even) td { background: #f8faff; }
         .right { text-align: right; font-family: Consolas, monospace; }
         .total td { font-weight: 800; background: #eff6ff !important; border-top: 2px solid #0078d4; }
-        .igv-box { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+        .iva-box { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
         .kpi { border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
         .kpi-label { font-size: 9px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.06em; }
         .kpi-value { font-size: 18px; font-weight: 900; color: #0078d4; font-family: Consolas, monospace; }
@@ -149,14 +149,14 @@ export const DeclaracionMensual: React.FC = () => {
         }
       }
 
-      const igvSaldo = ventasIgv - comprasIgv;
+      const ivaSaldo = ventasIgv - comprasIgv;
       setResumen({
-        period, ventas_base: ventasBase, ventas_igv: ventasIgv,
+        period, ventas_base: ventasBase, ventas_iva: ventasIgv,
         ventas_total: ventasBase + ventasIgv,
-        compras_base: comprasBase, compras_igv: comprasIgv,
+        compras_base: comprasBase, compras_iva: comprasIgv,
         compras_total: comprasBase + comprasIgv,
-        igv_debito: ventasIgv, igv_credito: comprasIgv,
-        igv_saldo: igvSaldo,
+        iva_debito: ventasIgv, iva_credito: comprasIgv,
+        iva_saldo: ivaSaldo,
         num_facturas_v: nFactV, num_facturas_c: nFactC,
       });
       setMsg(`Resumen del período ${period} calculado. ${nFactV + nFactC} comprobantes.`);
@@ -212,34 +212,34 @@ export const DeclaracionMensual: React.FC = () => {
   // ── PDF: Resumen declaración ───────────────────────────────────────────────
   const imprimirResumen = () => {
     if (!resumen) return;
-    const igvLabel = resumen.igv_saldo >= 0 ? 'IVA A PAGAR (F300)' : 'SALDO A FAVOR IVA';
-    const igvClass = resumen.igv_saldo >= 0 ? 'pagar' : 'favor';
+    const ivaLabel = resumen.iva_saldo >= 0 ? 'IVA A PAGAR (F300)' : 'SALDO A FAVOR IVA';
+    const ivaClass = resumen.iva_saldo >= 0 ? 'pagar' : 'favor';
     const html = `
       <h1>CONTA_COLPRO — Declaraciones Tributarias DIAN</h1>
       <p class="sub">Período: ${MESES[mes-1]} ${anio} &nbsp;|&nbsp; NIT Contador: — &nbsp;|&nbsp; Generado: ${new Date().toLocaleString('es-CO')}</p>
-      <div class="igv-box">
+      <div class="iva-box">
         <div class="kpi"><div class="kpi-label">Total Ventas (Base + IVA)</div><div class="kpi-value">$ ${fmt(resumen.ventas_total)}</div></div>
         <div class="kpi"><div class="kpi-label">Total Compras (Base + IVA)</div><div class="kpi-value">$ ${fmt(resumen.compras_total)}</div></div>
-        <div class="kpi"><div class="kpi-label">${igvLabel}</div><div class="kpi-value ${igvClass}">$ ${fmt(Math.abs(resumen.igv_saldo))}</div></div>
+        <div class="kpi"><div class="kpi-label">${ivaLabel}</div><div class="kpi-value ${ivaClass}">$ ${fmt(Math.abs(resumen.iva_saldo))}</div></div>
       </div>
       <h2>Registro de Ventas — ${resumen.num_facturas_v} comprobantes</h2>
       <table>
         <tr><th>Concepto</th><th class="right">Base Imponible</th><th class="right">IVA 19%</th><th class="right">Total</th></tr>
-        <tr><td>Ventas gravadas</td><td class="right">$ ${fmt(resumen.ventas_base)}</td><td class="right">$ ${fmt(resumen.ventas_igv)}</td><td class="right">$ ${fmt(resumen.ventas_total)}</td></tr>
-        <tr class="total"><td>TOTAL VENTAS</td><td class="right">$ ${fmt(resumen.ventas_base)}</td><td class="right">$ ${fmt(resumen.ventas_igv)}</td><td class="right">$ ${fmt(resumen.ventas_total)}</td></tr>
+        <tr><td>Ventas gravadas</td><td class="right">$ ${fmt(resumen.ventas_base)}</td><td class="right">$ ${fmt(resumen.ventas_iva)}</td><td class="right">$ ${fmt(resumen.ventas_total)}</td></tr>
+        <tr class="total"><td>TOTAL VENTAS</td><td class="right">$ ${fmt(resumen.ventas_base)}</td><td class="right">$ ${fmt(resumen.ventas_iva)}</td><td class="right">$ ${fmt(resumen.ventas_total)}</td></tr>
       </table>
       <h2>Registro de Compras — ${resumen.num_facturas_c} comprobantes</h2>
       <table>
         <tr><th>Concepto</th><th class="right">Base Imponible</th><th class="right">IVA Descontable</th><th class="right">Total</th></tr>
-        <tr><td>Compras gravadas</td><td class="right">$ ${fmt(resumen.compras_base)}</td><td class="right">$ ${fmt(resumen.compras_igv)}</td><td class="right">$ ${fmt(resumen.compras_total)}</td></tr>
-        <tr class="total"><td>TOTAL COMPRAS</td><td class="right">$ ${fmt(resumen.compras_base)}</td><td class="right">$ ${fmt(resumen.compras_igv)}</td><td class="right">$ ${fmt(resumen.compras_total)}</td></tr>
+        <tr><td>Compras gravadas</td><td class="right">$ ${fmt(resumen.compras_base)}</td><td class="right">$ ${fmt(resumen.compras_iva)}</td><td class="right">$ ${fmt(resumen.compras_total)}</td></tr>
+        <tr class="total"><td>TOTAL COMPRAS</td><td class="right">$ ${fmt(resumen.compras_base)}</td><td class="right">$ ${fmt(resumen.compras_iva)}</td><td class="right">$ ${fmt(resumen.compras_total)}</td></tr>
       </table>
       <h2>Determinación del IVA — Formulario 300 DIAN</h2>
       <table>
         <tr><th>Concepto</th><th class="right">Importe $</th></tr>
-        <tr><td>IVA Generado (ventas) (ventas)</td><td class="right">$ ${fmt(resumen.igv_debito)}</td></tr>
-        <tr><td>IVA Descontable (compras)</td><td class="right">($ ${fmt(resumen.igv_credito)})</td></tr>
-        <tr class="total"><td>${igvLabel}</td><td class="right ${igvClass}">$ ${fmt(Math.abs(resumen.igv_saldo))}</td></tr>
+        <tr><td>IVA Generado (ventas) (ventas)</td><td class="right">$ ${fmt(resumen.iva_debito)}</td></tr>
+        <tr><td>IVA Descontable (compras)</td><td class="right">($ ${fmt(resumen.iva_credito)})</td></tr>
+        <tr class="total"><td>${ivaLabel}</td><td class="right ${ivaClass}">$ ${fmt(Math.abs(resumen.iva_saldo))}</td></tr>
       </table>
       <p style="font-size:10px;color:#666;margin-top:8px;">
         * Este resumen es de uso interno. Para la declaración oficial use el Formulario 300 DIAN / Portal Muisca.<br/>
@@ -311,7 +311,7 @@ export const DeclaracionMensual: React.FC = () => {
       }).join('');
 
       const base = ventas.reduce((s,e) => s + Number(e.total_credit||0)/1.18, 0);
-      const igv  = ventas.reduce((s,e) => s + Number(e.total_credit||0)*0.19/1.19, 0);
+      const iva  = ventas.reduce((s,e) => s + Number(e.total_credit||0)*0.19/1.19, 0);
       const tot  = ventas.reduce((s,e) => s + Number(e.total_credit||0), 0);
 
       const html = `
@@ -320,7 +320,7 @@ export const DeclaracionMensual: React.FC = () => {
         <table>
           <tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Serie-Número</th><th>NIT Cliente</th><th class="right">Base $</th><th class="right">IVA $</th><th class="right">Total $</th></tr>
           ${rows || '<tr><td colspan="8" style="text-align:center;color:#aaa">Sin comprobantes en el período</td></tr>'}
-          <tr class="total"><td colspan="5">TOTALES</td><td class="right">$ ${fmt(base)}</td><td class="right">$ ${fmt(igv)}</td><td class="right">$ ${fmt(tot)}</td></tr>
+          <tr class="total"><td colspan="5">TOTALES</td><td class="right">$ ${fmt(base)}</td><td class="right">$ ${fmt(iva)}</td><td class="right">$ ${fmt(tot)}</td></tr>
         </table>`;
       printPDF(`Registro Ventas ${period}`, html);
       setMsg('PDF Registro de Ventas listo.');
@@ -338,9 +338,9 @@ export const DeclaracionMensual: React.FC = () => {
 
       const rows = compras.map((e,i) => {
         const first = (e.lines||[])[0] || {};
-        const igvLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
-        const igvVal = Number(igvLine.debit||0);
-        const base   = Number(e.total_debit||0) - igvVal;
+        const ivaLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
+        const ivaVal = Number(ivaLine.debit||0);
+        const base   = Number(e.total_debit||0) - ivaVal;
         const total  = Number(e.total_debit||0);
         return `<tr>
           <td>${i+1}</td>
@@ -349,18 +349,18 @@ export const DeclaracionMensual: React.FC = () => {
           <td>${first.document_series||''}-${first.document_number||''}</td>
           <td>${first.partner_ruc||''}</td>
           <td class="right">$ ${fmt(base)}</td>
-          <td class="right">$ ${fmt(igvVal)}</td>
+          <td class="right">$ ${fmt(ivaVal)}</td>
           <td class="right">$ ${fmt(total)}</td>
         </tr>`;
       }).join('');
 
       const base = compras.reduce((s,e) => {
-        const igvLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
-        return s + (Number(e.total_debit||0) - Number(igvLine.debit||0));
+        const ivaLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
+        return s + (Number(e.total_debit||0) - Number(ivaLine.debit||0));
       }, 0);
-      const igv  = compras.reduce((s,e) => {
-        const igvLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
-        return s + Number(igvLine.debit||0);
+      const iva  = compras.reduce((s,e) => {
+        const ivaLine = (e.lines||[]).find((l:any) => String(l.account_code||'').startsWith('2408')) || {};
+        return s + Number(ivaLine.debit||0);
       }, 0);
       const tot  = compras.reduce((s,e) => s + Number(e.total_debit||0), 0);
 
@@ -370,7 +370,7 @@ export const DeclaracionMensual: React.FC = () => {
         <table>
           <tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Serie-Número</th><th>NIT Proveedor</th><th class="right">Base $</th><th class="right">IVA $</th><th class="right">Total $</th></tr>
           ${rows || '<tr><td colspan="8" style="text-align:center;color:#aaa">Sin comprobantes en el período</td></tr>'}
-          <tr class="total"><td colspan="5">TOTALES</td><td class="right">$ ${fmt(base)}</td><td class="right">$ ${fmt(igv)}</td><td class="right">$ ${fmt(tot)}</td></tr>
+          <tr class="total"><td colspan="5">TOTALES</td><td class="right">$ ${fmt(base)}</td><td class="right">$ ${fmt(iva)}</td><td class="right">$ ${fmt(tot)}</td></tr>
         </table>`;
       printPDF(`Registro Compras ${period}`, html);
       setMsg('PDF Registro de Compras listo.');
@@ -439,12 +439,12 @@ export const DeclaracionMensual: React.FC = () => {
       {resumen && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
           <KpiBox label="Total Ventas" value={`$ ${fmt(resumen.ventas_total)}`} color={C.green} sub={`${resumen.num_facturas_v} comprobantes · Base $ ${fmt(resumen.ventas_base)}`} />
-          <KpiBox label="Total Compras" value={`$ ${fmt(resumen.compras_total)}`} color={C.blue} sub={`${resumen.num_facturas_c} comprobantes · IVA descontable $ ${fmt(resumen.compras_igv)}`} />
+          <KpiBox label="Total Compras" value={`$ ${fmt(resumen.compras_total)}`} color={C.blue} sub={`${resumen.num_facturas_c} comprobantes · IVA descontable $ ${fmt(resumen.compras_iva)}`} />
           <KpiBox
-            label={resumen.igv_saldo >= 0 ? '⚠ IVA A PAGAR' : '✓ Saldo a favor'}
-            value={`$ ${fmt(Math.abs(resumen.igv_saldo))}`}
-            color={resumen.igv_saldo >= 0 ? C.red : C.green}
-            sub={`Débito $ ${fmt(resumen.igv_debito)} — Crédito $ ${fmt(resumen.igv_credito)}`}
+            label={resumen.iva_saldo >= 0 ? '⚠ IVA A PAGAR' : '✓ Saldo a favor'}
+            value={`$ ${fmt(Math.abs(resumen.iva_saldo))}`}
+            color={resumen.iva_saldo >= 0 ? C.red : C.green}
+            sub={`Débito $ ${fmt(resumen.iva_debito)} — Crédito $ ${fmt(resumen.iva_credito)}`}
           />
         </div>
       )}

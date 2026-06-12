@@ -64,7 +64,7 @@ const GeometryAI = {
       raw: payload,
       find(label) {
         const key = String(label || '').toUpperCase();
-        if (key === 'RUC') return payload?.scan_data?.ruc || payload?.ruc || '';
+        if (key === 'NIT') return payload?.scan_data?.nit || payload?.nit || '';
         if (key === 'TOTAL') return payload?.scan_data?.total || payload?.total || '0';
         if (key === 'SERIE') return payload?.scan_data?.serie_numero || payload?.serie || '';
         return '';
@@ -82,7 +82,7 @@ export async function handleAIVisionProcess(imageFile, tenantId = TENANT_DEMO) {
 
   // 2. Mapear los datos encontrados (Lógica Contable)
   const invoicePayload = {
-    ruc: scanResult.find('RUC'),
+    nit: scanResult.find('NIT'),
     total: parseFloat(scanResult.find('TOTAL')),
     serie: scanResult.find('SERIE'),
     items: scanResult.extractTable(), // Extrae la tabla de productos

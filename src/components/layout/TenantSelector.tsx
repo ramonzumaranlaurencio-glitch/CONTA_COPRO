@@ -24,23 +24,23 @@ const RUBROS: { id: Rubro; label: string }[] = [
 export const TenantSelector = () => {
   const { currentCompany, companies, setCompany, addCompany } = useTenantStore();
   const [showForm, setShowForm] = useState(false);
-  const [ruc, setRuc] = useState('');
+  const [nit, setNit] = useState('');
   const [nombre, setNombre] = useState('');
   const [rubro, setRubro] = useState<Rubro>('GE');
   const [error, setError] = useState('');
 
   const handleAdd = () => {
-    if (!ruc.trim() || ruc.trim().length < 9) { setError('NIT inválido (mínimo 9 dígitos colombianos)'); return; }
+    if (!nit.trim() || nit.trim().length < 9) { setError('NIT inválido (mínimo 9 dígitos colombianos)'); return; }
     if (!nombre.trim()) { setError('Ingresa la razón social'); return; }
     const company: Company = {
       id: `tenant-${Date.now()}`,
-      ruc: ruc.trim(),
+      nit: nit.trim(),
       businessName: nombre.trim(),
       rubro,
       rubros: [rubro],
     };
     addCompany(company);
-    setRuc(''); setNombre(''); setRubro('GE'); setError(''); setShowForm(false);
+    setNit(''); setNombre(''); setRubro('GE'); setError(''); setShowForm(false);
   };
 
   const inp: React.CSSProperties = {
@@ -63,7 +63,7 @@ export const TenantSelector = () => {
             >
               {companies.map(c => (
                 <option key={c.id} value={c.id} className="text-slate-800">
-                  {c.ruc} - {c.businessName}
+                  {c.nit} - {c.businessName}
                 </option>
               ))}
             </select>
@@ -100,7 +100,7 @@ export const TenantSelector = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
               <label style={{ fontSize: 10, color: '#7da3c4', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>NIT (9-10 dígitos Colombia)</label>
-              <input value={ruc} onChange={e => setRuc(e.target.value)} placeholder="900XXXXXX-1" maxLength={12} style={inp} />
+              <input value={nit} onChange={e => setNit(e.target.value)} placeholder="900XXXXXX-1" maxLength={12} style={inp} />
             </div>
             <div>
               <label style={{ fontSize: 10, color: '#7da3c4', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Razón social</label>

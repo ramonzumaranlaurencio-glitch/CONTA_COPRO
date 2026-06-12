@@ -4,12 +4,12 @@ const USER_DEMO = localStorage.getItem('user_id') || '22222222-2222-2222-2222-22
 
 type ScanResultPayload = {
   scan_data?: {
-    ruc?: string;
+    nit?: string;
     total?: string | number;
     serie_numero?: string;
     items?: Array<Record<string, unknown>>;
   };
-  ruc?: string;
+  nit?: string;
   total?: string | number;
   serie?: string;
   items?: Array<Record<string, unknown>>;
@@ -77,7 +77,7 @@ const GeometryAI = {
       raw: payload,
       find(label: string) {
         const key = String(label || '').toUpperCase();
-        if (key === 'RUC') return payload.scan_data?.ruc || payload.ruc || '';
+        if (key === 'NIT') return payload.scan_data?.nit || payload.nit || '';
         if (key === 'TOTAL') return payload.scan_data?.total || payload.total || '0';
         if (key === 'SERIE') return payload.scan_data?.serie_numero || payload.serie || '';
         return '';
@@ -95,7 +95,7 @@ export async function handleAIVisionProcess(imageFile: File, tenantId = TENANT_D
 
   // 2. Mapear los datos encontrados (Logica Contable)
   const invoicePayload = {
-    ruc: String(scanResult.find('RUC') || ''),
+    nit: String(scanResult.find('NIT') || ''),
     total: parseFloat(String(scanResult.find('TOTAL') || '0')),
     serie: String(scanResult.find('SERIE') || ''),
     items: scanResult.extractTable(),

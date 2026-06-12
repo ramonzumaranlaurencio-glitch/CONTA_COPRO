@@ -57,12 +57,12 @@ class LedgerEngineOrchestrator:
             module_command: Qué módulo/comando invoca (INGRESO_GASTO, TRAMITE_BANCARIO, etc)
             transaction_type: Tipo de documento (FACTURA, RECIBO, etc)
             amount: Monto de la transacción
-            currency: PEN o USD
-            **kwargs: supplier_ruc, customer_ruc, payment_method, service_code, etc
-        
+            currency: COP o USD
+            **kwargs: supplier_nit, customer_nit, payment_method, service_code, etc
+
         Returns:
             LedgerEngineOutput con asientos, compliance checks y acciones requeridas
-        
+
         Raises:
             ExpertValidationException: Si hay bloqueo en validación
         """
@@ -73,7 +73,7 @@ class LedgerEngineOrchestrator:
         classification = self.unit_a.classify_transaction(
             transaction_type=TransactionType(transaction_type),
             amount=amount,
-            igv_included=kwargs.get("igv_included", True),
+            igv_included=kwargs.get("iva_included", kwargs.get("igv_included", True)),
             has_cost_center=bool(kwargs.get("cost_center")),
             cost_center_code=kwargs.get("cost_center"),
         )
@@ -110,7 +110,7 @@ class LedgerEngineOrchestrator:
             amount=amount,
             currency=currency,
             payment_method=kwargs.get("payment_method"),
-            supplier_ruc=kwargs.get("supplier_ruc"),
+            supplier_nit=kwargs.get("supplier_nit") or kwargs.get("supplier_ruc"),
             service_code=kwargs.get("service_code"),
             doc_type_code=kwargs.get("doc_type_code"),
         )

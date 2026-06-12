@@ -40,10 +40,10 @@ class ExpertAccountingGuard:
         has_cost_center_for_expenses = all(bool(line.get("cost_center")) for line in expense_lines)
 
         source_module = str(payload.get("source_module", "")).upper()
-        supplier_ruc = payload.get("supplier_ruc")
-        customer_ruc = payload.get("customer_ruc")
-        partner_ruc = supplier_ruc or customer_ruc or self._first_line_partner_ruc(lines)
-        has_partner_doc = bool(partner_ruc)
+        supplier_nit = payload.get("supplier_nit") or payload.get("supplier_ruc")
+        customer_nit = payload.get("customer_nit") or payload.get("customer_ruc")
+        partner_nit = supplier_nit or customer_nit or self._first_line_partner_ruc(lines)
+        has_partner_doc = bool(partner_nit)
 
         is_purchase_or_sale = source_module in {"PURCHASING", "BILLING", "SALES_IA", "SALES"}
         deductible_or_supported = (not is_purchase_or_sale) or has_partner_doc
@@ -62,10 +62,10 @@ class ExpertAccountingGuard:
             ValidationCheck(
                 code="CAUSALITY_SUPPORT",
                 passed=deductible_or_supported,
-                detail="Documento con contraparte identificada" if deductible_or_supported else "Falta RUC de contraparte para sustento tributario",
+                detail="Documento con contraparte identificada" if deductible_or_supported else "Falta NIT de contraparte para sustento tributario DIAN",
             ),
         ]
-        checks.extend(self._dian_checks(payload, is_purchase_or_sale=is_purchase_or_sale, partner_ruc=partner_ruc))
+        checks.extend(self._dian_checks(payload, is_purchase_or_sale=is_purchase_or_sale, partner_ruc=partner_nit))
 
         blocking = [check.detail for check in checks if not check.passed]
         return ValidationReport(accepted=not blocking, checks=checks, blocking_reasons=blocking)
@@ -88,12 +88,12 @@ class ExpertAccountingGuard:
         periodo_declarado: bool = False,
         usuario: str | None = None,
     ) -> dict:
-        """Evalua si una modificacion/anulacion es viable antes de enviarla a SUNAT."""
+        """Evalua si una modificacion/anulacion es viable antes de enviarla a DIAN."""
         issue_date = self._coerce_date(datos_viejos.get("issue_date") or datos_viejos.get("fecha"))
         old_total = self._coerce_money(datos_viejos.get("total") or datos_viejos.get("total_amount"))
         new_total = self._coerce_money(datos_nuevos.get("total") or datos_nuevos.get("total_amount") or old_total)
-        old_ruc = str(datos_viejos.get("partner_ruc") or datos_viejos.get("customer_ruc") or datos_viejos.get("supplier_ruc") or "")
-        new_ruc = str(datos_nuevos.get("partner_ruc") or datos_nuevos.get("customer_ruc") or datos_nuevos.get("supplier_ruc") or old_ruc)
+        old_ruc = str(datos_viejos.get("partner_nit") or datos_viejos.get("customer_nit") or datos_viejos.get("supplier_nit") or datos_viejos.get("partner_ruc") or "")
+        new_ruc = str(datos_nuevos.get("partner_nit") or datos_nuevos.get("customer_nit") or datos_nuevos.get("supplier_nit") or datos_nuevos.get("partner_ruc") or old_ruc)
 
         alerts: list[str] = []
         blocking_reasons: list[str] = []
@@ -103,17 +103,17 @@ class ExpertAccountingGuard:
         in_direct_annulment_window = date.today() <= deadline
         checks.append(
             ValidationCheck(
-                code="SUNAT_ANNULMENT_WINDOW",
+                code="DIAN_ANNULMENT_WINDOW",
                 passed=in_direct_annulment_window,
                 detail=f"Plazo de anulacion directa hasta {deadline.isoformat()}: {'EN_PLAZO' if in_direct_annulment_window else 'VENCIDO'}",
             )
         )
         if not in_direct_annulment_window:
-            alerts.append("Documento fuera del plazo operativo configurado para anulacion directa. Se requiere Nota de Credito.")
+            alerts.append("Documento fuera del plazo operativo configurado para anulacion directa. Se requiere Nota de Credito DIAN.")
 
-        direct_sunat_deadline = issue_date + timedelta(days=7)
-        if date.today() > direct_sunat_deadline:
-            alerts.append("Documento fuera de 7 dias calendario desde emision/CDR; validar comunicacion de baja o Nota de Credito segun SEE/OSE.")
+        direct_dian_deadline = issue_date + timedelta(days=7)
+        if date.today() > direct_dian_deadline:
+            alerts.append("Documento fuera de 7 dias calendario desde emision; validar comunicacion de anulacion o Nota de Credito segun normativa DIAN.")
 
         justification_ok = self._is_justification_sufficient(justificacion, motivo)
         checks.append(
@@ -127,7 +127,7 @@ class ExpertAccountingGuard:
             blocking_reasons.append("Justificacion insuficiente para auditoria. Especifique el motivo legal.")
 
         if old_total != new_total:
-            alerts.append("El cambio de monto afecta el IGV declarado. Se registrara en el Record de Modificaciones.")
+            alerts.append("El cambio de monto afecta el IVA declarado. Se registrara en el Record de Modificaciones DIAN.")
 
         old_taxable = self._coerce_money(datos_viejos.get("taxable_amount") or "0.00")
         new_taxable = self._coerce_money(datos_nuevos.get("taxable_amount") or old_taxable)
@@ -136,8 +136,8 @@ class ExpertAccountingGuard:
 
         motivo_upper = (motivo or "").upper()
 
-        if motivo_upper.startswith("ERROR_RUC") and old_ruc == new_ruc:
-            blocking_reasons.append("El motivo seleccionado es ERROR_RUC, pero no se detecta cambio de RUC.")
+        if motivo_upper.startswith("ERROR_NIT") and old_ruc == new_ruc:
+            blocking_reasons.append("El motivo seleccionado es ERROR_NIT, pero no se detecta cambio de NIT.")
 
         if motivo_upper.startswith("ERROR_DESCRIPCION_MONTOS") and old_total == new_total and old_taxable == new_taxable and old_tax == new_tax:
             blocking_reasons.append("El motivo indica error en descripcion o montos, pero no se detectan cambios economicos.")
@@ -146,7 +146,7 @@ class ExpertAccountingGuard:
             blocking_reasons.append("Para devolucion total/parcial, el monto nuevo debe ser menor al monto original.")
 
         if old_ruc and new_ruc and old_ruc != new_ruc:
-            validation_payload = {"source_module": "BILLING", "customer_ruc": new_ruc}
+            validation_payload = {"source_module": "BILLING", "customer_nit": new_ruc}
             sunat_checks = self._dian_checks(validation_payload, is_purchase_or_sale=True, partner_ruc=new_ruc)
             checks.extend(sunat_checks)
             for check in sunat_checks:
@@ -187,26 +187,15 @@ class ExpertAccountingGuard:
         # Accept different taxpayer identifier lengths depending on configured country
         ruc_digits = str(partner_ruc).isdigit() and str(partner_ruc).isdigit()
         ruc_len = len(str(partner_ruc))
-        if settings.country_code == 'CO':
-            # Colombian NITs commonly range 9-12 digits (including DV), be permissive here
-            if not (str(partner_ruc).isdigit() and 9 <= ruc_len <= 12):
-                return [
-                    ValidationCheck(
-                        code="DIAN_NIT_FORMAT",
-                        passed=False,
-                        detail="NIT invalido para verificacion DIAN: debe tener entre 9 y 12 digitos",
-                    )
-                ]
-        else:
-            # Default: SUNAT RUC (Peru) expects exactly 11 digits
-            if not (str(partner_ruc).isdigit() and ruc_len == 11):
-                return [
-                    ValidationCheck(
-                        code="SUNAT_RUC_FORMAT",
-                        passed=False,
-                        detail="RUC invalido para verificacion SUNAT: debe tener 11 digitos",
-                    )
-                ]
+        # Colombian NITs: 9-12 digits (including DV digit)
+        if not (str(partner_ruc).isdigit() and 9 <= ruc_len <= 12):
+            return [
+                ValidationCheck(
+                    code="DIAN_NIT_FORMAT",
+                    passed=False,
+                    detail="NIT invalido para verificacion DIAN: debe tener entre 9 y 12 digitos",
+                )
+            ]
 
         validation = self._get_dian_validation(payload, partner_ruc)
         status = normalize_sunat_text(validation.get("taxpayer_status") or validation.get("estado"))

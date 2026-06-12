@@ -7,7 +7,7 @@ export type PurchaseFormData = {
   number: string;
   supplierNit: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   expenseAccount: string;
   costCenter: string;
   currency: string;
@@ -29,7 +29,7 @@ type PurchaseItem = {
   aiConfidence: number;
   requiresReview: boolean;
   taxable: boolean;
-  igvAmount: string;
+  ivaAmount: string;
   totalLine: string;
   lineType: AccountingLineType;
   requiresSupport: boolean;
@@ -85,7 +85,7 @@ export type PurchaseSubmitPayload = {
   supplierName: string;
   issueDate: string;
   subtotal: string;
-  igv: string;
+  iva: string;
   total: string;
   items: Array<{
     code: string;
@@ -102,7 +102,7 @@ export type PurchaseSubmitPayload = {
     aiConfidence: number;
     requiresReview: boolean;
     taxable: boolean;
-    igvAmount: string;
+    ivaAmount: string;
     totalLine: string;
     lineType: AccountingLineType;
     requiresSupport: boolean;
@@ -162,11 +162,11 @@ type GeminiPurchaseItem = {
   unit_price?: number | string;
   line_subtotal?: number | string;
   taxable?: boolean;
-  igv_amount?: number | string;
+  iva_amount?: number | string;
   total_line?: number | string;
   line_type?: AccountingLineType | string;
   deductibility?: string;
-  igv_credit?: string;
+  iva_credit?: string;
   requires_support?: boolean;
   account_code?: string;
   account_name?: string;
@@ -180,10 +180,11 @@ type GeminiPurchaseResponse = {
   serie?: string;
   number?: string;
   issue_date?: string;
+  supplier_nit?: string;
   supplier_ruc?: string;
   supplier_name?: string;
   subtotal?: number | string;
-  igv?: number | string;
+  iva?: number | string;
   total?: number | string;
   total_read_from_document?: number | string;
   reconciliation_status?: string;
@@ -403,7 +404,7 @@ const createItem = (costCenter = DEFAULT_COST_CENTER): PurchaseItem => ({
   aiConfidence: 0,
   requiresReview: true,
   taxable: true,
-  igvAmount: '0.00',
+  ivaAmount: '0.00',
   totalLine: '0.00',
   lineType: 'EXPENSE_OR_ASSET',
   requiresSupport: true,
@@ -458,8 +459,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     [items],
   );
   const subtotal = toNumber(form.subtotal) > 0 ? toNumber(form.subtotal) : subtotalItems;
-  const igv = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.igv);
-  const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + igv;
+  const iva = isAutoIgv && !aiTotalReadFromDocument ? subtotal * 0.19 : toNumber(form.iva);
+  const total = aiTotalReadFromDocument ? toNumber(aiTotalReadFromDocument) : subtotal + iva;
 
   const groupedLines = useMemo(() => {
     const map = new Map<string, { accountCode: string; accountName: string; costCenter: string; amount: number; taxTreatment: string }>();
@@ -500,7 +501,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         accountCode: '2408',
         accountName: 'IVA descontable (Art. 485 ET)',
         costCenter: '-',
-        debit: money(igv),
+        debit: money(iva),
         credit: '0.00',
         lineType: 'TAX' as AccountingLineType,
         taxTreatment: 'Crédito fiscal condicionado a comprobante válido, causalidad, fehaciencia y anotación oportuna',
@@ -515,7 +516,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         taxTreatment: 'Obligación comercial por comprobante de compra',
       },
     ].filter((line) => toNumber(line.debit) !== 0 || toNumber(line.credit) !== 0);
-  }, [explicitAccountLines, groupedLines, igv, total]);
+  }, [explicitAccountLines, groupedLines, iva, total]);
 
   const accountsToUpsert = useMemo(() => {
     const map = new Map<string, PurchaseSubmitPayload['accountsToUpsert'][number]>();
@@ -567,7 +568,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     const next = { ...form, [key]: value };
 
     if (key === 'subtotal' && isAutoIgv) {
-      next.igv = money(toNumber(value) * 0.19);
+      next.iva = money(toNumber(value) * 0.19);
     }
 
     if (key === 'costCenter') {
@@ -627,7 +628,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
                   : 'EXPENSE_OR_ASSET';
           next.taxable = next.lineType === 'EXPENSE_OR_ASSET';
           next.requiresSupport = c.requiresReview;
-          next.igvAmount = next.taxable ? next.igvAmount : '0.00';
+          next.ivaAmount = next.taxable ? next.ivaAmount : '0.00';
           // Distribuir al centro de costo correcto según el tipo de gasto (OBLIGATORIO)
           next.costCenter = next.lineType === 'PRIOR_BALANCE' || next.lineType === 'ADVANCE_PAYMENT'
             ? '-'
@@ -645,7 +646,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const applyGeminiPayload = (payload: GeminiPurchaseResponse) => {
     const nextSerie = payload.serie || form.serie || '';
     const nextNumber = payload.number || form.number || '';
-    const nextSupplierRuc = payload.supplier_ruc || form.supplierNit || '';
+    const nextSupplierRuc = payload.supplier_nit || payload.supplier_ruc || form.supplierNit || '';
     const nextSupplierName = payload.supplier_name || supplierName || '';
     const nextCostCenter = normalizeCostCenter(payload.cost_center || form.costCenter || DEFAULT_COST_CENTER);
 
@@ -700,7 +701,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         aiConfidence,
         requiresReview,
         taxable: Boolean(raw.taxable ?? detectedLineType === 'EXPENSE_OR_ASSET'),
-        igvAmount: money(toNumber(raw.igv_amount || 0)),
+        ivaAmount: money(toNumber(raw.iva_amount || 0)),
         totalLine: money(toNumber(raw.total_line || lineSubtotal)),
         lineType: detectedLineType as AccountingLineType,
         requiresSupport,
@@ -742,7 +743,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       number: nextNumber,
       supplierNit: nextSupplierRuc,
       subtotal: money(toNumber(payload.subtotal ?? mappedItems.reduce((a, i) => a + toNumber(i.lineSubtotal), 0))),
-      igv: money(toNumber(payload.igv ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
+      iva: money(toNumber(payload.iva ?? mappedItems.reduce((a, i) => a + toNumber(i.ivaAmount), 0))),
       expenseAccount: normalizeAccount(String(payload.expense_account || mappedItems[0]?.accountCode || form.expenseAccount || '659101')),
       costCenter: nextCostCenter,
       currency: String(payload.currency || 'COP'),
@@ -880,7 +881,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     setAiLegalWarnings([]);
     setAiAccountingWarnings([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    onFormChange({ ...form, serie: '', number: '', supplierNit: '', subtotal: '0.00', igv: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER, currency: 'COP' });
+    onFormChange({ ...form, serie: '', number: '', supplierNit: '', subtotal: '0.00', iva: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER, currency: 'COP' });
   };
 
   const handleSubmit = async () => {
@@ -894,7 +895,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     const nextForm: PurchaseFormData = {
       ...form,
       subtotal: money(subtotal),
-      igv: money(igv),
+      iva: money(iva),
       expenseAccount: firstLine?.accountCode || normalizeAccount(form.expenseAccount) || '519099',
       costCenter: firstLine?.costCenter || normalizeCostCenter(form.costCenter),
     };
@@ -914,7 +915,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       aiConfidence: item.aiConfidence,
       requiresReview: item.requiresReview,
       taxable: item.taxable,
-      igvAmount: item.igvAmount,
+      ivaAmount: item.ivaAmount,
       totalLine: item.totalLine,
       lineType: item.lineType,
       requiresSupport: item.requiresSupport,
@@ -925,7 +926,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       supplierName,
       issueDate,
       subtotal: money(subtotal),
-      igv: money(igv),
+      iva: money(iva),
       total: money(total),
       items: normalizedItems,
       accountLines: accountingLines.map((line) => ({
@@ -1110,7 +1111,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         <Field label="Cuenta fallback"><Input value={form.expenseAccount} onChange={(_, d) => updateField('expenseAccount', d.value)} /></Field>
         <Field label="Centro costo general"><Input value={form.costCenter} onChange={(_, d) => updateField('costCenter', d.value)} /></Field>
         <Field label="Subtotal"><Input value={money(subtotal)} disabled /></Field>
-        <Field label="IVA"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
+        <Field label="IVA"><Input value={money(iva)} disabled={isAutoIgv} onChange={(_, d) => updateField('iva', d.value)} /></Field>
       </div>
 
       <label className="pro-checkline">
