@@ -1105,6 +1105,36 @@ async def get_pending_purchases(
                 or []
             )
 
+            # Fallback: si no hay items en metadata, reconstruir desde las líneas del asiento.
+            # Buscar débitos en cuentas de inventario PUC Colombia (14=inventarios, 15=PPE).
+            if not raw_items and hasattr(entry, "lines") and entry.lines:
+                _INV_PREFIXES = ("14", "15")
+                for jl in entry.lines:
+                    ac = str(jl.account_code or "")
+                    if ac[:2] in _INV_PREFIXES and float(jl.debit or 0) > 0:
+                        raw_items.append({
+                            "description":  entry.description or f"Compra {doc_ref}",
+                            "code":         "",
+                            "unit":         "UND",
+                            "quantity":     1,
+                            "unit_price":   float(jl.debit),
+                            "line_subtotal":float(jl.debit),
+                            "account_code": ac,
+                            "account_name": "",
+                            "cost_center":  str(jl.cost_center or "LOG-ALM"),
+                            "line_type":    "INVENTORY_PURCHASE",
+                            "is_inventory": True,
+                            "item_class":   "",
+                            "catalog_code": "",
+                            "catalog_nat":  "",
+                            "catalog_rub":  "GE",
+                            "catalog_tk":   "F",
+                            "catalog_match":False,
+                            "gasto_account":"",
+                            "ai_reason":    "Reconstruido desde línea de asiento contable.",
+                            "ai_confidence":0.5,
+                        })
+
             for idx, item in enumerate(raw_items):
                 # Referencia única por línea — permite validar ítem a ítem sin que
                 # todo el documento desaparezca al validar solo la primera línea
