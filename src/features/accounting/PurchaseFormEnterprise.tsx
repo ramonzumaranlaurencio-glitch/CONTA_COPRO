@@ -33,6 +33,14 @@ type PurchaseItem = {
   totalLine: string;
   lineType: AccountingLineType;
   requiresSupport: boolean;
+  isInventory?: boolean;
+  itemClass?: string | null;
+  catalogCode?: string | null;
+  catalogNat?: string | null;
+  catalogRub?: string | null;
+  catalogTk?: string | null;
+  catalogMatch?: boolean;
+  gastoAccount?: string | null;
 };
 
 type GuideForm = {
@@ -174,6 +182,14 @@ type GeminiPurchaseItem = {
   tax_treatment?: string;
   ai_reason?: string;
   ai_confidence?: number;
+  is_inventory?: boolean;
+  item_class?: string | null;
+  catalog_code?: string | null;
+  catalog_nat?: string | null;
+  catalog_rub?: string | null;
+  catalog_tk?: string | null;
+  catalog_match?: boolean;
+  gasto_account?: string | null;
 };
 
 type GeminiPurchaseResponse = {
@@ -683,6 +699,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         ? false
         : Boolean(requiresSupport || aiConfidence < 0.8 || (accountCode === '659101' && detectedLineType !== 'ROUNDING'));
 
+      const accPrefix = accountCode.slice(0, 2);
+      const isInventoryByAccount = accPrefix === '14' || accPrefix === '15';
       return {
         id: newId(),
         code: String(raw.code || ''),
@@ -705,6 +723,14 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         totalLine: money(toNumber(raw.total_line || lineSubtotal)),
         lineType: detectedLineType as AccountingLineType,
         requiresSupport,
+        isInventory: Boolean(raw.is_inventory ?? isInventoryByAccount),
+        itemClass: String(raw.item_class || (isInventoryByAccount ? 'MERCADERIA' : '')) || null,
+        catalogCode: raw.catalog_code ? String(raw.catalog_code) : null,
+        catalogNat: raw.catalog_nat ? String(raw.catalog_nat) : null,
+        catalogRub: raw.catalog_rub ? String(raw.catalog_rub) : null,
+        catalogTk: raw.catalog_tk ? String(raw.catalog_tk) : null,
+        catalogMatch: Boolean(raw.catalog_match ?? false),
+        gastoAccount: raw.gasto_account ? String(raw.gasto_account) : null,
       };
     });
 
@@ -919,6 +945,14 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       totalLine: item.totalLine,
       lineType: item.lineType,
       requiresSupport: item.requiresSupport,
+      isInventory: item.isInventory ?? false,
+      itemClass: item.itemClass ?? null,
+      catalogCode: item.catalogCode ?? null,
+      catalogNat: item.catalogNat ?? null,
+      catalogRub: item.catalogRub ?? null,
+      catalogTk: item.catalogTk ?? null,
+      catalogMatch: item.catalogMatch ?? false,
+      gastoAccount: item.gastoAccount ?? null,
     }));
 
     const submitPayload: PurchaseSubmitPayload = {
