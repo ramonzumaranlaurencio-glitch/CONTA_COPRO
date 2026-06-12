@@ -1101,7 +1101,20 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
             or local.get("is_inventory", False)
         )
         item_class = ai_item_class or local.get("item_class") or INVENTARIO_ACCOUNT_CLASS.get(code_prefix)
-        resolved_kind = kind if kind != "NORMAL" else ("INVENTORY_PURCHASE" if is_inventory else "EXPENSE_OR_ASSET")
+
+        # Corrección: si la regla local dice inventario pero Gemini asignó cuenta
+        # de gasto (5xxxxx), la regla PUC Colombia manda — usar cuenta local.
+        if is_inventory and code_prefix not in INVENTARIO_ACCOUNT_CLASS and local.get("is_inventory", False):
+            account_code = local["account_code"]
+            account_name = local["account_name"]
+            code_prefix = account_code[:2] if len(account_code) >= 2 else ""
+            item_class = local.get("item_class") or INVENTARIO_ACCOUNT_CLASS.get(code_prefix) or item_class
+
+        # Corrección: line_type debe ser INVENTORY_PURCHASE para todos los bienes
+        # físicos — sin importar si Gemini devolvió EXPENSE_OR_ASSET explícitamente.
+        resolved_kind = "INVENTORY_PURCHASE" if is_inventory else (
+            kind if kind != "NORMAL" else "EXPENSE_OR_ASSET"
+        )
 
         item = {
             "code": _norm_text(raw.get("code")),
