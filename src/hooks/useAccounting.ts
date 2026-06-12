@@ -82,31 +82,24 @@ export const useAccounting = () => {
     return response.json();
   }, [getToken]);
 
-  const validateRUC = useCallback(async (ruc: string) => {
-    const digitsOnly = /^\d+$/.test(ruc);
-    if (!digitsOnly || ruc.length < 9 || ruc.length > 12) {
-      return { valid: false, message: 'Identificador inválido. Ingrese NIT/RUC válido.' };
+  const validateNIT = useCallback(async (nit: string) => {
+    const digits = nit.replace(/[\.\-]/g, '');
+    if (!/^\d{9,12}$/.test(digits)) {
+      return { valid: false, message: 'NIT inválido: debe tener entre 9 y 12 dígitos.' };
     }
-
-    // If this is a Peruvian RUC (11 digits) attempt external SUNAT lookup
-    if (ruc.length === 11) {
-      try {
-        const response = await fetch(`https://api.apis.net.pe/v2/sunat/ruc?numero=${ruc}`);
-        if (response.ok) {
-          const payload = await response.json();
-          const razonSocial = payload.razonSocial || payload.nombre || 'Contribuyente validado';
-          return { valid: true, message: razonSocial };
-        }
-        return { valid: true, message: 'RUC validado localmente. Servicio externo no disponible.' };
-      } catch {
-        return { valid: true, message: 'RUC validado localmente. Sin conectividad a servicio externo.' };
+    try {
+      const response = await fetch(`https://api.datos.gov.co/resource/swrg-pj5c.json?nit=${digits}`);
+      if (response.ok) {
+        const data = await response.json();
+        const nombre = (data as any[])?.[0]?.nombre_contribuyente || (data as any[])?.[0]?.razon_social || '';
+        if (nombre) return { valid: true, message: nombre };
       }
+      return { valid: true, message: 'NIT aceptado. Servicio DIAN no disponible en este momento.' };
+    } catch {
+      return { valid: true, message: 'NIT aceptado. Sin conectividad al servicio externo.' };
     }
-
-    // For non-Peru identifiers (e.g., Colombian NIT) external validation not configured in frontend
-    return { valid: true, message: 'Identificador aceptado. Validación externa no configurada para este país.' };
   }, []);
 
-  return { postEntry, validateRUC };
+  return { postEntry, validateNIT };
 };
 

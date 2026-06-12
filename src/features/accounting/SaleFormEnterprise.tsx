@@ -46,12 +46,12 @@ type GuideForm = {
   pesoBrutoTotal: string;
   numeroBultos: string;
   partidaDireccion: string;
-  partidaUbigeo: string;
+  partidaDane: string;
   llegadaDireccion: string;
-  llegadaUbigeo: string;
-  transportistaRuc: string;
+  llegadaDane: string;
+  transportistaNit: string;
   transportistaRazonSocial: string;
-  conductorDni: string;
+  conductorCedula: string;
   conductorLicencia: string;
   placaVehiculo: string;
 };
@@ -67,8 +67,8 @@ type SaleLineType =
   | 'ADVANCE_PAYMENT'
   | 'LATE_FEE'
   | 'WITHHOLDING'
-  | 'DETRACTION'
-  | 'PERCEPTION';
+  | 'RETE_FUENTE'
+  | 'RETE_IVA';
 
 type ExplicitAccountLine = {
   accountCode: string;
@@ -141,19 +141,19 @@ export type SaleSubmitPayload = {
     pesoBrutoTotal: string;
     numeroBultos: string;
     partidaDireccion: string;
-    partidaUbigeo: string;
+    partidaDane: string;
     llegadaDireccion: string;
-    llegadaUbigeo: string;
-    transportistaRuc: string;
+    llegadaDane: string;
+    transportistaNit: string;
     transportistaRazonSocial: string;
-    conductorDni: string;
+    conductorCedula: string;
     conductorLicencia: string;
     placaVehiculo: string;
     sourceDocument: {
       serie: string;
       number: string;
       issueDate: string;
-      customerRuc: string;
+      customerNit: string;
       customerName: string;
     };
     items: Array<{
@@ -273,7 +273,7 @@ const DEFAULT_COST_CENTER = 'BOG-ADM';
 const ENGINE_VERSION = 'CONTA_PRO_SALE_AI_RULES_CO_2026_01';
 const AUTO_ROUNDING_TOLERANCE = 100; // tolerance in COP
 
-const RECEIVABLE_ACCOUNT = '1212';
+const RECEIVABLE_ACCOUNT = '130505';
 const RECEIVABLE_NAME = 'Cuentas por cobrar comerciales';
 const SALES_IVA_ACCOUNT = '240805';
 const SALES_IVA_NAME = 'IVA generado';
@@ -282,12 +282,20 @@ const DEFAULT_GOODS_REVENUE_ACCOUNT = '4135';
 const ROUNDING_INCOME_ACCOUNT = '429595';
 const ROUNDING_EXPENSE_ACCOUNT = '539595';
 
-const toNumber = (value: string | number | undefined | null) => {
-  const parsed = Number.parseFloat(String(value ?? '0').replace(',', '.'));
+const toNumber = (value: string | number | undefined | null): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let s = String(value ?? '0').replace(/[$\s]/g, '');
+  if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const parsed = Number.parseFloat(s);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const money = (value: number) => value.toFixed(2);
+const money = (value: number): string =>
+  Number.isFinite(value)
+    ? Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : '0';
 
 const newId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -311,18 +319,19 @@ const accountClassName = (accountCode: string) => {
   if (first === '1') return 'Activo';
   if (first === '2') return 'Pasivo';
   if (first === '3') return 'Patrimonio';
-  if (first === '4') return 'Tributos y aportes';
-  if (first === '5') return 'Patrimonio / resultados acumulados';
-  if (first === '6') return 'Gastos por naturaleza';
-  if (first === '7') return 'Ingresos';
-  if (first === '8') return 'Saldos intermediarios de gestión';
-  if (first === '9') return 'Contabilidad analítica';
+  if (first === '4') return 'Ingresos';
+  if (first === '5') return 'Gastos';
+  if (first === '6') return 'Costos de ventas y servicios';
+  if (first === '7') return 'Costos de producción';
+  if (first === '8') return 'Cuentas de orden deudoras';
+  if (first === '9') return 'Cuentas de orden acreedoras';
   return 'Cuenta por clasificar';
 };
 
 const accountNature = (accountCode: string): 'DEBIT' | 'CREDIT' => {
   const first = normalizeAccount(accountCode).charAt(0);
-  return ['2', '3', '4', '5', '7'].includes(first) ? 'CREDIT' : 'DEBIT';
+  // PUC Colombia: Pasivo(2), Patrimonio(3), Ingresos(4), Orden acreedoras(9) = CREDIT
+  return ['2', '3', '4', '9'].includes(first) ? 'CREDIT' : 'DEBIT';
 };
 
 const normalizeCostCenter = (value?: string) => {
@@ -368,8 +377,8 @@ const normalizeLineType = (value?: string): SaleLineType => {
   if (clean === 'TAX') return 'TAX';
   if (clean === 'RECEIVABLE') return 'RECEIVABLE';
   if (clean === 'WITHHOLDING') return 'WITHHOLDING';
-  if (clean === 'DETRACTION') return 'DETRACTION';
-  if (clean === 'PERCEPTION') return 'PERCEPTION';
+  if (clean === 'RETE_FUENTE') return 'RETE_FUENTE';
+  if (clean === 'RETE_IVA') return 'RETE_IVA';
   return 'REVENUE';
 };
 
@@ -441,7 +450,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [items, setItems] = useState<SaleItem[]>([]);
   const [customerName, setCustomerName] = useState('');
-  const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }));
+  const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
   const [isAutoIgv, setIsAutoIgv] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
   const [isReadingAi, setIsReadingAi] = useState(false);
@@ -471,12 +480,12 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     pesoBrutoTotal: '0.00',
     numeroBultos: '1',
     partidaDireccion: '',
-    partidaUbigeo: '150101',
+    partidaDane: '11001',
     llegadaDireccion: '',
-    llegadaUbigeo: '150101',
-    transportistaRuc: '',
+    llegadaDane: '11001',
+    transportistaNit: '',
     transportistaRazonSocial: '',
-    conductorDni: '',
+    conductorCedula: '',
     conductorLicencia: '',
     placaVehiculo: '',
   });
@@ -784,7 +793,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       customerRuc: nextCustomerRuc,
       subtotal: money(toNumber(payload.subtotal ?? (payload as any).taxable_base ?? mappedItems.reduce((a, i) => a + toNumber(i.lineSubtotal), 0))),
       igv: money(toNumber(payload.igv ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
-      revenueAccount: normalizeAccount(String(payload.revenue_account || mappedItems[0]?.accountCode || form.revenueAccount || '704101')),
+      revenueAccount: normalizeAccount(String(payload.revenue_account || mappedItems[0]?.accountCode || form.revenueAccount || '413505')),
       costCenter: nextCostCenter,
     });
 
@@ -889,15 +898,15 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
       if (!guide.pesoBrutoTotal.trim() || toNumber(guide.pesoBrutoTotal) <= 0) return 'Guía: falta peso bruto total válido.';
       if (!guide.numeroBultos.trim() || toNumber(guide.numeroBultos) <= 0) return 'Guía: falta número de bultos válido.';
       if (!guide.partidaDireccion.trim()) return 'Guía: falta dirección de partida.';
-      if (!guide.partidaUbigeo.trim()) return 'Guía: falta ubigeo de partida.';
+      if (!guide.partidaDane.trim()) return 'Guía: falta código DANE de partida.';
       if (!guide.llegadaDireccion.trim()) return 'Guía: falta dirección de llegada.';
-      if (!guide.llegadaUbigeo.trim()) return 'Guía: falta ubigeo de llegada.';
+      if (!guide.llegadaDane.trim()) return 'Guía: falta código DANE de llegada.';
 
       if (guide.modalidadTransporte.toUpperCase() === 'PUBLICO') {
-        if (!/^\d{9,10}$/.test(guide.transportistaRuc.replace(/\D/g, ''))) return 'Guía: NIT transportista inválido (9-10 dígitos).';
+        if (!/^\d{9,12}$/.test(guide.transportistaNit.replace(/\D/g, ''))) return 'Guía: NIT transportista inválido (9-12 dígitos).';
         if (!guide.transportistaRazonSocial.trim()) return 'Guía: falta razón social del transportista.';
       } else {
-        if (!/^\d{5,12}$/.test(guide.conductorDni)) return 'Guía: cédula conductor inválida (5-12 dígitos).';
+        if (!/^\d{5,12}$/.test(guide.conductorCedula)) return 'Guía: cédula conductor inválida (5-12 dígitos).';
         if (!guide.conductorLicencia.trim()) return 'Guía: falta licencia del conductor.';
         if (!guide.placaVehiculo.trim()) return 'Guía: falta placa del vehículo.';
       }
@@ -926,7 +935,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
   const clearFormLabels = () => {
     setItems([]);
     setCustomerName('');
-    setIssueDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }));
+    setIssueDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
     setStatus('');
     setModifyReason('');
     setModifyDetail('');
@@ -940,7 +949,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
     setAiLegalWarnings([]);
     setAiAccountingWarnings([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    onFormChange({ ...form, serie: '', number: '', customerRuc: '', subtotal: '0.00', igv: '0.00', revenueAccount: '704101', costCenter: DEFAULT_COST_CENTER });
+    onFormChange({ ...form, serie: '', number: '', customerRuc: '', subtotal: '0.00', igv: '0.00', revenueAccount: '413505', costCenter: DEFAULT_COST_CENTER });
   };
 
   const handleSubmit = async () => {
@@ -1007,7 +1016,7 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
           serie: nextForm.serie,
           number: nextForm.number,
           issueDate,
-          customerRuc: nextForm.customerRuc,
+          customerNit: nextForm.customerRuc,
           customerName,
         },
         items: normalizedItems.map((item) => ({
@@ -1240,26 +1249,26 @@ export const SaleFormEnterprise = ({ form, onFormChange, tenantId, onClose, onSu
             <Field label="Dirección partida">
               <Input value={guide.partidaDireccion} onChange={(_, d) => setGuide((prev) => ({ ...prev, partidaDireccion: d.value }))} />
             </Field>
-            <Field label="Ubigeo partida">
-              <Input value={guide.partidaUbigeo} onChange={(_, d) => setGuide((prev) => ({ ...prev, partidaUbigeo: d.value }))} />
+            <Field label="Cód. DANE partida">
+              <Input value={guide.partidaDane} onChange={(_, d) => setGuide((prev) => ({ ...prev, partidaDane: d.value }))} placeholder="11001" />
             </Field>
             <Field label="Dirección llegada">
               <Input value={guide.llegadaDireccion} onChange={(_, d) => setGuide((prev) => ({ ...prev, llegadaDireccion: d.value }))} />
             </Field>
-            <Field label="Ubigeo llegada">
-              <Input value={guide.llegadaUbigeo} onChange={(_, d) => setGuide((prev) => ({ ...prev, llegadaUbigeo: d.value }))} />
+            <Field label="Cód. DANE llegada">
+              <Input value={guide.llegadaDane} onChange={(_, d) => setGuide((prev) => ({ ...prev, llegadaDane: d.value }))} placeholder="11001" />
             </Field>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr', gap: 10, marginTop: 12 }}>
             <Field label="NIT transportista">
-              <Input value={guide.transportistaRuc} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRuc: d.value.replace(/\D/g, '').slice(0, 10) }))} />
+              <Input value={guide.transportistaNit} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaNit: d.value.replace(/\D/g, '').slice(0, 12) }))} />
             </Field>
             <Field label="Razón social transportista">
               <Input value={guide.transportistaRazonSocial} onChange={(_, d) => setGuide((prev) => ({ ...prev, transportistaRazonSocial: d.value }))} />
             </Field>
-            <Field label="Cedula conductor">
-              <Input value={guide.conductorDni} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorDni: d.value.replace(/\D/g, '').slice(0, 12) }))} />
+            <Field label="Cédula conductor">
+              <Input value={guide.conductorCedula} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorCedula: d.value.replace(/\D/g, '').slice(0, 12) }))} />
             </Field>
             <Field label="Licencia conductor">
               <Input value={guide.conductorLicencia} onChange={(_, d) => setGuide((prev) => ({ ...prev, conductorLicencia: d.value.toUpperCase() }))} />

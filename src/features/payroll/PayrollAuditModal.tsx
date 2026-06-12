@@ -114,7 +114,7 @@ const PayrollAuditModal = ({ planillaId, isOpen, onClose }: PayrollAuditModalPro
                   <tr key={line.id}>
                     <td>{line.cuenta_contable}</td>
                     <td>{line.denominacion}</td>
-                    <td>{line.monto.toFixed(2)}</td>
+                    <td>$ {Math.round(Number(line.monto)).toLocaleString('es-CO')}</td>
                     <td>{line.tipo_movimiento}</td>
                   </tr>
                 ))}

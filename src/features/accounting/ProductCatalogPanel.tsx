@@ -75,7 +75,7 @@ export const ProductCatalogPanel: React.FC<ProductCatalogPanelProps> = ({ token,
                 <td>{p.sku}</td>
                 <td>{p.name}</td>
                 <td>{p.unit_of_measure}</td>
-                <td className="money">$ {Number(p.default_cost).toFixed(2)}</td>
+                <td className="money">$ {Math.round(Number(p.default_cost)).toLocaleString('es-CO')}</td>
                 <td><Button appearance="primary" onClick={() => onSelect(p)}>Agregar</Button></td>
               </tr>
             ))}

@@ -14,14 +14,14 @@ type RucState = {
 };
 
 export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
-  const { postEntry, validateRUC } = useAccounting();
+  const { postEntry, validateNIT } = useAccounting();
   const [loading, setLoading] = useState(false);
   const [rucState, setRucState] = useState<RucState>({ intent: 'info', message: 'Pendiente de validación DIAN.' });
   const [showSuccess, setShowSuccess] = useState(false);
   const [form, setForm] = useState({
     serie: 'F001',
     numero: '',
-    ruc: '',
+    nit: '',
     cliente: '',
     subtotal: 0,
     igv: 0,
@@ -38,10 +38,10 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
     }));
   }, [form.subtotal]);
 
-  const runRucValidation = async (ruc: string) => {
-    const result = await validateRUC(ruc);
+  const runNitValidation = async (nit: string) => {
+    const result = await validateNIT(nit);
     if (result.valid) {
-      setRucState({ intent: 'success', message: `RUC valido: ${result.message}` });
+      setRucState({ intent: 'success', message: `NIT válido: ${result.message}` });
       if (!form.cliente) {
         setForm((prev) => ({ ...prev, cliente: result.message }));
       }
@@ -55,11 +55,11 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
     try {
       await postEntry({
         date: new Date().toISOString().split('T')[0],
-        description: `Venta ${form.serie}-${form.numero} | Cliente: ${form.cliente || form.ruc}`,
+        description: `Venta ${form.serie}-${form.numero} | Cliente: ${form.cliente || form.nit}`,
         lines: [
-          { account: '1212', debit: form.total, credit: 0, cost_center: form.centroCosto },
-          { account: '4011', debit: 0, credit: form.igv, cost_center: form.centroCosto },
-          { account: '7011', debit: 0, credit: form.subtotal, cost_center: form.centroCosto },
+          { account: '130505', debit: form.total, credit: 0, cost_center: form.centroCosto },
+          { account: '240805', debit: 0, credit: form.igv, cost_center: form.centroCosto },
+          { account: '413505', debit: 0, credit: form.subtotal, cost_center: form.centroCosto },
         ],
       });
       setShowSuccess(true);
@@ -96,16 +96,16 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
       </div>
 
       <section>
-        <label className="text-xs font-bold text-slate-600 uppercase">NIT / CC Cliente</label>
+        <label className="text-xs font-bold text-slate-600 uppercase">NIT / Cliente</label>
         <div className="flex gap-2">
           <input
             className="flex-1 border-b-2 border-slate-300 p-2 focus:border-[#0078d4] outline-none"
-            placeholder="20123456789"
-            value={form.ruc}
-            onChange={(event) => setForm({ ...form, ruc: event.target.value })}
-            onBlur={(event) => runRucValidation(event.target.value)}
+            placeholder="900123456-1"
+            value={form.nit}
+            onChange={(event) => setForm({ ...form, nit: event.target.value })}
+            onBlur={(event) => runNitValidation(event.target.value)}
           />
-          <button type="button" className="btn-fluent-secondary" onClick={() => runRucValidation(form.ruc)}>Validar DIAN</button>
+          <button type="button" className="btn-fluent-secondary" onClick={() => runNitValidation(form.nit)}>Validar DIAN</button>
         </div>
       </section>
 
@@ -135,12 +135,12 @@ export const SaleFormEnterprise = ({ onSucess }: SaleFormEnterpriseProps) => {
         </div>
         <div className="flex justify-between items-center text-slate-500">
           <span className="text-sm">IVA (19%)</span>
-          <span className="font-mono">$ {form.igv.toFixed(2)}</span>
+          <span className="font-mono">$ {Math.round(form.igv).toLocaleString('es-CO')}</span>
         </div>
         <hr />
         <div className="flex justify-between items-center text-[#0078d4] font-bold text-lg">
           <span>Total Neto</span>
-          <span>$ {form.total.toFixed(2)}</span>
+          <span>$ {Math.round(form.total).toLocaleString('es-CO')}</span>
         </div>
       </div>
 

@@ -95,17 +95,18 @@ type PanelType = 'VENTA' | 'COMPRA' | 'CHECKLIST' | 'NEGOCIOS' | null;
 type PurchaseForm = {
   serie: string;
   number: string;
-  supplierRuc: string;
+  supplierNit: string;
   subtotal: string;
   igv: string;
   expenseAccount: string;
   costCenter: string;
+  currency: string;
 };
 
 
 type ChecklistState = {
   conciliacionBancos: boolean;
-  validarIgv: boolean;
+  validarIva: boolean;
   provisionCxC: boolean;
   cdrPendientes: boolean;
   cierreAnual: boolean;
@@ -209,7 +210,7 @@ const statusLabel = (status?: string) => {
   if (value === 'POSTED') return 'POSTEADO';
   if (value === 'PENDING') return 'PENDIENTE';
   if (value === 'REVIEW') return 'REVISION';
-  if (value === 'SUNAT') return 'DIAN';
+  if (value === 'DIAN') return 'DIAN';
 
   return value || 'PENDIENTE';
 };
@@ -254,13 +255,16 @@ const railItems = [
   { id: 'config',         label: 'Configuracion',    icon: SlideSettings24Regular,  feature: null },
 ];
 
-const toNumber = (value: string | number | undefined | null) => {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : 0;
-  }
-  const raw = String(value ?? '0').replace(/[^0-9,.\-]/g, '');
-  const normalized = raw.includes(',') && !raw.includes('.') ? raw.replace(',', '.') : raw.replace(/,/g, '');
-  const parsed = Number.parseFloat(normalized);
+const toNumber = (value: string | number | undefined | null): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let s = String(value ?? '0').replace(/[$\s]/g, '');
+  // es-CO: "1.500.000,00" — punto=miles, coma=decimal
+  if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  // Europeo sin punto: "1500000,00"
+  else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+  // es-CO entero: "1.500.000" — grupos de exactamente 3 dígitos
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const parsed = Number.parseFloat(s);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
@@ -335,7 +339,6 @@ export const EnterpriseWorkspace = ({ userRole = 'ADMIN', userPlan = 'PREMIUM' }
   const [railExpanded, setRailExpanded] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelType>(null);
   const [statusMessage, setStatusMessage] = useState('Inicializando CONTA_COLPRO Enterprise Colombia...');
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [aiMessage, setAiMessage] = useState('Motor IA en espera');
   const [copilotQuestion, setCopilotQuestion] = useState('Detecta riesgos DIAN y diferencias materiales del período activo.');
   const [isRunningAi, setIsRunningAi] = useState(false);
@@ -482,24 +485,25 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     customerRuc: '',
     subtotal: '',
     igv: '',
-    revenueAccount: '704101',
+    revenueAccount: '413505',
     costCenter: 'BOG-COM',
   });
 
   const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>({
     serie: 'F001',
     number: '',
-    supplierRuc: '',
+    supplierNit: '',
     subtotal: '',
     igv: '',
     expenseAccount: '659101',
     costCenter: 'BOG-ADM',
+    currency: 'COP',
   });
 
 
   const [checklist, setChecklist] = useState<ChecklistState>({
     conciliacionBancos: true,
-    validarIgv: false,
+    validarIva: false,
     provisionCxC: false,
     cdrPendientes: true,
     cierreAnual: false,
@@ -545,7 +549,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     const modUp = (r: JournalRow) => String(r.sourceModule ?? '').toUpperCase();
     const ventas = rows.filter(r => modUp(r) === 'BILLING' || modUp(r) === 'VENTAS');
     const compras = rows.filter(r => modUp(r) === 'PURCHASING' || modUp(r) === 'COMPRAS');
-    const igvRows = rows.filter(r => String(r.account ?? '').startsWith('40'));
+    const igvRows = rows.filter(r => String(r.account ?? '').startsWith('24'));
 
     const sumCredit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.credit), 0);
     const sumDebit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.debit), 0);
@@ -819,8 +823,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           account: item.account_code ?? item.account ?? item.expense_account ?? 'N/A',
           accountName: item.account_name ?? '',
           costCenter: item.cost_center ?? item.costCenter ?? 'N/A',
-          debit: formatMoney(item.total_debit ?? '0.00'),
-          credit: formatMoney(item.total_credit ?? '0.00'),
+          debit: String(item.total_debit ?? '0'),
+          credit: String(item.total_credit ?? '0'),
         }];
       }
 
@@ -830,8 +834,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         account: line.account_code || 'N/A',
         accountName: line.account_name || '',
         costCenter: line.cost_center || '-',
-        debit: formatMoney(line.debit ?? '0.00'),
-        credit: formatMoney(line.credit ?? '0.00'),
+        debit: String(line.debit ?? '0'),
+        credit: String(line.credit ?? '0'),
         partnerRuc: line.partner_ruc,
         documentType: line.document_type,
         documentSeries: line.document_series,
@@ -969,7 +973,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
       const subtotal = toNumber(salePayload.subtotal ?? formSource.subtotal);
       const igv = toNumber(salePayload.igv ?? formSource.igv);
       const total = toNumber(salePayload.total ?? subtotal + igv);
-      const entryDate = salePayload.issueDate || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+      const entryDate = salePayload.issueDate || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       const postingPeriod = periodFromIsoDate(entryDate);
 
       const payload = {
@@ -987,7 +991,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         igv,
         total,
         currency: 'COP',
-        revenue_account: formSource.revenueAccount || salePayload.accountLines[0]?.accountCode || '704101',
+        revenue_account: formSource.revenueAccount || salePayload.accountLines[0]?.accountCode || '413505',
         cost_center: formSource.costCenter || salePayload.accountLines[0]?.costCenter || 'BOG-COM',
         line_items: salePayload.items.map((item) => ({
           product_code: item.code,
@@ -1052,6 +1056,36 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     }
   };
 
+  const deleteComprobantes = async (entryIds: string[]) => {
+    const tok = await getValidToken(token);
+    if (!tok) throw new Error('Sin token para eliminar comprobantes.');
+    const tenantId = getTenantId();
+    const errors: string[] = [];
+
+    for (const entryId of entryIds) {
+      const res = await fetch(`${API_BASE}/ledger/journal/${encodeURIComponent(entryId)}`, {
+        method: 'DELETE',
+        headers: authHeaders(tok, tenantId),
+      });
+      if (!res.ok) {
+        const msg = await parseBackendError(res).catch(() => res.statusText);
+        errors.push(`${entryId}: ${msg}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Errores al eliminar:\n${errors.join('\n')}`);
+    }
+
+    // Refrescar libro diario — limpia panel compras, libro diario e inventario pendiente
+    try {
+      await loadJournal(tok);
+    } catch (e) {
+      console.warn('CONTA_PRO deleteComprobantes: loadJournal warning', e);
+    }
+    setToken(tok);
+  };
+
   const postPurchase = async (purchasePayload?: PurchaseSubmitPayload) => {
     const tenantId = getTenantId();
 
@@ -1084,7 +1118,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         year: postingPeriod.year,
         month: postingPeriod.month,
         purchase_id: `${formSource.serie}-${formSource.number}`,
-        supplier_ruc: formSource.supplierRuc,
+        supplier_ruc: formSource.supplierNit,
         supplier_name: purchasePayload?.supplierName ?? '',
         issue_date: issueDate,
         entry_date: entryDate,
@@ -1181,8 +1215,6 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
 
       const postedMessage = `Compra ${formSource.serie}-${formSource.number} posteada con cuentas y centros de costo.`;
       setStatusMessage(postedMessage);
-      setSuccessToast(`✓ Compra ${formSource.serie}-${formSource.number} guardada en el Libro Diario.`);
-      setTimeout(() => setSuccessToast(null), 5000);
       setToken(purchaseToken);
 
       // La compra ya fue posteada. Si falla refrescar el Libro Diario,
@@ -1398,7 +1430,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         const first  = lines[0];
         const debit  = lines.reduce((s, l) => s + toNumber(l.debit), 0);
         const credit = lines.reduce((s, l) => s + toNumber(l.credit), 0);
-        const igvLine = lines.find(l => String(l.account ?? '').startsWith('40'));
+        const igvLine = lines.find(l => String(l.account ?? '').startsWith('24'));
         const igv    = igvLine ? toNumber(igvLine.debit) || toNumber(igvLine.credit) : 0;
         const base   = Math.max(debit, credit) - igv;
         const doc = first.documentSeries && first.documentNumber
@@ -1425,6 +1457,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           onRegisterCompra={() => setActivePanel('COMPRA')}
           onAuditoriaIA={() => setStatusMessage('Auditoría IA activa — analizando comprobantes...')}
           comprobantes={comprobantesReales}
+          onDeleteComprobantes={deleteComprobantes}
         />
       );
     }
@@ -1586,8 +1619,8 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                         <span className="truncate">{row.description}</span>
                         <span title={row.accountName || row.account}>{row.account}</span>
                         <span className={row.missingCostCenter ? 'cc-warning' : ''}>{row.costCenter}</span>
-                        <span className="money">{row.debit}</span>
-                        <span className="money">{row.credit}</span>
+                        <span className="money">{formatMoney(row.debit)}</span>
+                        <span className="money">{formatMoney(row.credit)}</span>
                         <span>{row.status}</span>
                         <span>{row.sourceModule}</span>
                         <span className="hash truncate">{row.hash}</span>
@@ -1653,7 +1686,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                             {selectedSummary.lines.filter((l) => toNumber(l.debit) > 0).map((line, idx) => (
                               <div className="t-contable-line" key={`d-${idx}`}>
                                 <span>{line.account} {line.accountName ? `· ${line.accountName.slice(0, 28)}` : ''}</span>
-                                <span className="money">{line.debit}</span>
+                                <span className="money">{formatMoney(line.debit)}</span>
                               </div>
                             ))}
                             <div className="t-contable-total"><span>Total Debe</span><span className="money">{formatMoney(selectedSummary.totalDebit.toFixed(2))}</span></div>
@@ -1663,7 +1696,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                             {selectedSummary.lines.filter((l) => toNumber(l.credit) > 0).map((line, idx) => (
                               <div className="t-contable-line" key={`h-${idx}`}>
                                 <span>{line.account} {line.accountName ? `· ${line.accountName.slice(0, 28)}` : ''}</span>
-                                <span className="money">{line.credit}</span>
+                                <span className="money">{formatMoney(line.credit)}</span>
                               </div>
                             ))}
                             <div className="t-contable-total"><span>Total Haber</span><span className="money">{formatMoney(selectedSummary.totalCredit.toFixed(2))}</span></div>
@@ -2018,7 +2051,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>NIT</label>
-                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="900000000-1" maxLength={12} style={inp2} />
+                    <input value={nRuc} onChange={e => { setNRuc(e.target.value); setNErr(''); }} placeholder="900123456-1" maxLength={13} style={inp2} />
                   </div>
                   <div>
                     <label style={{ display:'block', fontSize:10, color:'#6e93b8', marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>Razón social</label>
@@ -2072,7 +2105,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         {activePanel === 'CHECKLIST' && (
           <div className="sheet-form">
             <Checkbox label="Conciliacion bancaria completada" checked={checklist.conciliacionBancos} onChange={(_, data) => setChecklist((prev) => ({ ...prev, conciliacionBancos: !!data.checked }))} />
-            <Checkbox label="Validacion IVA y retenciones" checked={checklist.validarIgv} onChange={(_, data) => setChecklist((prev) => ({ ...prev, validarIgv: !!data.checked }))} />
+            <Checkbox label="Validacion IVA y retenciones" checked={checklist.validarIva} onChange={(_, data) => setChecklist((prev) => ({ ...prev, validarIva: !!data.checked }))} />
             <Checkbox label="Provision CxC 90+ dias" checked={checklist.provisionCxC} onChange={(_, data) => setChecklist((prev) => ({ ...prev, provisionCxC: !!data.checked }))} />
             <Checkbox label="CDR pendientes revisados" checked={checklist.cdrPendientes} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cdrPendientes: !!data.checked }))} />
             <Checkbox label="Pre-cierre anual documentado" checked={checklist.cierreAnual} onChange={(_, data) => setChecklist((prev) => ({ ...prev, cierreAnual: !!data.checked }))} />
@@ -2102,20 +2135,6 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
           year={DEFAULT_PERIOD.year}
         />
       </AccountDetailPanel>
-
-      {/* Toast de confirmación de guardado — flota sobre el panel de compras */}
-      {successToast && (
-        <div style={{
-          position: 'fixed', bottom: 36, right: 36, zIndex: 99999,
-          background: '#16a34a', color: '#fff',
-          padding: '16px 28px', borderRadius: 12,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
-          fontSize: 15, fontWeight: 700,
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          {successToast}
-        </div>
-      )}
     </div>
  );
  };

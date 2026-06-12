@@ -5,7 +5,7 @@ import { Search24Regular } from '@fluentui/react-icons';
 export type PurchaseFormData = {
   serie: string;
   number: string;
-  supplierRuc: string;
+  supplierNit: string;
   subtotal: string;
   igv: string;
   expenseAccount: string;
@@ -44,12 +44,12 @@ type GuideForm = {
   pesoBrutoTotal: string;
   numeroBultos: string;
   partidaDireccion: string;
-  partidaUbigeo: string;
+  partidaDane: string;
   llegadaDireccion: string;
-  llegadaUbigeo: string;
-  transportistaRuc: string;
+  llegadaDane: string;
+  transportistaNit: string;
   transportistaRazonSocial: string;
-  conductorDni: string;
+  conductorCedula: string;
   conductorLicencia: string;
   placaVehiculo: string;
 };
@@ -65,8 +65,8 @@ type AccountingLineType =
   | 'ADVANCE_PAYMENT'
   | 'LATE_FEE'
   | 'WITHHOLDING'
-  | 'DETRACTION'
-  | 'PERCEPTION'
+  | 'RETE_FUENTE'
+  | 'RETE_IVA'
   | 'INFO_ONLY';
 
 type ExplicitAccountLine = {
@@ -201,6 +201,7 @@ type GeminiPurchaseResponse = {
     tax_treatment?: string;
     audit_note?: string;
   }>;
+  currency?: string;
   accounts_to_upsert?: PurchaseSubmitPayload['accountsToUpsert'];
   cost_centers_to_upsert?: Array<{ code: string; name?: string; parent_code?: string }>;
   audit_metadata?: {
@@ -221,16 +222,21 @@ const DEFAULT_COST_CENTER = 'BOG-ADM';
 const ENGINE_VERSION = 'CONTA_COLPRO_PURCHASE_AI_RULES_CO_2026_01';
 const AUTO_ROUNDING_TOLERANCE = 100; // tolerance in COP
 
-const toNumber = (value: string | number | undefined | null) => {
-  const parsed = Number.parseFloat(String(value ?? '0').replace(',', '.'));
+const toNumber = (value: string | number | undefined | null): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let s = String(value ?? '0').replace(/[$\s]/g, '');
+  if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const parsed = Number.parseFloat(s);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-// COP Colombia — sin decimales, punto como separador de miles
-const money = (value: number) => Math.round(value).toString();
-// Solo para mostrar al usuario — NO usar como valor de input editable
-const displayMoney = (value: number) =>
-  Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+// COP Colombia — punto como separador de miles (es-CO)
+const money = (value: number): string =>
+  Number.isFinite(value)
+    ? Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : '0';
 const formatCOP = (value: number) =>
   `$ ${Math.round(value).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -256,18 +262,19 @@ const accountClassName = (accountCode: string) => {
   if (first === '1') return 'Activo';
   if (first === '2') return 'Pasivo';
   if (first === '3') return 'Patrimonio';
-  if (first === '4') return 'Tributos y aportes';
-  if (first === '5') return 'Patrimonio / resultados acumulados';
-  if (first === '6') return 'Gastos por naturaleza';
-  if (first === '7') return 'Ingresos';
-  if (first === '8') return 'Saldos intermediarios de gestión';
-  if (first === '9') return 'Contabilidad analítica';
+  if (first === '4') return 'Ingresos';
+  if (first === '5') return 'Gastos';
+  if (first === '6') return 'Costos de ventas y servicios';
+  if (first === '7') return 'Costos de producción';
+  if (first === '8') return 'Cuentas de orden deudoras';
+  if (first === '9') return 'Cuentas de orden acreedoras';
   return 'Cuenta por clasificar';
 };
 
 const accountNature = (accountCode: string): 'DEBIT' | 'CREDIT' => {
   const first = normalizeAccount(accountCode).charAt(0);
-  return ['2', '3', '4', '5', '7'].includes(first) ? 'CREDIT' : 'DEBIT';
+  // PUC Colombia: Pasivo(2), Patrimonio(3), Ingresos(4), Orden acreedoras(9) = CREDIT
+  return ['2', '3', '4', '9'].includes(first) ? 'CREDIT' : 'DEBIT';
 };
 
 const normalizeCostCenter = (value?: string) => {
@@ -305,8 +312,8 @@ const normalizeLineType = (value?: string): AccountingLineType => {
   if (clean === 'TAX') return 'TAX';
   if (clean === 'PAYABLE') return 'PAYABLE';
   if (clean === 'WITHHOLDING') return 'WITHHOLDING';
-  if (clean === 'DETRACTION') return 'DETRACTION';
-  if (clean === 'PERCEPTION') return 'PERCEPTION';
+  if (clean === 'RETE_FUENTE') return 'RETE_FUENTE';
+  if (clean === 'RETE_IVA') return 'RETE_IVA';
   if (clean === 'INFO_ONLY') return 'INFO_ONLY';
   return 'EXPENSE_OR_ASSET';
 };
@@ -436,12 +443,12 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     pesoBrutoTotal: '0.00',
     numeroBultos: '1',
     partidaDireccion: '',
-    partidaUbigeo: '150101',
+    partidaDane: '11001',
     llegadaDireccion: '',
-    llegadaUbigeo: '150101',
-    transportistaRuc: '',
+    llegadaDane: '11001',
+    transportistaNit: '',
     transportistaRazonSocial: '',
-    conductorDni: '',
+    conductorCedula: '',
     conductorLicencia: '',
     placaVehiculo: '',
   });
@@ -638,7 +645,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const applyGeminiPayload = (payload: GeminiPurchaseResponse) => {
     const nextSerie = payload.serie || form.serie || '';
     const nextNumber = payload.number || form.number || '';
-    const nextSupplierRuc = payload.supplier_ruc || form.supplierRuc || '';
+    const nextSupplierRuc = payload.supplier_ruc || form.supplierNit || '';
     const nextSupplierName = payload.supplier_name || supplierName || '';
     const nextCostCenter = normalizeCostCenter(payload.cost_center || form.costCenter || DEFAULT_COST_CENTER);
 
@@ -665,7 +672,6 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
                 : 'EXPENSE_OR_ASSET';
 
       const requiresSupport = Boolean(raw.requires_support ?? fallback.requiresReview);
-      const isCatchAllAccount = accountCode === '659101' || accountCode === '519099';
       const requiresReview = shouldBypassReview({
         description,
         code: String(raw.code || ''),
@@ -674,7 +680,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         lineType: detectedLineType as AccountingLineType,
       })
         ? false
-        : Boolean(isCatchAllAccount && detectedLineType === 'EXPENSE_OR_ASSET');
+        : Boolean(requiresSupport || aiConfidence < 0.8 || (accountCode === '659101' && detectedLineType !== 'ROUNDING'));
 
       return {
         id: newId(),
@@ -734,9 +740,9 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       ...form,
       serie: nextSerie,
       number: nextNumber,
-      supplierRuc: nextSupplierRuc,
+      supplierNit: nextSupplierRuc,
       subtotal: money(toNumber(payload.subtotal ?? mappedItems.reduce((a, i) => a + toNumber(i.lineSubtotal), 0))),
-      igv: money(toNumber((payload.igv ?? (payload as {iva?: number|string}).iva) ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
+      igv: money(toNumber(payload.igv ?? mappedItems.reduce((a, i) => a + toNumber(i.igvAmount), 0))),
       expenseAccount: normalizeAccount(String(payload.expense_account || mappedItems[0]?.accountCode || form.expenseAccount || '659101')),
       costCenter: nextCostCenter,
       currency: String(payload.currency || 'COP'),
@@ -792,7 +798,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   };
 
   const validateRucExternally = async () => {
-    if (!/^\d{9,12}$/.test(form.supplierRuc.replace(/[^0-9]/g, ''))) {
+    if (!/^\d{9,12}$/.test(form.supplierNit.replace(/[^0-9]/g, ''))) {
       setRucState('invalid');
       setRucMessage('NIT inválido: debe tener entre 9 y 12 dígitos.');
       return;
@@ -800,7 +806,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     setRucState('validating');
     setRucMessage('Consultando servicio externo...');
     try {
-      const nit = form.supplierRuc.replace(/[\.\-]/g, '');
+      const nit = form.supplierNit.replace(/[\.\-]/g, '');
       const response = await fetch(`https://api.datos.gov.co/resource/swrg-pj5c.json?nit=${nit}`);
       if (response.ok) {
         const data = await response.json();
@@ -832,7 +838,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     if (!form.serie.trim()) return 'Falta serie.';
     if (!form.number.trim()) return 'Falta número.';
     if (!issueDate.trim()) return 'Falta fecha.';
-    if (!/^\d{9,12}$/.test(form.supplierRuc.replace(/[\.\-]/g, ''))) return 'NIT proveedor inválido (9-12 dígitos).';
+    if (!/^\d{9,12}$/.test(form.supplierNit.replace(/[\.\-]/g, ''))) return 'NIT proveedor inválido (9-12 dígitos).';
     if (!supplierName.trim()) return 'Falta razón social proveedor.';
     if (items.length === 0) return 'Agrega al menos un item.';
     if (total <= 0) return 'Total inválido.';
@@ -850,8 +856,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         continue;
       }
 
-      if (item.requiresReview && !normalizeAccount(item.accountCode)) {
-        return `Item ${item.description}: sin cuenta contable asignada. Usa Modificar para asignarla.`;
+      if (item.requiresReview && !modifyDetail.trim()) {
+        return `Item ${item.description}: requiere revisión contable. Usa Modificar y registra sustento.`;
       }
     }
     return '';
@@ -874,7 +880,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
     setAiLegalWarnings([]);
     setAiAccountingWarnings([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    onFormChange({ ...form, serie: '', number: '', supplierRuc: '', subtotal: '0.00', igv: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER, currency: 'COP' });
+    onFormChange({ ...form, serie: '', number: '', supplierNit: '', subtotal: '0.00', igv: '0.00', expenseAccount: '', costCenter: DEFAULT_COST_CENTER, currency: 'COP' });
   };
 
   const handleSubmit = async () => {
@@ -1016,7 +1022,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       </div>
 
       <div className="pro-form-grid customer">
-        <Field label="NIT proveedor"><Input value={form.supplierRuc} onChange={(_, d) => updateField('supplierRuc', d.value)} contentAfter={<Search24Regular />} /></Field>
+        <Field label="NIT proveedor"><Input value={form.supplierNit} onChange={(_, d) => updateField('supplierNit', d.value)} contentAfter={<Search24Regular />} /></Field>
         <Field label="Razón social proveedor"><Input value={supplierName} onChange={(_, d) => setSupplierName(d.value)} /></Field>
       </div>
 
@@ -1092,8 +1098,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
                 <td>{line.accountCode}</td>
                 <td>{line.accountName}</td>
                 <td>{line.costCenter}</td>
-                <td style={{ textAlign: 'right' }}>{toNumber(line.debit) ? displayMoney(toNumber(line.debit)) : ''}</td>
-                <td style={{ textAlign: 'right' }}>{toNumber(line.credit) ? displayMoney(toNumber(line.credit)) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{line.debit}</td>
+                <td style={{ textAlign: 'right' }}>{line.credit}</td>
               </tr>
             ))}
           </tbody>
@@ -1103,8 +1109,8 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
       <div className="pro-form-grid four">
         <Field label="Cuenta fallback"><Input value={form.expenseAccount} onChange={(_, d) => updateField('expenseAccount', d.value)} /></Field>
         <Field label="Centro costo general"><Input value={form.costCenter} onChange={(_, d) => updateField('costCenter', d.value)} /></Field>
-        <Field label="Subtotal"><Input value={displayMoney(subtotal)} disabled /></Field>
-        <Field label="IVA (19%)"><Input value={isAutoIgv ? displayMoney(igv) : money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
+        <Field label="Subtotal"><Input value={money(subtotal)} disabled /></Field>
+        <Field label="IVA"><Input value={money(igv)} disabled={isAutoIgv} onChange={(_, d) => updateField('igv', d.value)} /></Field>
       </div>
 
       <label className="pro-checkline">
@@ -1114,9 +1120,9 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
 
       <div className="pro-total-banner">
         <span>Total a pagar</span>
-        <strong>$ {displayMoney(total)}</strong>
+        <strong>$ {money(total)}</strong>
       </div>
-      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {displayMoney(toNumber(aiTotalReadFromDocument))}</Text>}
+      {aiTotalReadFromDocument && <Text size={200}>Total del comprobante leído por IA: $ {aiTotalReadFromDocument}</Text>}
 
       {status && <MessageBar intent={status.includes('No se pudo') || status.includes('Falta') || status.includes('requiere') ? 'error' : 'success'}><MessageBarBody>{status}</MessageBarBody></MessageBar>}
 

@@ -3,7 +3,7 @@
  * Layout: KPIs · Tabla de comprobantes · Donut distribución · Auditoría IA · Tendencia
  * Tema oscuro (GitHub Dark palette)
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 
 /* ─── Paleta azul marino brillante ─── */
 const C = {
@@ -50,6 +50,8 @@ interface ComprasEnhancedProps {
   onAuditoriaIA?: () => void;
   /** Comprobantes externos (desde el módulo contable) */
   comprobantes?: Comprobante[];
+  /** Elimina los entryIds seleccionados del libro diario e inventario */
+  onDeleteComprobantes?: (ids: string[]) => Promise<void>;
 }
 
 /* ─── Helpers ─── */
@@ -177,9 +179,44 @@ export const ComprasEnhanced = ({
   onRegisterCompra,
   onAuditoriaIA,
   comprobantes: externalDocs,
+  onDeleteComprobantes,
 }: ComprasEnhancedProps) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId]   = useState<string | null>(null);
+  const [checkedIds, setCheckedIds]   = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting]       = useState(false);
+
   const docs = externalDocs ?? [];
+
+  const toggleCheck = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const allChecked = docs.length > 0 && checkedIds.size === docs.length;
+  const toggleAll = useCallback(() => {
+    setCheckedIds(allChecked ? new Set() : new Set(docs.map(d => d.id)));
+  }, [allChecked, docs]);
+
+  const handleDelete = useCallback(async () => {
+    if (!onDeleteComprobantes || checkedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      await onDeleteComprobantes(Array.from(checkedIds));
+      setCheckedIds(new Set());
+      setSelectedId(null);
+      setConfirmOpen(false);
+      onStatus?.(`${checkedIds.size} factura(s) eliminada(s) de todos los libros.`);
+    } catch (err) {
+      onStatus?.(`Error al eliminar: ${err instanceof Error ? err.message : 'error desconocido'}`);
+    } finally {
+      setDeleting(false);
+    }
+  }, [onDeleteComprobantes, checkedIds, onStatus]);
   const period = '2026-05';
 
   /* KPIs */
@@ -243,6 +280,59 @@ export const ComprasEnhanced = ({
       fontFamily: "'Segoe UI', Arial, sans-serif",
     }}>
 
+      {/* ── Modal de confirmación de eliminación ── */}
+      {confirmOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#0b1a30', border: `1px solid ${C.red}55`,
+            borderRadius: 14, padding: '28px 32px', maxWidth: 400, width: '90%',
+            boxShadow: `0 0 40px ${C.red}22`,
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 12, textAlign: 'center' }}>🗑️</div>
+            <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 800, color: C.text, textAlign: 'center' }}>
+              Eliminar {checkedIds.size} factura{checkedIds.size !== 1 ? 's' : ''} de compra
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12, color: C.textMut, textAlign: 'center', lineHeight: 1.5 }}>
+              Esta acción borrará los asientos contables del libro diario,
+              las líneas de los libros auxiliares y los movimientos de inventario
+              asociados. <strong style={{ color: C.red }}>No se puede deshacer.</strong>
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setConfirmOpen(false)}
+                style={{
+                  padding: '9px 22px', fontSize: 12, fontWeight: 700,
+                  background: 'transparent', color: C.textMut,
+                  border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                style={{
+                  padding: '9px 22px', fontSize: 12, fontWeight: 700,
+                  background: deleting ? `${C.red}44` : `linear-gradient(180deg, #f87171 0%, #ef4444 100%)`,
+                  color: '#fff', border: 'none', borderRadius: 7, cursor: deleting ? 'not-allowed' : 'pointer',
+                  boxShadow: `0 2px 8px ${C.red}44`,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                {deleting ? '⏳ Eliminando...' : `🗑️ Sí, eliminar ${checkedIds.size}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header del módulo ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -296,6 +386,45 @@ export const ComprasEnhanced = ({
           </button>
         </div>
       </div>
+
+      {/* ── Toolbar de selección (aparece cuando hay seleccionados) ── */}
+      {checkedIds.size > 0 && (
+        <div style={{
+          padding: '8px 18px',
+          background: `${C.red}12`,
+          borderBottom: `1px solid ${C.red}33`,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.red }}>
+            {checkedIds.size} factura{checkedIds.size !== 1 ? 's' : ''} seleccionada{checkedIds.size !== 1 ? 's' : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCheckedIds(new Set())}
+            style={{
+              padding: '4px 12px', fontSize: 11, fontWeight: 700,
+              background: 'transparent', color: C.textMut,
+              border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer',
+            }}
+          >
+            Deseleccionar todo
+          </button>
+          {onDeleteComprobantes && (
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              style={{
+                padding: '5px 14px', fontSize: 11, fontWeight: 700,
+                background: `${C.red}18`, color: C.red,
+                border: `1px solid ${C.red}44`, borderRadius: 5, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              🗑️ Eliminar seleccionadas
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
@@ -358,6 +487,15 @@ export const ComprasEnhanced = ({
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: C.header }}>
+                      <th style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, width: 36 }}>
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          onChange={toggleAll}
+                          title="Seleccionar todo"
+                          style={{ cursor: 'pointer', accentColor: C.red, width: 14, height: 14 }}
+                        />
+                      </th>
                       {['FECHA', 'PROVEEDOR', 'NIT', 'DOCUMENTO', 'BASE', 'IVA', 'TOTAL', 'ESTADO'].map((h, i) => (
                         <th key={i} style={{
                           padding: '8px 10px',
@@ -375,15 +513,26 @@ export const ComprasEnhanced = ({
                         key={d.id}
                         onClick={() => setSelectedId(selectedId === d.id ? null : d.id)}
                         style={{
-                          background: selectedId === d.id ? `${C.accent}18` : i % 2 === 1 ? C.bgRow : C.bgCard,
+                          background: checkedIds.has(d.id)
+                            ? `${C.red}14`
+                            : selectedId === d.id ? `${C.accent}18` : i % 2 === 1 ? C.bgRow : C.bgCard,
                           borderBottom: `1px solid ${C.border}22`,
                           cursor: 'pointer',
-                          borderLeft: `3px solid ${selectedId === d.id ? C.accent : 'transparent'}`,
+                          borderLeft: `3px solid ${checkedIds.has(d.id) ? C.red : selectedId === d.id ? C.accent : 'transparent'}`,
                           transition: 'background 0.1s',
                         }}
-                        onMouseEnter={e => { if (selectedId !== d.id) (e.currentTarget as HTMLElement).style.background = C.bgHover; }}
-                        onMouseLeave={e => { if (selectedId !== d.id) (e.currentTarget as HTMLElement).style.background = i % 2 === 1 ? C.bgRow : C.bgCard; }}
+                        onMouseEnter={e => { if (!checkedIds.has(d.id) && selectedId !== d.id) (e.currentTarget as HTMLElement).style.background = C.bgHover; }}
+                        onMouseLeave={e => { if (!checkedIds.has(d.id) && selectedId !== d.id) (e.currentTarget as HTMLElement).style.background = i % 2 === 1 ? C.bgRow : C.bgCard; }}
                       >
+                        <td style={{ padding: '9px 10px', width: 36 }} onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={checkedIds.has(d.id)}
+                            onChange={() => {}}
+                            onClick={e => toggleCheck(d.id, e)}
+                            style={{ cursor: 'pointer', accentColor: C.red, width: 14, height: 14 }}
+                          />
+                        </td>
                         <td style={{ padding: '9px 10px', color: C.textMut, whiteSpace: 'nowrap' }}>{d.fecha}</td>
                         <td style={{ padding: '9px 10px', color: C.text, fontWeight: 600 }}>
                           <div style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -405,6 +554,7 @@ export const ComprasEnhanced = ({
                     ))}
                     {/* Totales */}
                     <tr style={{ background: C.bgRow, borderTop: `2px solid ${C.border}` }}>
+                      <td />
                       <td colSpan={4} style={{ padding: '9px 10px', fontWeight: 800, color: C.textMut, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         TOTALES
                       </td>
