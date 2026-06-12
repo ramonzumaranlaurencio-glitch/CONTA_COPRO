@@ -31,6 +31,7 @@ try:
 except ImportError:
     _otel_available = False
 from src.api.routes.ai import router as ai_router
+from src.api.routes.assets import router as assets_router
 from src.api.routes.auth import router as auth_router
 from src.api.routes.business_intelligence import router as bi_router
 from src.api.routes.events import router as events_router
@@ -179,6 +180,7 @@ def create_app() -> FastAPI:
     app.include_router(ledger_engine_router, prefix="/api/v1")
     app.include_router(bi_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
+    app.include_router(assets_router,    prefix="/api/v1")
     app.include_router(catalog_router,   prefix="/api/v1")
     app.include_router(master_data_router, prefix="/api/v1")
     app.include_router(periods_router, prefix="/api/v1")
