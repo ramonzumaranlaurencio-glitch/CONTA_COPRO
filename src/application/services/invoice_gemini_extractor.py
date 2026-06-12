@@ -159,7 +159,7 @@ Devuelve exclusivamente JSON valido con esta forma:
             customer_nit = partner_nit
 
         subtotal = self._money(data.get("subtotal") or data.get("base_imponible") or data.get("base"))
-        iva = self._money(data.get("iva") or data.get("igv") or data.get("tax_amount") or data.get("impuesto"))
+        iva = self._money(data.get("iva") or data.get("tax_amount") or data.get("impuesto"))
         total = self._money(data.get("total") or data.get("total_amount"))
         if total and not subtotal and not iva:
             subtotal = (total / Decimal("1.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

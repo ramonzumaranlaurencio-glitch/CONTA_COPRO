@@ -306,7 +306,7 @@ class LedgerPostingService:
             raise TenantRequiredException("tenant_id es obligatorio")
 
         subtotal = self._as_decimal(purchase_data["subtotal"])
-        iva = self._as_decimal(purchase_data.get("iva") or purchase_data.get("igv") or "0.00")
+        iva = self._as_decimal(purchase_data.get("iva") or "0.00")
         total = self._as_decimal(purchase_data["total"])
         retefuente = self._as_decimal(purchase_data.get("retefuente_amount", purchase_data.get("detraccion_amount", "0.00")))
         reteiva = self._as_decimal(purchase_data.get("reteiva_amount", purchase_data.get("percepcion_amount", "0.00")))
