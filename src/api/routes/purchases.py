@@ -1152,6 +1152,26 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
         reconciliation_notes,
     )
 
+    # ── VALIDACIÓN IVA PUC COLOMBIA — debe ≤ 19% del subtotal (Art. 468 ET) ──
+    # Aplica a TODAS las facturas (no solo servicios públicos).
+    # Garantiza que el asiento cuadre: DR Inventario + DR 2408 = CR Proveedores.
+    if subtotal > 0 and iva > 0:
+        iva_maximo = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if iva > iva_maximo * Decimal("1.01"):
+            ocr_warnings.append(
+                f"IVA {iva} supera el máximo 19% del subtotal {subtotal} "
+                f"(esperado ≤ {iva_maximo}). Corregido — revisar documento."
+            )
+            iva = iva_maximo
+            data["iva"] = _money_str(iva)
+    elif subtotal > 0 and iva == 0 and total_read > subtotal + Decimal("1.00"):
+        # IVA no detectado pero el total es mayor que el subtotal → inferir
+        inferred = (total_read - subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        iva_esperado = (subtotal * Decimal("0.19")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if abs(inferred - iva_esperado) <= iva_esperado * Decimal("0.05"):
+            iva = inferred
+            data["iva"] = _money_str(iva)
+
     # ── LOOKUP CATÁLOGO ALMACÉN ──────────────────────────────────────────────
     # Para cada ítem de inventario, buscar en el catálogo por keywords.
     # Si existe → asignar catalog_code estructurado (CTA-NAT-RUB-SEQQ-TK).
