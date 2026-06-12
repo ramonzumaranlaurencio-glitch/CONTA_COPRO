@@ -1665,8 +1665,8 @@ IVA COLOMBIA:
 
 RETENCIONES (solo si aplica segun cuantia y tipo):
 - ReteFuente: cuenta 2365 (servicios 4%, compras 2.5%, honorarios 10-11% — Art. 383/384/385 ET)
-- ReteIVA: cuenta 2368 (15% del IVA si retenedor autorizado — Art. 437-2 ET)
-- ReteICA: cuenta 2370 (segun municipio y actividad economica)
+- ReteIVA: cuenta 236515 (15% del IVA si retenedor autorizado — Art. 437-2 ET)
+- ReteICA: cuenta 236520 (segun municipio y actividad economica)
 
 CUENTAS PUC COLOMBIA — GASTOS Y COSTOS:
 - Mercancias/productos para reventa: 143505 (inventario) + 220505 (proveedor)

@@ -140,9 +140,9 @@ const BIBLIOTECA = [
       },
       {
         titulo: 'ReteIVA: retención del IVA en Colombia',
-        resumen: 'La Retención del IVA (ReteIVA) es del 15% del valor del IVA cuando el comprador es Gran Contribuyente, entidad pública, o agente retenedor autorizado por DIAN. El vendedor la sufre y puede descontarla en su declaración de IVA. Se registra en cuenta 2367 del PUC.',
-        audio: 'La retención del I V A, llamada Rete I V A, equivale al quince por ciento del valor del I V A de la transacción. La practica el comprador cuando es Gran Contribuyente, entidad pública o agente retenedor especialmente designado por la D I A N. Por ejemplo, en una compra de cien pesos más diecinueve pesos de I V A, el agente retenedor retiene dos pesos con ochenta y cinco centavos, que es el quince por ciento de diecinueve. El vendedor recibe solo dieciséis pesos con quince centavos de I V A y puede usar los dos pesos con ochenta y cinco retenidos como descuento en su declaración de I V A. Se registra en la cuenta dos tres seis siete del PUC.',
-        datos: ['Tarifa ReteIVA: 15% del IVA', 'La practica el Gran Contribuyente o agente retenedor', 'Cuenta PUC vendedor: 1365 (ReteIVA a favor)', 'Cuenta PUC comprador: 2367 (ReteIVA por pagar)'],
+        resumen: 'La Retención del IVA (ReteIVA) es del 15% del valor del IVA cuando el comprador es Gran Contribuyente, entidad pública, o agente retenedor autorizado por DIAN. El vendedor la sufre y puede descontarla en su declaración de IVA. Se registra en cuenta 236515 del PUC.',
+        audio: 'La retención del I V A, llamada Rete I V A, equivale al quince por ciento del valor del I V A de la transacción. La practica el comprador cuando es Gran Contribuyente, entidad pública o agente retenedor especialmente designado por la D I A N. Por ejemplo, en una compra de cien pesos más diecinueve pesos de I V A, el agente retenedor retiene dos pesos con ochenta y cinco centavos, que es el quince por ciento de diecinueve. El vendedor recibe solo dieciséis pesos con quince centavos de I V A y puede usar los dos pesos con ochenta y cinco retenidos como descuento en su declaración de I V A. Se registra en la cuenta dos tres seis cinco uno cinco del PUC.',
+        datos: ['Tarifa ReteIVA: 15% del IVA', 'La practica el Gran Contribuyente o agente retenedor', 'Cuenta PUC vendedor: 1365 (ReteIVA a favor)', 'Cuenta PUC comprador: 236515 (ReteIVA por pagar)'],
       },
     ],
   },

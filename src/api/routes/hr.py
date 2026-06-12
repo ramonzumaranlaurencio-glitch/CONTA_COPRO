@@ -603,7 +603,7 @@ async def post_payroll_journal(
     if total_afp:           lines.append(_line("2405",   "AFP pensiones por pagar (PILA)",       credit=total_afp))
     if total_eps:           lines.append(_line("2406",   "EPS salud por pagar (PILA)",           credit=total_eps))
     if _m("arl"):           lines.append(_line("2407",   "ARL por pagar",                        credit=_m("arl")))
-    if _m("fondo_sol"):     lines.append(_line("2408",   "Fondo solidaridad pensional",          credit=_m("fondo_sol")))
+    if _m("fondo_sol"):     lines.append(_line("2409",   "Fondo solidaridad pensional",          credit=_m("fondo_sol")))
     if _m("ccf"):           lines.append(_line("2413",   "CCF por pagar",                        credit=_m("ccf")))
     if _m("sena"):          lines.append(_line("2414",   "SENA por pagar",                       credit=_m("sena")))
     if _m("icbf"):          lines.append(_line("2415",   "ICBF por pagar",                       credit=_m("icbf")))

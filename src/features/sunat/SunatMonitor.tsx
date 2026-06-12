@@ -60,8 +60,8 @@ interface DlqEvent {
 const PCGE_SUNAT = [
   { codigo: '2408', nombre: 'IVA por pagar',                   tipo: 'Pasivo',   sunat: 'F300 — Declaración IVA bimestral/cuatrimestral', libro: 'F300' },
   { codigo: '2365', nombre: 'ReteFuente por pagar',            tipo: 'Pasivo',   sunat: 'F350 — Retención en la Fuente mensual',          libro: 'F350' },
-  { codigo: '2367', nombre: 'ReteIVA por pagar',               tipo: 'Pasivo',   sunat: 'F300 — Retención de IVA',                        libro: 'F300' },
-  { codigo: '2368', nombre: 'ReteICA por pagar',               tipo: 'Pasivo',   sunat: 'ICA — Declaración municipal',                    libro: 'ICA' },
+  { codigo: '236515', nombre: 'ReteIVA por pagar',             tipo: 'Pasivo',   sunat: 'F300 — Retención de IVA (Art. 437-2 ET)',        libro: 'F300' },
+  { codigo: '236520', nombre: 'ReteICA por pagar',             tipo: 'Pasivo',   sunat: 'ICA — Declaración municipal',                    libro: 'ICA' },
   { codigo: '1305', nombre: 'Clientes',                        tipo: 'Activo',   sunat: 'Factura Electrónica — Ventas DIAN',              libro: 'FE' },
   { codigo: '2205', nombre: 'Proveedores',                     tipo: 'Pasivo',   sunat: 'Factura Electrónica — Compras DIAN',             libro: 'FE' },
   { codigo: '4135', nombre: 'Ingresos — Ventas comerciales',   tipo: 'Ingreso',  sunat: 'Base gravable IVA ventas',                       libro: 'F300' },

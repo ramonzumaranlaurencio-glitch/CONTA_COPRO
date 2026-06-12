@@ -467,7 +467,7 @@ function generarAsientosPUC(d: AsientosInput): AsientoPUC[] {
   if (d.ccf > 0) asientos.push({ cuenta: '2413', nombre: 'CCF por pagar (4%)', debito: 0, credito: d.ccf });
   if (d.sena > 0) asientos.push({ cuenta: '2414', nombre: 'SENA por pagar (2%)', debito: 0, credito: d.sena });
   if (d.icbf > 0) asientos.push({ cuenta: '2415', nombre: 'ICBF por pagar (3%)', debito: 0, credito: d.icbf });
-  if (d.fondoSolidaridad > 0) asientos.push({ cuenta: '2408', nombre: 'Fondo solidaridad pensional empleado', debito: 0, credito: d.fondoSolidaridad });
+  if (d.fondoSolidaridad > 0) asientos.push({ cuenta: '2409', nombre: 'Fondo solidaridad pensional empleado', debito: 0, credito: d.fondoSolidaridad });
   if (d.retefuente > 0) asientos.push({ cuenta: '2365', nombre: 'ReteFuente rentas laborales (Art. 383 ET)', debito: 0, credito: d.retefuente });
   if (d.libranza > 0) asientos.push({ cuenta: '2510', nombre: 'Libranzas y créditos empleado', debito: 0, credito: d.libranza });
   if (d.adelanto > 0) asientos.push({ cuenta: '1406', nombre: 'Anticipos de nómina a empleados', debito: 0, credito: d.adelanto, nota: 'Descuenta anticipo previamente otorgado' });
