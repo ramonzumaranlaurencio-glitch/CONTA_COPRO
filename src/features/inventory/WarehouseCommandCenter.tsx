@@ -704,7 +704,9 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       if (balRes.ok)  { const d = await balRes.json();  if (Array.isArray(d)) setItems(d); }
       if (movRes.ok)  { const d = await movRes.json();  if (Array.isArray(d)) setMovements(d); }
       if (whRes.ok)   { const d = await whRes.json();   if (Array.isArray(d) && d.length) setWarehouses(d); }
-      if (pendingRes.ok) {
+      if (!pendingRes.ok) {
+        say(`Almacén: error ${pendingRes.status} cargando compras pendientes — verifica backend.`);
+      } else if (pendingRes.ok) {
         const d = await pendingRes.json();
         if (Array.isArray(d) && !d.length) { setPendingPurchases([]); }
         if (Array.isArray(d) && d.length) {
