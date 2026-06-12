@@ -772,8 +772,8 @@ class PayrollService:
         provision = PayrollProvision(
             trabajador_id=worker.id,
             periodo_mes=periodo,
-            monto_cts=provisiones["cesantias"],
-            monto_gratificacion=provisiones["prima"],
+            monto_cesantias=provisiones["cesantias"],
+            monto_prima=provisiones["prima"],
             monto_vacaciones=provisiones["vacaciones"],
             tenant_id=worker.tenant_id,
             company_id=worker.company_id,

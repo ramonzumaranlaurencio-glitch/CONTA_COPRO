@@ -27,7 +27,7 @@ class Company(Base):
     trade_name: Mapped[str | None] = mapped_column(Text)
     ruc: Mapped[str] = mapped_column(String(11), nullable=False)
     base_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
-    sunat_environment: Mapped[str] = mapped_column(String(20), nullable=False, default="BETA")
+    dian_environment: Mapped[str] = mapped_column("sunat_environment", String(20), nullable=False, default="BETA")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -518,8 +518,7 @@ class HrWorker(Base):
     fecha_inicio_contrato: Mapped[date | None] = mapped_column(Date)
     fecha_fin_contrato: Mapped[date | None] = mapped_column(Date)
     direccion_domicilio: Mapped[str | None] = mapped_column(Text)
-    # direccion_reniec → reutilizado como departamento/ciudad Colombia
-    direccion_reniec: Mapped[str | None] = mapped_column(Text)
+    departamento_ciudad: Mapped[str | None] = mapped_column("direccion_reniec", Text)
     telefono: Mapped[str | None] = mapped_column(String(30))
     email: Mapped[str | None] = mapped_column(Text)
     profesion: Mapped[str | None] = mapped_column(Text)
@@ -603,8 +602,8 @@ class PayrollProvision(Base):
     company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True))
     trabajador_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
     periodo_mes: Mapped[str] = mapped_column(String(7), nullable=False)   # YYYY-MM
-    monto_cts: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)         # Cesantías 8.33%
-    monto_gratificacion: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)  # Prima 8.33%
+    monto_cesantias: Mapped[Decimal] = mapped_column("monto_cts", Numeric(18, 2), nullable=False, default=0)        # Cesantías 8.33% CST Art. 249
+    monto_prima: Mapped[Decimal] = mapped_column("monto_gratificacion", Numeric(18, 2), nullable=False, default=0)  # Prima de servicios 8.33% CST Art. 306
     monto_vacaciones: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)  # Vacaciones 4.17%
     estado_pago: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDIENTE")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

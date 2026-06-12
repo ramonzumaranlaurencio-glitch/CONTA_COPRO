@@ -134,7 +134,7 @@ class WorkerDraft:
     sueldo_pactado: Decimal = Decimal("0.00")
     pension_system: str = ""
     cuenta_bancaria: str = ""
-    cci: str = ""
+    num_cuenta_interbancaria: str = ""
     habilidades_clave: list[str] = field(default_factory=list)
     requirements: list[dict] = field(default_factory=list)
     alerts: list[str] = field(default_factory=list)
@@ -155,7 +155,7 @@ class WorkerDraft:
             "sueldo_pactado": str(self.sueldo_pactado),
             "pension_system": self.pension_system,
             "cuenta_bancaria": self.cuenta_bancaria,
-            "cci": self.cci,
+            "num_cuenta_interbancaria": self.num_cuenta_interbancaria,
             "habilidades_clave": self.habilidades_clave,
             "requirements": self.requirements,
             "alerts": self.alerts,
@@ -200,7 +200,7 @@ class CvExtractionService:
         draft.estudios_realizados = self._extract_studies(cleaned)
         draft.cargo_postulado = draft.profesion or "Por definir"
         draft.pension_system = self._extract_pension_system(cleaned)
-        draft.cuenta_bancaria, draft.cci = self._extract_bank_data(cleaned)
+        draft.cuenta_bancaria, draft.num_cuenta_interbancaria = self._extract_bank_data(cleaned)
         draft.habilidades_clave = self._extract_skills(cleaned)
         draft.nombres, draft.apellidos = self._extract_names(cleaned)
 
@@ -537,8 +537,8 @@ class CvExtractionService:
             ),
             item(
                 "cuenta_bancaria_haberes",
-                "OBSERVADO" if draft.cuenta_bancaria or draft.cci else "PENDIENTE",
-                f"Cuenta/CCI detectada: {draft.cci or draft.cuenta_bancaria}" if draft.cuenta_bancaria or draft.cci else "No se detecto cuenta bancaria de haberes.",
+                "OBSERVADO" if draft.cuenta_bancaria or draft.num_cuenta_interbancaria else "PENDIENTE",
+                f"Cuenta bancaria detectada: {draft.num_cuenta_interbancaria or draft.cuenta_bancaria}" if draft.cuenta_bancaria or draft.num_cuenta_interbancaria else "No se detecto cuenta bancaria de haberes.",
             ),
         ]
 

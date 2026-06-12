@@ -48,7 +48,7 @@ class WorkerCreatePayload(BaseModel):
     fecha_inicio_contrato: date | None = None
     fecha_fin_contrato: date | None = None
     direccion_domicilio: str | None = None
-    direccion_reniec: str | None = None
+    departamento_ciudad: str | None = None
     telefono: str | None = None
     email: str | None = None
     profesion: str | None = None
@@ -267,7 +267,7 @@ async def extract_cv(
                         "sueldo_pactado": str(gemini_data.get("sueldo_pactado") or "0.00"),
                         "pension_system": gemini_data.get("Sistema pensionario") or gemini_data.get("pension_system") or "AFP",
                         "cuenta_bancaria": gemini_data.get("cuenta bancaria") or gemini_data.get("cuenta_bancaria") or "",
-                        "cci": gemini_data.get("CCI") or gemini_data.get("cci") or "",
+                        "num_cuenta_interbancaria": gemini_data.get("cuenta_interbancaria") or gemini_data.get("num_cuenta_interbancaria") or "",
                         "habilidades_clave": gemini_data.get("habilidades_clave") or [],
                         "requirements": gemini_data.get("requirements") or [],
                         "alerts": gemini_data.get("alerts") or [],
@@ -413,7 +413,7 @@ async def create_worker(payload: WorkerCreatePayload, ctx=Depends(require_roles(
             fecha_inicio_contrato=payload.fecha_inicio_contrato,
             fecha_fin_contrato=payload.fecha_fin_contrato,
             direccion_domicilio=payload.direccion_domicilio,
-            direccion_reniec=payload.direccion_reniec,
+            departamento_ciudad=payload.departamento_ciudad,
             telefono=payload.telefono,
             email=payload.email,
             profesion=payload.profesion,
@@ -453,7 +453,7 @@ async def list_workers(limit: int = 100, ctx=Depends(require_roles("ADMIN", "ACC
                 "fecha_inicio_contrato": row.fecha_inicio_contrato.isoformat() if row.fecha_inicio_contrato else None,
                 "fecha_fin_contrato": row.fecha_fin_contrato.isoformat() if row.fecha_fin_contrato else None,
                 "direccion_domicilio": row.direccion_domicilio,
-                "direccion_reniec": row.direccion_reniec,
+                "departamento_ciudad": row.departamento_ciudad,
                 "cargo_postulado": row.cargo_postulado,
                 "sueldo_pactado": str(row.sueldo_pactado),
                 "email": row.email,

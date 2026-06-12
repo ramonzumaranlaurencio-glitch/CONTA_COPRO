@@ -16,6 +16,6 @@ def downgrade():
     op.execute("DROP TABLE IF EXISTS libro_diario CASCADE")
     op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS ruta_cv_pdf")
     op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS estado_laboral")
-    op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS tipo_seguro")
-    op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS cci")
+    op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS sistema_pensional")
+    op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS num_cuenta_interbancaria")
     op.execute("ALTER TABLE hr_workers DROP COLUMN IF EXISTS cuenta_bancaria")

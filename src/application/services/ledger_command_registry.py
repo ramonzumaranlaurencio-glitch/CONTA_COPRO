@@ -93,10 +93,10 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
         comando=ModuleCommand.DOCUMENTO_LEGAL,
         label_ui="Documento Legal",
         instruccion_ai=(
-            "Analiza requerimiento de autoridad (SUNAT, MTPE, municipal). "
-            "1. Identifica tipo de requerimiento (audit, multa, liquidación, etc). "
+            "Analiza requerimiento de autoridad (DIAN, MinTrabajo, municipal). "
+            "1. Identifica tipo de requerimiento (auditoría, sanción, liquidación, etc). "
             "2. Extrae plazo de respuesta y requisitos legales. "
-            "3. Consulta base de conocimiento legal (Código Tributario, D. Leg. 728, LPAG). "
+            "3. Consulta base de conocimiento legal (ET Colombia, CST, CPACA). "
             "4. Redacta carta de respuesta formal con citas de artículos y plazos. "
             "5. Sugiere documentación a adjuntar. "
             "Output: JSON con draft de carta descargo, plazos y recomendaciones."
@@ -169,18 +169,18 @@ MODULE_COMMANDS_REGISTRY: dict[ModuleCommand, CommandDescriptor] = {
         comando=ModuleCommand.RETENCION,
         label_ui="Retención",
         instruccion_ai=(
-            "Registra retención de IVA, renta o 4ta categoría. "
-            "1. Identifica tipo de retención (IVA, renta, honorarios). "
-            "2. Si es IVA: calcula sobre venta, aplica cuenta 2365 (ReteFuente/ReteIVA). "
-            "3. Si es LIR: aplica según tabla de tasas, registra en pasivo. "
-            "4. Si es 4ta categoría (honorarios): aplica 8% si supera UIT 2026 (S/5,350). "
-            "5. Genera orden de pago/declaración a DIAN. "
+            "Registra retención de IVA, renta u honorarios (ReteFuente/ReteIVA/ReteICA). "
+            "1. Identifica tipo de retención (ReteIVA, ReteFuente, ReteICA). "
+            "2. Si es ReteIVA: 15% del IVA de la factura, cuenta 236515. "
+            "3. Si es ReteFuente renta: aplica tarifa según concepto, registra cuenta 236505. "
+            "4. Si es honorarios: 11% persona jurídica / 10% persona natural (Art. 383 ET). "
+            "5. Genera orden de pago/declaración a DIAN (Formulario 350). "
             "Output: JSON con asiento de retención y calendario de pago a DIAN."
         ),
         documentos_base=[
-            "TUO Ley del Impuesto a la Renta",
+            "Estatuto Tributario Colombia — ReteFuente (Art. 371-392 ET)",
             "Estatuto Tributario Colombia — IVA (Art. 420-513 ET)",
-            "PCGE (Retenciones)",
+            "PUC Colombia — Retenciones cuenta 2365",
         ],
         validaciones_requeridas=[
             "tipo_retencion_identificado",

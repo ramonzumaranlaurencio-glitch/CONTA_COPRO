@@ -86,8 +86,8 @@ INTELLIGENCE_UNITS = [
     ),
     IntelligenceUnit(
         name="Modulo Laboral",
-        primary_function="Contratos, boletas y tramites MTPE.",
-        support_docs="Ley de Productividad y Competitividad Laboral.",
+        primary_function="Contratos, liquidaciones y trámites MinTrabajo Colombia.",
+        support_docs="Código Sustantivo del Trabajo — CST / Decreto 1072/2015.",
     ),
 ]
 

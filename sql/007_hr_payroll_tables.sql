@@ -1,7 +1,7 @@
 ALTER TABLE hr_workers
     ADD COLUMN cuenta_bancaria varchar(20),
-    ADD COLUMN cci varchar(20),
-    ADD COLUMN tipo_seguro varchar(10) NOT NULL DEFAULT 'ONP',
+    ADD COLUMN num_cuenta_interbancaria varchar(30),
+    ADD COLUMN sistema_pensional varchar(20) NOT NULL DEFAULT 'COLPENSIONES',
     ADD COLUMN estado_laboral varchar(20) NOT NULL DEFAULT 'ACTIVO',
     ADD COLUMN ruta_cv_pdf varchar(255);
 
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS provisiones_sociales (
     company_id uuid,
     trabajador_id uuid NOT NULL REFERENCES hr_workers(id),
     periodo_mes varchar(7) NOT NULL,
-    monto_cts numeric(18,2) NOT NULL DEFAULT 0,
-    monto_gratificacion numeric(18,2) NOT NULL DEFAULT 0,
+    monto_cesantias numeric(18,2) NOT NULL DEFAULT 0,
+    monto_prima numeric(18,2) NOT NULL DEFAULT 0,
     monto_vacaciones numeric(18,2) NOT NULL DEFAULT 0,
     estado_pago varchar(20) NOT NULL DEFAULT 'PENDIENTE',
     created_at timestamptz NOT NULL DEFAULT now()

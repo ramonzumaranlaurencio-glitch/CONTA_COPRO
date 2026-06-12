@@ -17,7 +17,7 @@ async def company_info(ctx=Depends(get_current_context)):
     """Devuelve datos de la empresa registrada para el tenant activo."""
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
         result = await uow.session.execute(
-            text("SELECT legal_name, ruc, trade_name, sunat_environment FROM companies WHERE tenant_id = :tid LIMIT 1"),
+            text("SELECT legal_name, ruc, trade_name, sunat_environment AS dian_environment FROM companies WHERE tenant_id = :tid LIMIT 1"),
             {"tid": ctx["tenant_id"]},
         )
         row = result.fetchone()
