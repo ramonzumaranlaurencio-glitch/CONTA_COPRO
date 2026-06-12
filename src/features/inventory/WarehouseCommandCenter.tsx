@@ -706,6 +706,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
       if (whRes.ok)   { const d = await whRes.json();   if (Array.isArray(d) && d.length) setWarehouses(d); }
       if (pendingRes.ok) {
         const d = await pendingRes.json();
+        if (Array.isArray(d) && !d.length) { setPendingPurchases([]); }
         if (Array.isArray(d) && d.length) {
           // Mapear el formato del backend al formato del frontend
           const mapped: PendingPurchase[] = d.map((p: any) => ({
