@@ -311,7 +311,7 @@ class LedgerPostingService:
         retefuente = self._as_decimal(purchase_data.get("retefuente_amount", purchase_data.get("detraccion_amount", "0.00")))
         reteiva = self._as_decimal(purchase_data.get("reteiva_amount", purchase_data.get("percepcion_amount", "0.00")))
         retencion = self._as_decimal(purchase_data.get("retencion_amount", "0.00"))
-        payable_balance = (total + reteiva - retencion - retefuente).quantize(Decimal("0.01"))
+        payable_balance = (total - reteiva - retencion - retefuente).quantize(Decimal("0.01"))
         company_id = purchase_data.get("company_id")
         supplier_ruc = purchase_data.get("supplier_nit") or purchase_data.get("supplier_ruc")
         doc_type = purchase_data.get("doc_type", "01")  # Default document type
@@ -503,7 +503,7 @@ class LedgerPostingService:
             if retencion:
                 lines.append({"account_code": "236505", "account_name": "ReteFuente por pagar", "debit": Decimal("0.00"), "credit": retencion, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
             if reteiva:
-                lines.append({"account_code": "236515", "account_name": "ReteIVA por pagar", "debit": reteiva, "credit": Decimal("0.00"), "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
+                lines.append({"account_code": "236515", "account_name": "ReteIVA por pagar", "debit": Decimal("0.00"), "credit": reteiva, "partner_ruc": supplier_ruc, "document_type": doc_type, "document_series": serie, "document_number": number, "cost_center": None})
 
         total_debit = sum(self._as_decimal(line.get("debit")) for line in lines)
         total_credit = sum(self._as_decimal(line.get("credit")) for line in lines)
