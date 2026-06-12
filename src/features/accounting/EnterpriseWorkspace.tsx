@@ -1063,7 +1063,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     const errors: string[] = [];
 
     for (const entryId of entryIds) {
-      const res = await fetch(`${API_BASE}/ledger/journal/${encodeURIComponent(entryId)}`, {
+      const res = await fetch(`${API_BASE}/ledger/purchase-invoice/${encodeURIComponent(entryId)}`, {
         method: 'DELETE',
         headers: authHeaders(tok, tenantId),
       });

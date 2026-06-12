@@ -942,3 +942,63 @@ async def queue_guide_print(payload: GuiaRemisionPrintRequest, ctx=Depends(get_c
             "guide_id": f"{document.series}-{document.number}",
             "printer": payload.printer_name,
         }
+
+
+@router.delete("/purchase-invoice/{entry_id}")
+async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_context)):
+    """
+    Elimina una factura de compra y todos sus registros asociados:
+    FinancialDocument, JournalLines, JournalEntry y KardexMovements vinculados.
+    Solo roles ADMIN / SUPER_ADMIN / CONTA_PRO.
+    """
+    role = str(ctx.get("role", "")).upper()
+    if role not in {"ADMIN", "SUPER_ADMIN", "CONTA_PRO"}:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar comprobantes.")
+
+    from sqlalchemy import text, delete as sa_delete
+    from src.domain.models.inventory import KardexMovement
+
+    tid = ctx["tenant_id"]
+    eid = str(entry_id)
+
+    async with build_uow_factory()(tid) as uow:
+        s = uow.session
+
+        # 1. Verificar que el asiento pertenece al tenant
+        entry = (await s.execute(
+            select(JournalEntry).where(JournalEntry.id == entry_id, JournalEntry.tenant_id == tid)
+        )).scalar_one_or_none()
+        if not entry:
+            raise HTTPException(status_code=404, detail="Comprobante no encontrado.")
+
+        # 2. Obtener source_id para limpiar kardex vinculado
+        source_id = str(entry.source_id or "")
+
+        # 3. Limpiar movimientos de inventario vinculados a esta compra
+        if source_id:
+            await s.execute(
+                sa_delete(KardexMovement).where(
+                    KardexMovement.tenant_id == tid,
+                    KardexMovement.source_document.like(f"{source_id}%"),
+                )
+            )
+
+        # 4. Eliminar FinancialDocument vinculado
+        await s.execute(
+            sa_delete(FinancialDocument).where(
+                FinancialDocument.journal_entry_id == entry_id,
+                FinancialDocument.tenant_id == tid,
+            )
+        )
+
+        # 5. Eliminar líneas del asiento (raw SQL para evitar triggers inmutables)
+        await s.execute(text("DELETE FROM journal_lines WHERE entry_id = :eid"), {"eid": eid})
+
+        # 6. Eliminar el asiento
+        await s.execute(text(
+            "DELETE FROM journal_entries WHERE id = :eid AND tenant_id = :tid"
+        ), {"eid": eid, "tid": tid})
+
+        await uow.commit()
+
+    return {"deleted": True, "entry_id": eid}
