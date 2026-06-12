@@ -1043,7 +1043,8 @@ async def get_pending_purchases(
     con KardexMovement (source_document) para detectar los pendientes.
     """
     from sqlalchemy import select, outerjoin
-    from src.domain.models.accounting import JournalEntry, FinancialDocument
+    from sqlalchemy.orm import selectinload
+    from src.domain.models.accounting import JournalEntry, JournalLine, FinancialDocument
     from src.domain.models.inventory import KardexMovement
 
     PURCHASE_MODULES = ["PURCHASING", "GUIA_REMISION", "COMPRAS", "PURCHASES"]
@@ -1051,7 +1052,9 @@ async def get_pending_purchases(
         PURCHASE_MODULES = [source_module.upper()]
 
     async with UnitOfWork(AsyncSessionLocal, ctx["tenant_id"]) as uow:
-        # 1. Obtener asientos de compra junto con su FinancialDocument (donde viven los items)
+        # 1. Obtener asientos de compra junto con su FinancialDocument (donde viven los items).
+        # selectinload(JournalEntry.lines) garantiza que las líneas del asiento se cargan
+        # incluso en queries con join múltiple (lazy="selectin" no es confiable en joins).
         q = (
             select(JournalEntry, FinancialDocument)
             .outerjoin(
@@ -1063,6 +1066,7 @@ async def get_pending_purchases(
                 JournalEntry.tenant_id == ctx["tenant_id"],
                 JournalEntry.source_module.in_(PURCHASE_MODULES),
             )
+            .options(selectinload(JournalEntry.lines))
             .order_by(JournalEntry.entry_date.desc())
             .limit(limit)
         )
