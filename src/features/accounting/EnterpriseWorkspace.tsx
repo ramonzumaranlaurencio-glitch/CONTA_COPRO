@@ -549,7 +549,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
     const modUp = (r: JournalRow) => String(r.sourceModule ?? '').toUpperCase();
     const ventas = rows.filter(r => modUp(r) === 'BILLING' || modUp(r) === 'VENTAS');
     const compras = rows.filter(r => modUp(r) === 'PURCHASING' || modUp(r) === 'COMPRAS');
-    const ivaRows = rows.filter(r => String(r.account ?? '').startsWith('24'));
+    const ivaRows = rows.filter(r => String(r.account ?? '').startsWith('2408'));
 
     const sumCredit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.credit), 0);
     const sumDebit = (arr: JournalRow[]) => arr.reduce((s, r) => s + toNumber(r.debit), 0);
@@ -1430,7 +1430,7 @@ const [accountDetailOpen, setAccountDetailOpen] = useState(false);
         const first  = lines[0];
         const debit  = lines.reduce((s, l) => s + toNumber(l.debit), 0);
         const credit = lines.reduce((s, l) => s + toNumber(l.credit), 0);
-        const ivaLine = lines.find(l => String(l.account ?? '').startsWith('24'));
+        const ivaLine = lines.find(l => String(l.account ?? '').startsWith('2408'));
         const iva    = ivaLine ? toNumber(ivaLine.debit) || toNumber(ivaLine.credit) : 0;
         const base   = Math.max(debit, credit) - iva;
         const doc = first.documentSeries && first.documentNumber

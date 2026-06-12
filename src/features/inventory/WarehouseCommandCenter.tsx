@@ -1045,7 +1045,7 @@ export default function WarehouseCommandCenter({ apiBase = '/api/v1', token = ''
           const newItem: WarehouseItem = {
             id: `local-${Date.now()}-${p.id}`, sku: code, token_code: code,
             name: catalogMatch?.name || p.product_name,
-            item_class: (cta.startsWith('24') ? 'MATERIA_PRIMA' : cta.startsWith('20') ? 'MERCADERIA' : cta.startsWith('33') ? (tk === 'T' ? 'HERRAMIENTAS' : 'ACTIVO_FIJO') : (nat === 'HE' || nat === 'HT' || nat === 'MQ') ? 'HERRAMIENTAS' : 'INSUMOS') as any,
+            item_class: (cta === '1405' ? 'MATERIA_PRIMA' : cta === '1435' ? 'MERCADERIA' : cta.startsWith('15') ? (tk === 'T' ? 'HERRAMIENTAS' : 'ACTIVO_FIJO') : (nat === 'HE' || nat === 'HT' || nat === 'MQ') ? 'HERRAMIENTAS' : 'INSUMOS') as any,
             token_type: tk === 'P' ? 'PERMANENTE' : 'TEMPORAL', area: p.area,
             unit_of_measure: catalogMatch?.unit || p.unit || 'UND', default_cost: p.unit_cost,
             default_cost_account: cta, default_sales_account: catalogMatch?.gasto || '5175',
