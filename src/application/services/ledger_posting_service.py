@@ -580,10 +580,9 @@ class LedgerPostingService:
                     months_diff,
                 )
 
-        # Build concise financial metadata (short, machine-friendly) to avoid
-        # storing large human-readable texts coming from OCR/AI.
         items = purchase_data.get("line_items") or purchase_data.get("items") or []
         processed_items = []
+        line_items_for_warehouse = []
         for it in items:
             desc = str(it.get("description") or "")
             req_support = any(k in desc.lower() for k in ("requiere sustento", "requiere sustento adicional", "requiere sustento"))
@@ -591,6 +590,30 @@ class LedgerPostingService:
                 "id": it.get("id") or it.get("code"),
                 "code": it.get("code"),
                 "is_inventory": bool(it.get("is_inventory")),
+                "requires_support": req_support,
+            })
+            # Guardar detalle completo para pending-purchases → WarehouseCommandCenter
+            line_items_for_warehouse.append({
+                "code":         it.get("code") or it.get("product_code") or "",
+                "description":  desc[:300],
+                "unit":         it.get("unit") or "UND",
+                "quantity":     it.get("quantity"),
+                "unit_price":   it.get("unit_price"),
+                "line_subtotal":it.get("line_subtotal") or it.get("total_line"),
+                "account_code": it.get("account_code") or "",
+                "account_name": it.get("account_name") or "",
+                "cost_center":  it.get("cost_center") or "",
+                "line_type":    it.get("line_type") or "EXPENSE_OR_ASSET",
+                "is_inventory": bool(it.get("is_inventory")),
+                "item_class":   it.get("item_class") or "",
+                "catalog_code": it.get("catalog_code") or "",
+                "catalog_nat":  it.get("catalog_nat") or "",
+                "catalog_rub":  it.get("catalog_rub") or "GE",
+                "catalog_tk":   it.get("catalog_tk") or "F",
+                "catalog_match":bool(it.get("catalog_match", False)),
+                "gasto_account":it.get("gasto_account") or "",
+                "ai_reason":    str(it.get("ai_reason") or "")[:150],
+                "ai_confidence":it.get("ai_confidence") or 0,
                 "requires_support": req_support,
             })
 
@@ -614,6 +637,7 @@ class LedgerPostingService:
             "reteiva_amount": str(reteiva),
             "retencion_amount": str(retencion),
             "items": processed_items,
+            "line_items": line_items_for_warehouse,
             "accounts_to_upsert": account_upserts,
             "cost_centers_to_upsert": cost_center_upserts,
             "rounding_difference": str(rounding_difference),
