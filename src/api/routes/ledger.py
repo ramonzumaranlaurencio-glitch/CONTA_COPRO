@@ -970,62 +970,50 @@ async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_contex
     """Elimina una factura de compra y sus asientos. Solo ADMIN/SUPER_ADMIN."""
     if ctx.get("role", "").upper() not in ("ADMIN", "SUPER_ADMIN", "CONTA_PRO"):
         raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar facturas.")
-    tenant_id = ctx["tenant_id"]
+    tenant_id = str(ctx["tenant_id"])
     eid = str(entry_id)
 
     from sqlalchemy import text
 
-    # Paso 1 — verificar que el asiento existe
-    async with AsyncSessionLocal() as s:
-        result = await s.execute(
-            text("SELECT id FROM journal_entries WHERE id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"),
-            {"eid": eid, "tid": str(tenant_id)},
-        )
-        if not result.first():
-            raise HTTPException(status_code=404, detail="Asiento no encontrado.")
-
-    # Paso 2 — parchar función para permitir bypass
     try:
         async with AsyncSessionLocal() as s:
-            await s.execute(text(_BYPASS_FN))
-            await s.commit()
-    except Exception as e:
-        logging.warning("No se pudo parchar función trigger: %s", e)
-
-    # Paso 3 — borrar con bypass activo
-    try:
-        async with AsyncSessionLocal() as s:
+            # Configurar tenant (RLS) y habilitar bypass del trigger inmutable
+            await s.execute(text("SELECT set_config('app.current_tenant', :tid, true)"), {"tid": tenant_id})
             await s.execute(text("SELECT set_config('app.allow_admin_delete', 'true', true)"))
-            # Kardex vinculado — SAVEPOINT para no abortar la transacción si la columna no existe
+
+            # Verificar existencia
+            row = (await s.execute(
+                text("SELECT id FROM journal_entries WHERE id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"),
+                {"eid": eid, "tid": tenant_id},
+            )).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="Asiento no encontrado.")
+
+            # Kardex vinculado — SAVEPOINT para no abortar si la columna no existe
             await s.execute(text("SAVEPOINT sp_kardex"))
             try:
                 await s.execute(text(
-                    "DELETE FROM kardex_movements WHERE tenant_id = CAST(:tid AS uuid) AND source_document IN "
-                    "(SELECT source_id FROM journal_entries WHERE id = CAST(:eid AS uuid))"
-                ), {"eid": eid, "tid": str(tenant_id)})
+                    "DELETE FROM kardex_movements WHERE tenant_id = CAST(:tid AS uuid) "
+                    "AND source_document IN (SELECT source_id FROM journal_entries WHERE id = CAST(:eid AS uuid))"
+                ), {"eid": eid, "tid": tenant_id})
                 await s.execute(text("RELEASE SAVEPOINT sp_kardex"))
             except Exception:
                 await s.execute(text("ROLLBACK TO SAVEPOINT sp_kardex"))
+
             await s.execute(text(
                 "DELETE FROM financial_documents WHERE journal_entry_id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"
-            ), {"eid": eid, "tid": str(tenant_id)})
+            ), {"eid": eid, "tid": tenant_id})
             await s.execute(text(
                 "DELETE FROM journal_lines WHERE entry_id = CAST(:eid AS uuid)"
             ), {"eid": eid})
             await s.execute(text(
                 "DELETE FROM journal_entries WHERE id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"
-            ), {"eid": eid, "tid": str(tenant_id)})
+            ), {"eid": eid, "tid": tenant_id})
             await s.commit()
+    except HTTPException:
+        raise
     except Exception as exc:
         logging.exception("Error al eliminar entry_id=%s", entry_id)
         raise HTTPException(status_code=500, detail=f"Errores al eliminar: {exc}") from exc
-    finally:
-        # Paso 4 — restaurar función a modo estricto siempre
-        try:
-            async with AsyncSessionLocal() as s:
-                await s.execute(text(_STRICT_FN))
-                await s.commit()
-        except Exception:
-            pass
 
     return {"deleted": True, "entry_id": eid}

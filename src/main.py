@@ -122,6 +122,16 @@ async def _apply_schema_patches() -> None:
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS brand VARCHAR(100)",
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS specs TEXT",
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS detail_description TEXT",
+        # Reemplazar función immutable trigger con versión bypass-capable para admin delete
+        """CREATE OR REPLACE FUNCTION prevent_immutable_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF current_setting('app.allow_admin_delete', true) = 'true' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'Immutable ledger/audit table cannot be updated or deleted';
+END;
+$$ LANGUAGE plpgsql""",
     ]
     from sqlalchemy import text
     # Reintentar hasta 3 veces — Railway puede tardar unos segundos en levantar la DB
