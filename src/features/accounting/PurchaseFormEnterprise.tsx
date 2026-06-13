@@ -347,6 +347,10 @@ const shouldBypassReview = (item: Pick<PurchaseItem, 'description' | 'code' | 'l
     return true;
   }
   if (item.lineType === 'INFO_ONLY') return true;
+  // Inventario y activos fijos (14xxxx / 15xxxx) — su control es el módulo de almacén, no este formulario
+  if (item.lineType === 'INVENTORY_PURCHASE') return true;
+  const prefix = (normalizeAccount(item.accountCode) || '').slice(0, 2);
+  if (prefix === '14' || prefix === '15') return true;
   return false;
 };
 
@@ -399,6 +403,14 @@ const classifyPurchaseItem = (description: string, providerName = '') => {
   }
   if (/MERCADERIA|PRODUCTO PARA VENTA|INVENTARIO|STOCK/.test(text)) {
     return { accountCode: '143505', accountName: 'Mercancías en almacén (inventario)', costCenter: 'BOG-ALM', taxTreatment: 'Afecta inventario/kardex PUC 143505. Costo promedio o PEPS (Sección 13 NIIF). IVA descontable Art. 485 ET.', aiConfidence: 0.86, aiReason: 'Mercadería/inventario.', requiresReview: false };
+  }
+  // Materiales de construcción y obra — PUC 1405/1430/1435
+  if (/CEMENTO|VARILLA|BLOQUE|LADRILLO|ARENA|TRITURADO|GRAVILLA|ALAMBRE|CLAVO|TABLA|MADERA|PUNTILLA|PERNO|TORNILLO|PINTURA|IMPERMEABILIZANTE|ESTUCO|MASILLA|SILICONA|SELLADOR|ADITIVO|CONCRETO|MORTERO|YESO|DRYWALL|TUBERIA|TUBO PVC|CODO|TEE|VALVULA|LLAVE|GRIFO|SANITARIO|LAVAMANOS|DUCHA|CABLE|TOMA|TOMACORRIENTE|BREAKER|PANEL ELECT|CEMENTO DE CONTACTO/.test(text)) {
+    return { accountCode: '140501', accountName: 'Materiales de construcción en almacén', costCenter: 'BOG-ALM', taxTreatment: 'Inventario materiales construcción PUC 1405. IVA descontable Art. 485 ET. Costo promedio NIIF Sección 13.', aiConfidence: 0.92, aiReason: 'Material de construcción — cuenta inventario 1405.', requiresReview: false };
+  }
+  // Herramientas y equipos menores de obra — PUC 1540/152005
+  if (/MARTILLO|CINCEL|PALA|PICO|PALUSTRO|LLANA|NIVEL|CINTA METRICA|CINTA M[EÉ]TRICA|METROS|PLOMADA|ESCUADRA|SEGUETA|SERRUCHO|TALADRO|PULIDORA|AMOLADORA|COMPRESOR|CARRETILLA|ANDAMIO|ESCALERA|GUANTES|CASCO|BOTAS|OVEROL|GAFAS|DOTACION|EPP/.test(text)) {
+    return { accountCode: '154001', accountName: 'Herramientas y equipos menores', costCenter: 'BOG-ALM', taxTreatment: 'Herramienta menor: gasto si vida útil <1 año (PUC 1540). Activo PPE si >1 año (PUC 152005). IVA descontable Art. 485 ET.', aiConfidence: 0.88, aiReason: 'Herramienta/equipo de obra — cuenta inventario 1540.', requiresReview: false };
   }
 
   return { accountCode: '519099', accountName: 'Otros gastos operacionales', costCenter: DEFAULT_COST_CENTER, taxTreatment: 'Revisar causalidad Art. 107 ET antes de postear. IVA descontable si cumple Art. 485 ET.', aiConfidence: 0.55, aiReason: 'Sin regla específica. Requiere clasificación manual.', requiresReview: true };
