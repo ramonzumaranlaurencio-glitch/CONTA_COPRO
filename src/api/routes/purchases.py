@@ -1456,7 +1456,7 @@ def _normalize_ai_response(data: dict[str, Any]) -> dict[str, Any]:
     data.update({
         "document_type": data.get("document_type") or "RECIBO_SERVICIO",
         "serie": _norm_text(data.get("serie")),
-        "number": _norm_text(data.get("number")),
+        "number": _norm_text(data.get("number") or data.get("invoice_number")),
         "issue_date": _norm_text(data.get("issue_date")),
         "due_date": _norm_text(data.get("due_date")),
         "period": _norm_text(data.get("period")),

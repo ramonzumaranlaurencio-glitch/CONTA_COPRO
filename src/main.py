@@ -101,8 +101,9 @@ async def _apply_schema_patches() -> None:
         "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS tipo_asiento_id INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS asiento_num VARCHAR(24)",
         # financial_documents: columnas adicionales
-        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS sunat_status VARCHAR(20) DEFAULT 'PENDING'",
-        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS metadata_json JSONB",
+        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS sunat_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'",
+        "ALTER TABLE financial_documents ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'",
+        "UPDATE financial_documents SET metadata_json = '{}' WHERE metadata_json IS NULL",
         # kardex_movements: columnas añadidas al modelo pero aún no en BD
         "ALTER TABLE kardex_movements ADD COLUMN IF NOT EXISTS area VARCHAR(50)",
         "ALTER TABLE kardex_movements ADD COLUMN IF NOT EXISTS validated_by VARCHAR(100)",
