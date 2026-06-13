@@ -996,14 +996,16 @@ async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_contex
     try:
         async with AsyncSessionLocal() as s:
             await s.execute(text("SELECT set_config('app.allow_admin_delete', 'true', true)"))
-            # Kardex vinculado (ignorar si columna no existe)
+            # Kardex vinculado — SAVEPOINT para no abortar la transacción si la columna no existe
+            await s.execute(text("SAVEPOINT sp_kardex"))
             try:
                 await s.execute(text(
                     "DELETE FROM kardex_movements WHERE tenant_id = CAST(:tid AS uuid) AND source_document IN "
                     "(SELECT source_id FROM journal_entries WHERE id = CAST(:eid AS uuid))"
                 ), {"eid": eid, "tid": str(tenant_id)})
+                await s.execute(text("RELEASE SAVEPOINT sp_kardex"))
             except Exception:
-                pass
+                await s.execute(text("ROLLBACK TO SAVEPOINT sp_kardex"))
             await s.execute(text(
                 "DELETE FROM financial_documents WHERE journal_entry_id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"
             ), {"eid": eid, "tid": str(tenant_id)})
