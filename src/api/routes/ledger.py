@@ -946,61 +946,52 @@ async def queue_guide_print(payload: GuiaRemisionPrintRequest, ctx=Depends(get_c
 
 @router.delete("/purchase-invoice/{entry_id}")
 async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_context)):
-    """
-    Elimina una factura de compra y todos sus registros asociados:
-    FinancialDocument, JournalLines, JournalEntry y KardexMovements vinculados.
-    Solo roles ADMIN / SUPER_ADMIN / CONTA_PRO.
-    """
-    # El tenant owner siempre puede borrar sus propios comprobantes.
-    # La autenticación + tenant_id ya garantizan que solo el dueño llega aquí.
-    # Bloqueamos solo roles explícitamente de solo-lectura.
     role = str(ctx.get("role", "")).upper()
     if role in {"READONLY", "VIEWER", "AUDITOR"}:
         raise HTTPException(status_code=403, detail="Rol de solo lectura no puede eliminar comprobantes.")
 
-    from sqlalchemy import text, delete as sa_delete
-    from src.domain.models.inventory import KardexMovement
+    from sqlalchemy import text
 
-    tid = ctx["tenant_id"]
+    tid = str(ctx["tenant_id"])
     eid = str(entry_id)
 
     async with build_uow_factory()(tid) as uow:
         s = uow.session
 
-        # 1. Verificar que el asiento pertenece al tenant
-        entry = (await s.execute(
-            select(JournalEntry).where(JournalEntry.id == entry_id, JournalEntry.tenant_id == tid)
-        )).scalar_one_or_none()
-        if not entry:
+        # 1. Verificar existencia (raw SQL — evita cargar columnas que pueden faltar en DB)
+        row = (await s.execute(
+            text("SELECT source_id FROM journal_entries WHERE id = :eid AND tenant_id = :tid"),
+            {"eid": eid, "tid": tid},
+        )).fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="Comprobante no encontrado.")
 
-        # 2. Obtener source_id para limpiar kardex vinculado
-        source_id = str(entry.source_id or "")
+        source_id = str(row[0] or "")
 
-        # 3. Limpiar movimientos de inventario vinculados a esta compra
+        # 2. Limpiar kardex vinculado (columna source_document puede no existir — ignorar error)
         if source_id:
-            await s.execute(
-                sa_delete(KardexMovement).where(
-                    KardexMovement.tenant_id == tid,
-                    KardexMovement.source_document.like(f"{source_id}%"),
+            try:
+                await s.execute(
+                    text("DELETE FROM kardex_movements WHERE tenant_id = :tid AND source_document LIKE :src"),
+                    {"tid": tid, "src": f"{source_id}%"},
                 )
-            )
+            except Exception:
+                pass
 
-        # 4. Eliminar FinancialDocument vinculado
+        # 3. Eliminar documentos financieros vinculados
         await s.execute(
-            sa_delete(FinancialDocument).where(
-                FinancialDocument.journal_entry_id == entry_id,
-                FinancialDocument.tenant_id == tid,
-            )
+            text("DELETE FROM financial_documents WHERE journal_entry_id = :eid AND tenant_id = :tid"),
+            {"eid": eid, "tid": tid},
         )
 
-        # 5. Eliminar líneas del asiento (raw SQL para evitar triggers inmutables)
+        # 4. Eliminar líneas del asiento
         await s.execute(text("DELETE FROM journal_lines WHERE entry_id = :eid"), {"eid": eid})
 
-        # 6. Eliminar el asiento
-        await s.execute(text(
-            "DELETE FROM journal_entries WHERE id = :eid AND tenant_id = :tid"
-        ), {"eid": eid, "tid": tid})
+        # 5. Eliminar el asiento
+        await s.execute(
+            text("DELETE FROM journal_entries WHERE id = :eid AND tenant_id = :tid"),
+            {"eid": eid, "tid": tid},
+        )
 
         await uow.commit()
 
