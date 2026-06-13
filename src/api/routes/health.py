@@ -6,6 +6,17 @@ router = APIRouter(tags=["Health"])
 async def health():
     return {"status": "ok", "service": "CONTA_PRO Enterprise"}
 
+
+@router.post("/admin/apply-patches")
+async def apply_patches_manual():
+    """Fuerza los patches de esquema DB. Llamar una vez tras deploy si hay 500 en inventario."""
+    try:
+        from src.main import _apply_schema_patches
+        await _apply_schema_patches()
+        return {"status": "ok", "message": "Patches aplicados correctamente."}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
 @router.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)

@@ -124,16 +124,22 @@ async def _apply_schema_patches() -> None:
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS detail_description TEXT",
     ]
     from sqlalchemy import text
-    try:
-        async with AsyncSessionLocal() as session:
-            for sql in patches:
-                try:
-                    await session.execute(text(sql))
-                except Exception:
-                    pass  # columna ya existe u otro error no crítico
-            await session.commit()
-    except Exception:
-        pass  # BD no disponible en arranque — ignorar
+    # Reintentar hasta 3 veces — Railway puede tardar unos segundos en levantar la DB
+    for attempt in range(3):
+        try:
+            async with AsyncSessionLocal() as session:
+                applied = 0
+                for sql in patches:
+                    try:
+                        await session.execute(text(sql))
+                        applied += 1
+                    except Exception:
+                        pass  # columna ya existe u otro error no crítico
+                await session.commit()
+            return  # éxito — salir del loop
+        except Exception:
+            if attempt < 2:
+                await asyncio.sleep(3)  # esperar 3 s antes del siguiente intento
 
 
 @asynccontextmanager
