@@ -347,7 +347,7 @@ class LedgerPostingService:
                     )
                 )
             )
-            existing_document = existing_result.scalar_one_or_none()
+            existing_document = existing_result.scalars().first()
 
             if existing_document:
                 differences = self._existing_purchase_differences(
@@ -419,7 +419,7 @@ class LedgerPostingService:
                             )
                         )
                     )
-                    existing_entry = existing_entry_result.scalar_one_or_none()
+                    existing_entry = existing_entry_result.scalars().first()
                     if existing_entry:
                         return existing_entry
 

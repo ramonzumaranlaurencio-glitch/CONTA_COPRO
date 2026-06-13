@@ -824,7 +824,7 @@ async def save_guia_remision(payload: GuiaRemisionRequest, ctx=Depends(get_curre
                 )
             )
         )
-        document = existing.scalar_one_or_none()
+        document = existing.scalars().first()
 
         issue_date = date.fromisoformat(payload.issueDate)
         metadata = {
