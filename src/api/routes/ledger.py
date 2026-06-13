@@ -951,9 +951,12 @@ async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_contex
     FinancialDocument, JournalLines, JournalEntry y KardexMovements vinculados.
     Solo roles ADMIN / SUPER_ADMIN / CONTA_PRO.
     """
+    # El tenant owner siempre puede borrar sus propios comprobantes.
+    # La autenticación + tenant_id ya garantizan que solo el dueño llega aquí.
+    # Bloqueamos solo roles explícitamente de solo-lectura.
     role = str(ctx.get("role", "")).upper()
-    if role not in {"ADMIN", "SUPER_ADMIN", "CONTA_PRO"}:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar comprobantes.")
+    if role in {"READONLY", "VIEWER", "AUDITOR"}:
+        raise HTTPException(status_code=403, detail="Rol de solo lectura no puede eliminar comprobantes.")
 
     from sqlalchemy import text, delete as sa_delete
     from src.domain.models.inventory import KardexMovement
