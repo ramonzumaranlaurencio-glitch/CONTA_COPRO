@@ -446,6 +446,7 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
   const [aiTaxWarnings, setAiTaxWarnings] = useState<string[]>([]);
   const [aiLegalWarnings, setAiLegalWarnings] = useState<string[]>([]);
   const [aiAccountingWarnings, setAiAccountingWarnings] = useState<string[]>([]);
+  const [showWarnings, setShowWarnings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showModify, setShowModify] = useState(false);
   const [modifyReason, setModifyReason] = useState('');
@@ -1066,25 +1067,43 @@ export const PurchaseFormEnterprise = ({ form, onFormChange, tenantId, onClose, 
         <MessageBar intent={rucState === 'valid' ? 'success' : rucState === 'invalid' ? 'error' : 'info'}><MessageBarBody>{rucMessage}</MessageBarBody></MessageBar>
       </div>
 
-      {aiWarnings.length > 0 && (
-        <MessageBar intent="warning"><MessageBarBody>{aiWarnings.join(' | ')}</MessageBarBody></MessageBar>
-      )}
-      {(aiTaxWarnings.length > 0 || aiLegalWarnings.length > 0 || aiAccountingWarnings.length > 0) && (
-        <MessageBar intent="warning">
-          <MessageBarBody>
-            {[...aiTaxWarnings, ...aiLegalWarnings, ...aiAccountingWarnings].join(' | ')}
-          </MessageBarBody>
-        </MessageBar>
-      )}
       {aiTotalReadFromDocument && (
         <MessageBar intent={aiReconciliationStatus === 'OK' ? 'success' : 'warning'}>
           <MessageBarBody>
-            Total leído del comprobante: $ {aiTotalReadFromDocument}
-            {aiReconciliationStatus ? ` | Conciliación: ${aiReconciliationStatus}` : ''}
+            Total IA: <strong>${aiTotalReadFromDocument}</strong>
+            {aiReconciliationStatus && aiReconciliationStatus !== 'OK' ? ` | Conciliación: ${aiReconciliationStatus}` : ''}
             {aiReconciliationDifference && aiReconciliationDifference !== '0.00' ? ` | Diferencia: ${aiReconciliationDifference}` : ''}
           </MessageBarBody>
         </MessageBar>
       )}
+      {(() => {
+        const allWarnings = [...aiWarnings, ...aiTaxWarnings, ...aiLegalWarnings, ...aiAccountingWarnings];
+        if (allWarnings.length === 0) return null;
+        const critical = allWarnings.filter(w => /retenci|retiene|retef|reteiva|reteica|diferencia|descuadra|inválid|error|falta|incompleto/i.test(w));
+        return (
+          <MessageBar intent={critical.length > 0 ? 'warning' : 'info'}>
+            <MessageBarBody style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>
+                {critical.length > 0
+                  ? `${critical.length} aviso${critical.length > 1 ? 's' : ''} importante${critical.length > 1 ? 's' : ''}`
+                  : `${allWarnings.length} nota${allWarnings.length > 1 ? 's' : ''} IA`}
+              </span>
+              <button
+                type="button"
+                style={{ fontSize: '11px', padding: '2px 8px', cursor: 'pointer', borderRadius: '4px', border: '1px solid currentColor', background: 'transparent', color: 'inherit' }}
+                onClick={() => setShowWarnings(v => !v)}
+              >
+                {showWarnings ? 'Ocultar' : 'Ver detalle'}
+              </button>
+              {showWarnings && (
+                <div style={{ width: '100%', marginTop: '6px', fontSize: '12px', lineHeight: '1.5', maxHeight: '160px', overflowY: 'auto' }}>
+                  {allWarnings.map((w, i) => <div key={i} style={{ padding: '2px 0', borderBottom: '1px solid rgba(128,128,128,0.2)' }}>{w}</div>)}
+                </div>
+              )}
+            </MessageBarBody>
+          </MessageBar>
+        );
+      })()}
 
       <section className="dashboard-card pro-section">
         <div className="pro-section-header">
