@@ -163,7 +163,7 @@ async def _invoice_persistence_diagnostics(tenant_id: str, entry_id: UUID, paylo
                 .options(selectinload(JournalEntry.lines))
                 .where(JournalEntry.tenant_id == tenant_id, JournalEntry.id == entry_id)
             )
-            entry = entry_result.scalar_one_or_none()
+            entry = entry_result.scalars().first()
 
             document_result = await uow.session.execute(
                 select(FinancialDocument).where(
@@ -176,7 +176,7 @@ async def _invoice_persistence_diagnostics(tenant_id: str, entry_id: UUID, paylo
                     )
                 )
             )
-            document = document_result.scalar_one_or_none()
+            document = document_result.scalars().first()
 
         diagnostics["commit_confirmed"] = bool(entry and document)
         diagnostics["select_returned_rows"] = {
@@ -700,7 +700,7 @@ async def validate_document_modification(payload: DocumentModificationRequest, c
                 )
             )
         )
-        document = result.scalar_one_or_none()
+        document = result.scalars().first()
         if document is None:
             raise HTTPException(status_code=404, detail="Documento no encontrado")
 
@@ -711,7 +711,7 @@ async def validate_document_modification(payload: DocumentModificationRequest, c
                 AccountingPeriod.month == document.issue_date.month,
             )
         )
-        period = period_result.scalar_one_or_none()
+        period = period_result.scalars().first()
         periodo_declarado = payload.periodo_declarado or bool(period and (period.is_closed or period.status.upper() in {"CLOSED", "DECLARED"}))
 
         old_payload = _document_to_old_payload(document)
@@ -901,7 +901,7 @@ async def guide_pdf(payload: GuiaRemisionPdfRequest, ctx=Depends(get_current_con
                 )
             )
         )
-        document = result.scalar_one_or_none()
+        document = result.scalars().first()
         if document is None:
             raise HTTPException(status_code=404, detail="Guia no encontrada")
 
@@ -930,7 +930,7 @@ async def queue_guide_print(payload: GuiaRemisionPrintRequest, ctx=Depends(get_c
                 )
             )
         )
-        document = result.scalar_one_or_none()
+        document = result.scalars().first()
         if document is None:
             raise HTTPException(status_code=404, detail="Guia no encontrada")
 

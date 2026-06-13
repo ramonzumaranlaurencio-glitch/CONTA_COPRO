@@ -23,9 +23,11 @@ class LedgerRepository:
         result = await self.session.execute(
             select(AccountingPeriod)
             .where(AccountingPeriod.tenant_id == tenant_id, AccountingPeriod.year == year, AccountingPeriod.month == month)
-            .with_for_update()
+            .order_by(AccountingPeriod.id)
+            .limit(1)
+            .with_for_update(skip_locked=True)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_last_entry_for_update(self, tenant_id):
         result = await self.session.execute(
@@ -33,9 +35,9 @@ class LedgerRepository:
             .where(JournalEntry.tenant_id == tenant_id)
             .order_by(JournalEntry.created_at.desc(), JournalEntry.id.desc())
             .limit(1)
-            .with_for_update()
+            .with_for_update(skip_locked=True)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def add_entry(self, entry, lines):
         self.session.add(entry)
@@ -53,7 +55,7 @@ class LedgerRepository:
             .options(selectinload(JournalEntry.lines))
             .where(JournalEntry.tenant_id == tenant_id, JournalEntry.id == entry_id)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def add_audit(self, audit: AuditLog):
         self.session.add(audit)
@@ -233,7 +235,7 @@ async def _repo_upsert_chart_account(
     result = await self.session.execute(
         _select(_ChartAccount).where(_and_(*conditions))
     )
-    account = result.scalar_one_or_none()
+    account = result.scalars().first()
 
     if account is None:
         kwargs = {
@@ -294,7 +296,7 @@ async def _repo_upsert_cost_center(
     result = await self.session.execute(
         _select(_CostCenter).where(_and_(*conditions))
     )
-    center = result.scalar_one_or_none()
+    center = result.scalars().first()
 
     if center is None:
         kwargs = {
@@ -331,7 +333,7 @@ async def _repo_get_entry_with_lines(self, tenant_id: str, entry_id):
             )
         )
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 if not hasattr(LedgerRepository, "upsert_chart_account"):
