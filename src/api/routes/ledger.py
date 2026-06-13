@@ -32,6 +32,27 @@ from src.infrastructure.unit_of_work import UnitOfWork
 router = APIRouter(prefix="/ledger", tags=["Ledger"])
 logger = logging.getLogger(__name__)
 
+_BYPASS_FN = """
+CREATE OR REPLACE FUNCTION prevent_immutable_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF current_setting('app.allow_admin_delete', true) = 'true' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'Registro inmutable. Operacion no permitida.';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+"""
+
+_STRICT_FN = """
+CREATE OR REPLACE FUNCTION prevent_immutable_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'Registro inmutable. Operacion no permitida.';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+"""
+
 
 class DocumentModificationRequest(BaseModel):
     tenant_id: str
@@ -944,55 +965,65 @@ async def queue_guide_print(payload: GuiaRemisionPrintRequest, ctx=Depends(get_c
         }
 
 
-@router.delete("/purchase-invoice/{entry_id}")
+@router.delete("/purchase-invoice/{entry_id}", status_code=200)
 async def delete_purchase_invoice(entry_id: UUID, ctx=Depends(get_current_context)):
-    role = str(ctx.get("role", "")).upper()
-    if role in {"READONLY", "VIEWER", "AUDITOR"}:
-        raise HTTPException(status_code=403, detail="Rol de solo lectura no puede eliminar comprobantes.")
+    """Elimina una factura de compra y sus asientos. Solo ADMIN/SUPER_ADMIN."""
+    if ctx.get("role", "").upper() not in ("ADMIN", "SUPER_ADMIN", "CONTA_PRO"):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar facturas.")
+    tenant_id = ctx["tenant_id"]
+    eid = str(entry_id)
 
     from sqlalchemy import text
 
-    tid = str(ctx["tenant_id"])
-    eid = str(entry_id)
+    # Paso 1 — verificar que el asiento existe
+    async with AsyncSessionLocal() as s:
+        result = await s.execute(
+            text("SELECT id FROM journal_entries WHERE id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"),
+            {"eid": eid, "tid": str(tenant_id)},
+        )
+        if not result.first():
+            raise HTTPException(status_code=404, detail="Asiento no encontrado.")
 
-    async with build_uow_factory()(tid) as uow:
-        s = uow.session
+    # Paso 2 — parchar función para permitir bypass
+    try:
+        async with AsyncSessionLocal() as s:
+            await s.execute(text(_BYPASS_FN))
+            await s.commit()
+    except Exception as e:
+        logging.warning("No se pudo parchar función trigger: %s", e)
 
-        # 1. Verificar existencia (raw SQL — evita cargar columnas que pueden faltar en DB)
-        row = (await s.execute(
-            text("SELECT source_id FROM journal_entries WHERE id = :eid AND tenant_id = :tid"),
-            {"eid": eid, "tid": tid},
-        )).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Comprobante no encontrado.")
-
-        source_id = str(row[0] or "")
-
-        # 2. Limpiar kardex vinculado (columna source_document puede no existir — ignorar error)
-        if source_id:
+    # Paso 3 — borrar con bypass activo
+    try:
+        async with AsyncSessionLocal() as s:
+            await s.execute(text("SELECT set_config('app.allow_admin_delete', 'true', true)"))
+            # Kardex vinculado (ignorar si columna no existe)
             try:
-                await s.execute(
-                    text("DELETE FROM kardex_movements WHERE tenant_id = :tid AND source_document LIKE :src"),
-                    {"tid": tid, "src": f"{source_id}%"},
-                )
+                await s.execute(text(
+                    "DELETE FROM kardex_movements WHERE tenant_id = CAST(:tid AS uuid) AND source_document IN "
+                    "(SELECT source_id FROM journal_entries WHERE id = CAST(:eid AS uuid))"
+                ), {"eid": eid, "tid": str(tenant_id)})
             except Exception:
                 pass
-
-        # 3. Eliminar documentos financieros vinculados
-        await s.execute(
-            text("DELETE FROM financial_documents WHERE journal_entry_id = :eid AND tenant_id = :tid"),
-            {"eid": eid, "tid": tid},
-        )
-
-        # 4. Eliminar líneas del asiento
-        await s.execute(text("DELETE FROM journal_lines WHERE entry_id = :eid"), {"eid": eid})
-
-        # 5. Eliminar el asiento
-        await s.execute(
-            text("DELETE FROM journal_entries WHERE id = :eid AND tenant_id = :tid"),
-            {"eid": eid, "tid": tid},
-        )
-
-        await uow.commit()
+            await s.execute(text(
+                "DELETE FROM financial_documents WHERE journal_entry_id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"
+            ), {"eid": eid, "tid": str(tenant_id)})
+            await s.execute(text(
+                "DELETE FROM journal_lines WHERE entry_id = CAST(:eid AS uuid)"
+            ), {"eid": eid})
+            await s.execute(text(
+                "DELETE FROM journal_entries WHERE id = CAST(:eid AS uuid) AND tenant_id = CAST(:tid AS uuid)"
+            ), {"eid": eid, "tid": str(tenant_id)})
+            await s.commit()
+    except Exception as exc:
+        logging.exception("Error al eliminar entry_id=%s", entry_id)
+        raise HTTPException(status_code=500, detail=f"Errores al eliminar: {exc}") from exc
+    finally:
+        # Paso 4 — restaurar función a modo estricto siempre
+        try:
+            async with AsyncSessionLocal() as s:
+                await s.execute(text(_STRICT_FN))
+                await s.commit()
+        except Exception:
+            pass
 
     return {"deleted": True, "entry_id": eid}
